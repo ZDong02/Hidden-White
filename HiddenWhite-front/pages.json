@@ -35,6 +35,33 @@
         "backgroundColorTop": "#fbfaf7",
         "backgroundColorBottom": "#fbfaf7"
       }
+    },
+    {
+      "path": "pages/order/order",
+      "style": {
+        "navigationBarTitleText": "取餐订单",
+        "navigationStyle": "custom",
+        "backgroundColorTop": "#fbfaf7",
+        "backgroundColorBottom": "#fbfaf7"
+      }
+    },
+    {
+      "path": "pages/member/member",
+      "style": {
+        "navigationBarTitleText": "会员中心",
+        "navigationStyle": "custom",
+        "backgroundColorTop": "#fbfaf7",
+        "backgroundColorBottom": "#fbfaf7"
+      }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom",
+        "backgroundColorTop": "#fbfaf7",
+        "backgroundColorBottom": "#fbfaf7"
+      }
     }
   ],
   "globalStyle": {

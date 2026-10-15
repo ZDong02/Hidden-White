@@ -114,10 +114,10 @@ D:/Hidden White/
 | 目录 | 职责 |
 | --- | --- |
 | `pages/` | 7 个业务页面，按 `pages.json` 注册 |
-| `components/` | 5 个共享组件：PhoneHeader（模拟手机头部）、HomeIndicator（底部指示条）、MainTabBar（标签栏）、StoreLine（门店信息行）、OrderItem（订单项） |
+| `components/` | 5 个共享组件：PhoneHeader（模拟手机头部）、HomeIndicator（底部指示条）、MainTabBar（标签栏）、StoreLine（门店信息行）、OrderItem（订单项）；`components/ui/` 子目录含 5 个统一 UI 组件：Card（卡片）、Button（按钮）、Input（输入框）、Stepper（数字步进器）、Modal（底部弹窗） |
 | `store/` | 状态管理：`index.js`（购物车/订单/商品，基于 Vue `reactive` 的轻量实现，本地存储持久化）、`auth.js`（登录态） |
-| `config/` | `backend.js`（统一请求封装 `requestApi` + 后端地址配置）、`constants.js`（门店、业务规则、选项、图片路径等常量） |
-| `utils/` | `format.js`（日期/取餐号/预计完成时间）、`navigation.js`（页面导航封装）、`validation.js`（购物车校验） |
+| `config/` | `backend.js`（统一请求封装 `requestApi` + 后端地址自动解析）、`backend-hosts.js`（候选后端地址列表，换网络只需改此文件）、`constants.js`（门店、业务规则、选项、图片路径等常量） |
+| `utils/` | 10 个工具模块：`format.js`（日期/取餐号/预计完成时间）、`navigation.js`（页面导航封装）、`validation.js`（购物车校验）、`price.js`（价格计算）、`storage.js`（防抖本地存储）、`toast.js`（统一提示）、`datetime.js`（日期时间增强）、`validators.js`（表单验证）、`image.js`（图片资源管理）、`composables.js`（Vue 组合式函数） |
 | `data/products.js` | 静态商品数据：API 加载前的初始渲染数据、后端不可用时的兜底、商品分类的唯一来源 |
 | `static/` | 图片资源（咖啡产品图、图标；图标由 SVG 经脚本生成 PNG） |
 | `scripts/` | `run-uni.cjs`（开发/构建统一入口）、`generate-icons.cjs`（SVG → PNG 图标生产链） |
@@ -125,7 +125,7 @@ D:/Hidden White/
 
 ### 4.4 关键设计与机制
 
-- **统一请求**：全项目唯一 `uni.request` 调用点在 `config/backend.js` 的 `requestApi`，组件禁止裸调（CODESTYLE 强制）。当前 `API_BASE_URL` 为开发机局域网地址（`http://10.30.72.77:8080/api`），更换网络需同步改为运行后端电脑的 IPv4。
+- **统一请求与后端地址自动解析**：全项目唯一 `uni.request` 调用点在 `config/backend.js` 的 `requestApi`，组件禁止裸调（CODESTYLE 强制）。后端地址不再硬编码 IP，而是按以下优先级解析：① 运行时手动覆盖（"我的"页可配置）→ ② 构建期环境变量 `VITE_API_BASE_URL` → ③ H5 开发态相对路径 `/api`（vite 代理）→ ④ 按 `config/backend-hosts.js` 候选地址列表做 `/api/health` 健康检查，第一个连通的即生效并缓存 → ⑤ 兜底 `localhost:8080`。更换网络只需修改 `backend-hosts.js` 中的候选 IP，无需改动业务代码。
 - **数据实时性**：首页、订单、会员页在 `onShow`（切换/回到页面）时自动重新拉取商品、订单、权益与门店信息——管理端改动后点单端切页即见。
 - **营业状态管控**：门店打烊时禁止结算（前端拦截 + 后端规则）。
 - **本地兜底**：后端不可用时使用 `data/products.js` 静态数据渲染，购物车/订单持久化在本地存储。
@@ -368,10 +368,10 @@ npm run dev:h5          # http://127.0.0.1:xxxx（H5 调试）
 
 ### 10.2 已知事项与待办
 
-1. **小程序 appid 不一致**：`manifest.json` 中为 HBuilderX 游客占位 `touristappid`，`project.config.json` 中为正式 appid，正式发布前必须统一。
-2. **点单端局域网地址**：`config/backend.js` 的 `API_BASE_URL` 为开发机 IP（10.30.72.77），网络环境变化时需手动更新。
+1. ~~**小程序 appid 不一致**~~ ✅ 已修复（2026-10-16）：`manifest.json` 的 `mp-weixin.appid` 已统一为正式 appid `wx90d8af9ad4e52689`，与 `project.config.json` 一致。
+2. ~~**点单端局域网地址硬编码**~~ ✅ 已重构（2026-10-15）：后端地址已改为 `config/backend-hosts.js` 候选列表 + 启动时 `/api/health` 自动探测机制，换网络只需修改候选 IP，无需改动业务代码。
 3. **版本管理薄弱**：工作区基本无 Git 覆盖（仅 HiddenWhite-admin 有开源快照提交），依赖 `_archive/` 手工备份与 changelog 维系历史。
-4. **工程清理计划（已决策待执行）**：删除 `_archive/` 合并备份与各构建产物/缓存；清理点单端未引用资源与管理端孤立组件/死代码；移除冗余依赖（cross-env 等）；清理后需重新执行三端构建与测试验证。
+4. **工程清理计划（部分执行）**：`cross-env` 冗余依赖已移除；`_archive/` 合并备份待评估是否删除；点单端未引用资源与管理端孤立组件/死代码清理待执行；清理后需重新执行三端构建与测试验证。
 
 ---
 
@@ -381,7 +381,7 @@ npm run dev:h5          # http://127.0.0.1:xxxx（H5 调试）
 | --- | --- |
 | 全工作区代码规范 | `CODESTYLE.md` |
 | 点单端页面与交互 | `HiddenWhite-front/pages/`、`pages.json` |
-| 点单端请求与后端地址 | `HiddenWhite-front/config/backend.js` |
+| 点单端请求与后端地址 | `HiddenWhite-front/config/backend.js`、`HiddenWhite-front/config/backend-hosts.js` |
 | 点单端购物车/订单状态 | `HiddenWhite-front/store/index.js` |
 | 管理端权限与动态菜单 | `HiddenWhite-admin-front/src/composables/auth.ts` |
 | 管理端页面清单与接口映射 | `HiddenWhite-admin/PROJECT_MAP.md` |
@@ -394,4 +394,4 @@ npm run dev:h5          # http://127.0.0.1:xxxx（H5 调试）
 
 ---
 
-*本文档基于 2026-10-13 工作区实际代码与文档梳理生成；如代码发生重大变更，请同步更新。*
+*本文档基于 2026-10-13 工作区实际代码与文档梳理生成，2026-10-16 更新点单端组件化重构与后端地址自动解析机制；如代码发生重大变更，请同步更新。*
