@@ -5,17 +5,11 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Properties;
-import java.util.stream.Stream;
 
 /**
  * 本地开发库初始化工具：
- * - 导入 database/hidden_white_mysql.sql（咖啡业务表：小程序端 + 管理端共用）
- * - 按版本号顺序导入 database/admin/V*__*.sql（管理端系统表 + 种子数据 + 各模块菜单）
- *   V1 系统表 / V2 种子数据 / V3 咖啡运营菜单 / V4 门店运营表+菜单
- * - 也可直接执行 database/init.sql 整合版一键初始化
+ * - 直接执行 database/init.sql（整合版，包含全部业务表 + 系统表 + 种子数据 + 各模块菜单）
  * 连接信息与 application.yml 使用同一组环境变量（DB_HOST / DB_PORT / DB_NAME / DB_USERNAME / DB_PASSWORD）。
  * 传入参数 fix 时先删除并重建数据库。
  * 运行方式（项目根目录）：
@@ -48,28 +42,17 @@ public class DbInit {
             s.execute("CREATE DATABASE IF NOT EXISTS `" + db + "` DEFAULT CHARSET utf8mb4 COLLATE utf8mb4_general_ci");
         }
 
-        Path root = Path.of("database");
-        List<Path> files;
-        try (Stream<Path> stream = Files.list(root.resolve("admin"))) {
-            List<Path> adminScripts = stream.filter(f -> f.getFileName().toString().matches("V\\d+__.*\\.sql"))
-                    .sorted(Comparator.comparingInt(DbInit::version))
-                    .toList();
-            files = Stream.concat(Stream.of(root.resolve("hidden_white_mysql.sql")), adminScripts.stream()).toList();
+        Path initScript = Path.of("database", "init.sql");
+        if (!Files.exists(initScript)) {
+            throw new IllegalStateException("找不到数据库初始化脚本: " + initScript.toAbsolutePath());
         }
 
         try (Connection c = DriverManager.getConnection(String.format("jdbc:mysql://%s:%s/%s?%s", host, port, db, params), properties);
              Statement s = c.createStatement()) {
-            for (Path f : files) {
-                System.out.println("导入: " + f);
-                s.execute(Files.readString(f));
-            }
+            System.out.println("导入: " + initScript);
+            s.execute(Files.readString(initScript));
         }
         System.out.println("数据库初始化完成");
-    }
-
-    private static int version(Path file) {
-        String name = file.getFileName().toString();
-        return Integer.parseInt(name.substring(1, name.indexOf("__")));
     }
 
     private static String env(String key, String fallback) {

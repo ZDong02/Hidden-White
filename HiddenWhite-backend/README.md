@@ -56,10 +56,5 @@ Spring Boot 3.5.14 · Java 17 · MyBatis-Plus 3.5.16（管理端）+ Spring JDBC
 
 ## 数据库脚本
 
-- `database/init.sql`：**整合版一键初始化脚本**（推荐），包含全部业务表 + 系统表 + 种子数据 + 各模块菜单，幂等可重复运行
-- `database/hidden_white_mysql.sql`：咖啡业务表（商品、订单、会员、门店等）+ 演示数据
-- `database/admin/V1__init_schema.sql` + `V2__seed_data.sql`：管理端系统表与种子数据
-- `database/admin/V3__coffee_menus.sql`：咖啡运营模块菜单与权限
-- `database/admin/V4__shop_operation.sql` + `V4__shop_operation_menus.sql`：门店运营表结构（营业状态/时段/日流量）与菜单权限
-
-`DbInit` 工具会自动按版本顺序执行 `hidden_white_mysql.sql` + `admin/V*.sql`；也可直接手动执行 `init.sql`。
+- `database/init.sql`：**唯一的完整初始化脚本**，包含全部业务表 + 系统表 + 种子数据 + 各模块菜单，幂等可重复运行
+- 执行方式：`mysql -uroot -p < database/init.sql`，或使用 `DbInit` 工具自动执行

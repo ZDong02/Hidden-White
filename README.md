@@ -96,7 +96,7 @@ cd HiddenWhite-backend
 mvn -q compile exec:java -Dexec.mainClass=com.hiddenwhite.tools.DbInit
 ```
 
-这会创建 `hidden_white` 库，执行全部迁移脚本（业务表 + 系统表 + 种子数据），脚本幂等可重复执行。
+这会创建 `hidden_white` 库并执行 `database/init.sql`（全部业务表 + 系统表 + 种子数据 + 各模块菜单），脚本幂等可重复执行。也可直接手动执行 `mysql -uroot -p < database/init.sql`。
 
 ### 2. 启动后端
 

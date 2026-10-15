@@ -281,14 +281,11 @@ java -jar target\hiddenwhite-server-0.2.0-SNAPSHOT.jar
 
 | 脚本 | 内容 |
 | --- | --- |
-| `HiddenWhite-backend/database/hidden_white_mysql.sql` | 8 张点单业务表：`stores`（门店）、`products`（商品）、`product_options`（规格选项）、`members`（会员）、`users`（点单端账号）、`member_benefits`（会员权益）、`orders`（订单）、`order_items`（订单明细）+ 种子数据 |
-| `HiddenWhite-backend/database/admin/V1__init_schema.sql` | 16 张系统表：用户、角色、菜单及关联、部门、岗位及关联、字典类型/数据、参数、登录日志、操作日志、代码生成配置 |
-| `HiddenWhite-backend/database/admin/V2__seed_data.sql` | 系统种子数据：管理员账号、内置角色、菜单与权限码、字典、参数 |
-| `HiddenWhite-backend/database/admin/V3__coffee_menus.sql` | 「咖啡运营」菜单目录、6 个页面菜单与 16 个按钮权限 |
+| `HiddenWhite-backend/database/init.sql` | **唯一的完整初始化脚本**，按执行顺序整合：8 张点单业务表（stores/products/product_options/members/users/member_benefits/orders/order_items）+ 演示数据；16 张系统表（用户/角色/菜单/部门/岗位/字典/参数/日志/代码生成）；系统种子数据（管理员账号/内置角色/菜单权限码/字典/参数）；咖啡运营模块菜单与权限；门店运营表结构（store_hours/store_daily_traffic/stores 营业状态字段）与菜单权限 |
 
 **审计字段**：业务表默认包含 `create_by`、`update_by`、`create_time`、`update_time` 四个审计字段（日志表、字典表、关联中间表等可例外）。
 
-**结构变更原则**（CODESTYLE）：结构变更写入迁移脚本并同步整合版 SQL，禁止只改库不改脚本。
+**结构变更原则**（CODESTYLE）：结构变更直接更新 `init.sql`（保持幂等），禁止只改库不改脚本。
 
 ---
 
