@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: hiddenwhite-server
+  # 本地默认走 dev（开启 SQL 日志）；生产用环境变量 SPRING_PROFILES_ACTIVE=prod 覆盖
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 小程序端与管理端共用 hidden_white 单库；可用环境变量覆盖
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:hidden_white}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:123456}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      data-source-properties:
+        connectionTimeZone: ${DB_TIMEZONE:+08:00}
+        forceConnectionTimeZoneToSession: true
+  sql:
+    init:
+      mode: never
+
+server:
+  port: ${SERVER_PORT:8080}
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    call-setters-on-nulls: true
+    # 日志实现统一交给 Slf4j（由 Spring Boot 日志体系管控）；
+    # dev profile 会用 StdOutImpl 覆盖，见 application-dev.yml
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+  configuration-properties:
+    # 咖啡业务表所在库名占位（CoffeeMapper 中以 ${coffeeDb} 引用）
+    coffeeDb: ${COFFEE_DB_NAME:hidden_white}
+
+logging:
+  level:
+    root: info
+    com.hiddenwhite: info
+
+hiddenwhite:
+  jwt:
+    # 生产环境务必通过环境变量 JWT_SECRET 覆盖；默认值仅供本地开发
+    secret: ${JWT_SECRET:dev-only-0123456789abcdef0123456789abcdef}
+    expires-seconds: ${JWT_EXPIRES_SECONDS:7200}
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

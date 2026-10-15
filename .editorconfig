@@ -1,0 +1,25 @@
+# 隐白咖啡（Hidden White）统一编辑器配置 —— 覆盖工作区全部子项目
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Java / XML 后端源码使用 4 空格缩进
+[*.{java,xml}]
+indent_size = 4
+
+# Markdown 保留行尾空格（换行语义）
+[*.{md,markdown}]
+trim_trailing_whitespace = false
+
+#批处理文件必须使用 CRLF
+[*.{cmd,bat}]
+end_of_line = crlf
+
+[*.{json,yml,yaml,scss,css,vue,js,ts,mjs}]
+indent_size = 2

@@ -1,0 +1,32 @@
+# ============================================
+# 开发环境：开启 MyBatis-Plus SQL 日志，排查隐藏 bug
+# 激活方式：默认即生效（application.yml 中 spring.profiles.active 默认 dev）
+# ============================================
+mybatis-plus:
+  configuration:
+    # 方案 A（默认）：标准输出实现 —— 直接 System.out 打印，无视日志级别、必定输出。
+    # 每条 SQL 打三行：
+    #   ==>  Preparing: SELECT id,name,... FROM products WHERE enabled=?
+    #   ==>  Parameters: true(Boolean)
+    #   <==      Total: 5
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 方案 B（备选，按需切换）：注释掉上面的 log-impl，改用 Slf4j + DEBUG。
+# 优点：输出带时间戳、可按 mapper 包精细控制、运行时可调级别；
+#      与 logback 控制台输出混排时更易对照请求日志。
+# 做法：把 mybatis-plus.configuration.log-impl 改回
+#      org.apache.ibatis.logging.slf4j.Slf4jImpl，并放开下面 logging 段：
+#
+# logging:
+#   level:
+#     com.hiddenwhite.admin.system.mapper: debug    # 系统管理（用户/角色/菜单）
+#     com.hiddenwhite.admin.coffee.mapper: debug    # 咖啡业务
+#     com.hiddenwhite.admin.generator.mapper: debug # 代码生成器
+#
+# 提示：MyBatis 的 SQL 日志 logger 名 = Mapper 接口全限定名，
+#       所以对 mapper 包开 debug 即可看到 Preparing / Parameters / Total 三行。
+
+logging:
+  level:
+    # 业务代码保持 info，避免无关日志淹没 SQL
+    com.hiddenwhite: info

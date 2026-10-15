@@ -1,0 +1,30 @@
+# ===== 依赖与构建产物 =====
+node_modules/
+dist/
+unpackage/
+target/
+*.class
+*.jar
+
+# ===== IDE / 编辑器 =====
+.idea/
+.vscode/
+*.iml
+.idea_modules/
+
+# ===== 日志与临时文件 =====
+*.log
+logs/
+*.tmp
+hs_err_pid*
+replay_pid*
+
+# ===== 环境变量与密钥（严禁提交）=====
+.env
+.env.*
+*.local
+*.pem
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db

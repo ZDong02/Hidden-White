@@ -1,0 +1,583 @@
+@import './tokens.scss';
+
+/* ===========================================================================
+ * 隐白咖啡 · 全局基础样式（移动优先）
+ * 分层：重置 → 排版 → 通用元件 → 状态与动效 → 平台适配
+ * 所有色值/尺寸均来自 tokens.scss，此文件内不再出现魔法数字。
+ * ======================================================================== */
+
+/* --------------------------------------------------------------- 1. 重置 */
+page {
+  background: $c-bg;
+  color: $c-ink;
+  font-family: $font-body;
+  font-size: $fs-body;
+  line-height: $lh-body;
+  letter-spacing: 0.2rpx;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+view,
+text,
+image,
+input,
+textarea,
+scroll-view,
+swiper,
+swiper-item {
+  box-sizing: border-box;
+}
+
+button {
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.4;
+  border-radius: $r-sm;
+  transition: transform $dur-fast ease-out, background-color 200ms ease, color 200ms ease, box-shadow 200ms ease, opacity 200ms ease;
+}
+
+button::after {
+  border: none;
+}
+
+/* 禁用态：不只是「变灰」，同时去掉交互反馈，明确不可点 */
+button[disabled] {
+  background: $c-surface-3 !important;
+  color: $c-ink-faint !important;
+  box-shadow: none !important;
+  opacity: 1;
+}
+
+/* --------------------------------------------------------------- 2. 页面骨架 */
+.screen {
+  min-height: 100vh;
+  background: $c-bg;
+  animation: screen-enter $dur-base ease both;
+}
+
+/* 页面过渡只用透明度：一旦给祖先加 transform，它就会成为 fixed 后代的包含块，
+   底部固定栏会跟着内容一起位移。 */
+@keyframes screen-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-enter {
+  from {
+    opacity: 0.7;
+    transform: translateY(48rpx);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14rpx);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    opacity: 0.55;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* --------------------------------------------------------------- 3. 排版工具类 */
+/* 次要文字统一使用 $c-ink-muted（对画布 6.8:1），比原先的 #999/#aaa 更清晰 */
+.muted {
+  color: $c-ink-muted;
+}
+
+/* 浅底上的金色文字统一走 $c-gold-text（≥4.5:1）。
+   深色底请用组件内的 .on-dark 系列，不要复用 .gold。 */
+.gold {
+  color: $c-gold-text;
+}
+
+.section-title {
+  display: block;
+  color: $c-ink-strong;
+  font-size: $fs-title;
+  font-weight: 600;
+  line-height: $lh-tight;
+  letter-spacing: 0.4rpx;
+  margin-bottom: $sp-5;
+}
+
+.divider {
+  height: 1rpx;
+  background: $c-divider;
+}
+
+/* --------------------------------------------------------------- 4. 手机状态栏 / 底部指示条（H5 预览用视觉外壳） */
+.status-bar {
+  position: relative;
+  height: 100rpx;
+  padding: 39rpx 100rpx 0;
+  display: flex;
+  justify-content: space-between;
+  font-size: $fs-title-sm;
+  font-weight: 600;
+  line-height: 32rpx;
+  color: $c-ink-strong;
+}
+
+.island {
+  position: absolute;
+  top: 26rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 230rpx;
+  height: 68rpx;
+  border-radius: $r-pill;
+  background: #000;
+}
+
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  margin-right: -19rpx;
+}
+
+.status-right image {
+  width: 32rpx;
+  height: 28rpx;
+}
+
+.signal {
+  display: flex;
+  align-items: flex-end;
+  gap: 3rpx;
+  height: 22rpx;
+}
+
+.signal view {
+  width: 5rpx;
+  background: $c-ink-strong;
+  border-radius: 2rpx;
+}
+
+.signal view:nth-child(1) {
+  height: 8rpx;
+}
+
+.signal view:nth-child(2) {
+  height: 13rpx;
+}
+
+.signal view:nth-child(3) {
+  height: 18rpx;
+}
+
+.signal view:nth-child(4) {
+  height: 22rpx;
+}
+
+.battery {
+  width: 43rpx;
+  height: 22rpx;
+  border-radius: 6rpx;
+  background: $c-ink-strong;
+  position: relative;
+}
+
+.battery::after {
+  content: '';
+  position: absolute;
+  right: -5rpx;
+  top: 7rpx;
+  height: 8rpx;
+  width: 3rpx;
+  background: $c-ink-faint;
+  border-radius: 1rpx;
+}
+
+.native-status {
+  height: var(--status-bar-height);
+}
+
+.home-indicator {
+  height: 64rpx;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding-bottom: 17rpx;
+  background: transparent;
+}
+
+.home-indicator view {
+  height: 9rpx;
+  width: 262rpx;
+  background: $c-ink-strong;
+  opacity: 0.85;
+  border-radius: $r-pill;
+}
+
+.native-bottom {
+  height: env(safe-area-inset-bottom);
+  /* 无安全区设备（安卓直线屏等）也保住 64rpx 指示条区高度，
+     使各面板的滚动预留可以用统一数值计算 */
+  min-height: 64rpx;
+  background: transparent;
+}
+
+/* --------------------------------------------------------------- 5. 顶部导航（自定义导航栏） */
+.page-header {
+  position: relative;
+  height: 112rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 12rpx;
+  font-size: $fs-title;
+  font-weight: 600;
+  letter-spacing: 0.5rpx;
+  color: $c-ink-strong;
+}
+
+/* 触控目标从 76rpx 提升到 $tap-min（88rpx = 44px） */
+.back-button {
+  position: absolute;
+  left: 20rpx;
+  top: 16rpx;
+  width: $tap-min;
+  height: $tap-min;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color $dur-fast ease, transform $dur-fast ease;
+}
+
+.back-button image {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+/* --------------------------------------------------------------- 6. 门店信息行 */
+.store-line {
+  display: flex;
+  align-items: center;
+  gap: $sp-3;
+  min-height: $tap-min;
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  color: $c-ink-strong;
+}
+
+.store-line image {
+  width: 38rpx;
+  height: 44rpx;
+  flex-shrink: 0;
+}
+
+.chevron {
+  margin-left: auto;
+  font-size: 44rpx;
+  line-height: 1;
+  font-weight: 400;
+  color: $c-ink-faint;
+}
+
+/* --------------------------------------------------------------- 7. 按钮元件 */
+/* 主按钮：深炭底 + 浅金文字。金色对 #171713 约 11:1，远超 AA。 */
+.black-button {
+  background: $c-dark;
+  color: $c-gold-on-dark;
+  min-height: 96rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $r-md;
+  font-size: $fs-title-sm;
+  font-weight: 600;
+  letter-spacing: 0.5rpx;
+  box-shadow: $sh-2;
+}
+
+/* 次按钮：描边样式，文字回到 $c-ink 保证对比度 */
+.outline-button {
+  border: 1rpx solid $c-border-strong;
+  background: $c-surface;
+  min-height: $tap-min;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: $r-md;
+  font-size: $fs-caption;
+  font-weight: 500;
+  color: $c-ink;
+}
+
+/* --------------------------------------------------------------- 8. 订单商品条目（OrderItem 组件） */
+.order-product {
+  border: 1rpx solid $c-border;
+  border-radius: $r-lg;
+  padding: $sp-5 $sp-5;
+  display: flex;
+  align-items: center;
+  gap: $sp-5;
+  min-height: 190rpx;
+  background: $c-surface;
+  box-shadow: $sh-1;
+}
+
+.order-product image {
+  width: 118rpx;
+  height: 118rpx;
+  border-radius: $r-sm;
+  flex-shrink: 0;
+  background: $c-surface-3;
+}
+
+.product-name {
+  display: block;
+  font-size: $fs-title-sm;
+  font-weight: 600;
+  color: $c-ink-strong;
+}
+
+.specs {
+  display: block;
+  font-size: $fs-caption;
+  margin-top: $sp-2;
+}
+
+.price-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: $fs-caption;
+  margin-top: $sp-4;
+}
+
+/* --------------------------------------------------------------- 9. 固定底栏与滚动容器 */
+.bottom-fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  background: $c-surface;
+  box-shadow: 0 -8rpx 28rpx rgba(37, 32, 20, 0.05);
+}
+
+.panel-scroll {
+  width: 100%;
+  height: 100%;
+}
+
+/* --------------------------------------------------------------- 10. 交互状态（仅 H5 支持 hover / focus） */
+/* #ifdef H5 */
+.screen button:not([disabled]):hover,
+.back-button:hover {
+  box-shadow: $sh-2;
+}
+
+.back-button:hover {
+  background: $c-surface-2;
+}
+
+/* 可见焦点圈：键盘用户唯一能感知当前位置的方式 */
+.screen button:focus-visible,
+.back-button:focus-visible,
+.seg-item:focus-visible,
+.category:focus-visible,
+.service-row:focus-visible,
+.order-stat:focus-visible,
+.summary-item:focus-visible,
+.benefit-card:focus-visible,
+.product-card:focus-visible,
+.option-button:focus-visible,
+.member-chip:focus-visible,
+input:focus-visible,
+uni-button:focus-visible {
+  outline: 4rpx solid $c-gold-text;
+  outline-offset: 4rpx;
+  border-radius: $r-sm;
+}
+
+/* 文本输入：聚焦时用金色描边而非浏览器默认蓝框 */
+input {
+  outline: none;
+}
+
+input:focus {
+  border-color: $c-gold-line !important;
+  box-shadow: 0 0 0 4rpx rgba(185, 151, 55, 0.18);
+}
+/* #endif */
+
+/* 按压反馈（小程序与 H5 都支持 active） */
+.screen button:not([disabled]):active,
+.back-button:active,
+.tab-item:active,
+.store-line:active {
+  transform: scale(0.97);
+  opacity: 0.82;
+}
+
+/* --------------------------------------------------------------- 11. 弹层与卡片入场 */
+.modal-mask,
+.voucher-mask {
+  animation: modal-enter 200ms ease both;
+}
+
+.bag-panel,
+.voucher {
+  animation: sheet-enter 240ms $ease-out both;
+}
+
+.product-card,
+.history-card,
+.benefit-card,
+.orders-card,
+.service-card {
+  animation: card-enter 350ms ease both;
+}
+
+.product-card:nth-child(2),
+.benefit-card:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.product-card:nth-child(3),
+.benefit-card:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.product-card:nth-child(4),
+.benefit-card:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+/* 降级动效：仅 H5 处理。
+ * 小程序 WXSS 不支持 `*` 通配选择器与 prefers-reduced-motion 媒体查询，
+ * 传入 mp 端会直接编译报错（app.wxss unexpected token `*`），故用条件编译隔离。 */
+/* #ifdef H5 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* #endif */
+
+/* ===========================================================================
+ * 12. 平台适配
+ * ======================================================================== */
+
+/* ---- H5：把 uni 内置标签的默认样式收敛到本项目体系 ---- */
+/* #ifdef H5 */
+uni-page-body {
+  color: $c-ink;
+  font-family: $font-body;
+  font-size: $fs-body-sm;
+  line-height: $lh-body;
+}
+
+uni-view,
+uni-text,
+uni-image,
+uni-button {
+  box-sizing: border-box;
+}
+
+.screen uni-button {
+  margin: 0;
+  padding: 0;
+  line-height: 1.4;
+  border-radius: $r-sm;
+}
+
+.screen uni-button::after {
+  border: none;
+}
+
+uni-button[disabled] {
+  background: $c-surface-3 !important;
+  color: $c-ink-faint !important;
+}
+
+/* ---- H5 桌面端：真正的响应式布局 ----
+ * 移动端：rpx 由 uni-app 按视口宽度动态换算，全宽铺满。
+ * ≥768px：锁定根字号使 750rpx = 430px，把整个应用收进一列居中的「应用窗」，
+ *         底色改为品牌深色氛围背景 —— 取代原来「灰底 + 375px 窄条」的临时方案。 */
+@media (min-width: $desktop-bp) {
+  html {
+    font-size: $app-root-fs !important;
+  }
+
+  body {
+    min-height: 100vh;
+    background: radial-gradient(120rem 80rem at 14% -12%, rgba(212, 173, 47, 0.13), transparent 58%),
+      radial-gradient(90rem 70rem at 104% 6%, rgba(212, 173, 47, 0.07), transparent 52%),
+      #131109;
+  }
+
+  uni-page-body {
+    max-width: $app-max;
+    margin: 0 auto;
+    min-height: 100vh;
+    background: $c-bg;
+    box-shadow: 0 0 0 1rpx rgba(212, 173, 47, 0.16), 0 60rpx 160rpx rgba(0, 0, 0, 0.5);
+  }
+
+  /* 固定层与页面列同宽、同位置，避免底栏/遮罩错位 */
+  .bottom-fixed {
+    max-width: $app-max;
+    margin: 0 auto;
+  }
+
+  /* 遮罩铺满整个视口，弹层本体居中在应用列内，桌面端不会只暗一半 */
+  .modal-mask,
+  .voucher-mask {
+    max-width: none;
+  }
+
+  .bag-panel {
+    max-width: $app-max;
+    margin: 0 auto;
+  }
+
+  .voucher {
+    max-width: 390px;
+  }
+}
+/* #endif */

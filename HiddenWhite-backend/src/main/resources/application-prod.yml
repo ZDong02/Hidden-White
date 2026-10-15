@@ -1,0 +1,17 @@
+# ============================================
+# 生产环境：SQL 日志默认关闭，需要时可按 mapper 包临时打开
+# 激活方式：SPRING_PROFILES_ACTIVE=prod
+# ============================================
+
+# log-impl 继承 application.yml 的 Slf4jImpl（由 logback 统一管控），
+# 不做 StdOutImpl 覆盖 —— StdOutImpl 绕过日志级别、无法关闭，禁止用于生产。
+
+logging:
+  level:
+    root: info
+    com.hiddenwhite: info
+    # MyBatis SQL logger 名 = Mapper 接口全限定名。
+    # 排查线上问题时，只放开目标 mapper 包（改 debug 后需重启，或接 actuator 动态调级）：
+    # com.hiddenwhite.admin.system.mapper: debug
+    # com.hiddenwhite.admin.coffee.mapper: debug
+    # com.hiddenwhite.admin.generator.mapper: debug
