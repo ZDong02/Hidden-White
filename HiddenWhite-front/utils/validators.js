@@ -106,6 +106,3 @@ export function validateLength(value, min, max, fieldName = '此项') {
   }
   return { valid: true, value: str }
 }
-
-// 兼容旧 API（抛出异常）
-export { validateCart as default } from './validation'

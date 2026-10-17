@@ -2,12 +2,14 @@
  "name": "hidden-white",
  "version": "1.0.0",
  "private": true,
- "scripts": {
+  "scripts": {
   "dev:h5": "node scripts/run-uni.cjs -p h5 --host 127.0.0.1",
   "build:h5": "node scripts/run-uni.cjs build -p h5",
   "dev:mp-weixin": "node scripts/run-uni.cjs -p mp-weixin",
   "build:mp-weixin": "node scripts/run-uni.cjs build -p mp-weixin",
-  "assets:icons": "node scripts/generate-icons.cjs"
+  "assets:icons": "node scripts/generate-icons.cjs",
+  "lint": "eslint .",
+  "test": "node --test \"tests/**/*.test.js\""
  },
  "dependencies": {
   "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",

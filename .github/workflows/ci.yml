@@ -1,0 +1,90 @@
+name: CI
+
+# 三端质量闸门：后端测试 + 管理端测试与类型检查 + 点单端测试与 lint。
+# 任一环节失败即阻断合并，避免「本地手测通过、线上翻车」。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# 同一分支的多次推送只跑最新一次；新推送会取消正在运行的旧任务。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 后端 · 单元测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 缓存 Maven 依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-m2
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # mvnw.cmd 是 Windows 批处理；Linux 下只需可执行的 mvnw
+      - name: 赋予 mvnw 执行权限
+        run: chmod +x HiddenWhite-backend/mvnw
+
+      - name: 运行单元测试
+        working-directory: HiddenWhite-backend
+        run: ./mvnw -B test
+
+  admin-front:
+    name: 管理端 · 测试与类型检查
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: HiddenWhite-admin/HiddenWhite-admin-front
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: HiddenWhite-admin/HiddenWhite-admin-front/package-lock.json
+
+      - run: npm ci
+
+      - name: 单元测试
+        run: npm run test:unit
+
+      # build 已内置 vue-tsc --noEmit，类型错误会直接失败
+      - name: 类型检查与构建
+        run: npm run build
+
+  shop-front:
+    name: 点单端 · 测试与 lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: HiddenWhite-front
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: HiddenWhite-front/package-lock.json
+
+      - run: npm ci
+
+      - name: 单元测试
+        run: npm test
+
+      - name: ESLint
+        run: npm run lint
