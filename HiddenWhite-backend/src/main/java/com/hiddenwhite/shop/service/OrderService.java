@@ -45,16 +45,29 @@ public class OrderService {
         return repository.order(id);
     }
 
+    /** 读取订单并校验归属：非本人订单直接 403，避免越权读单。 */
+    public Order findOwned(UUID id, String memberId) {
+        Order order = find(id);
+        assertOwned(order, memberId);
+        return order;
+    }
+
     public Order current(String memberId) {
         return findAll(memberId).stream().filter(order -> order.status() == OrderStatus.IN_PROGRESS).findFirst().orElse(null);
     }
 
-    public synchronized Order create(CreateOrderRequest request) {
+    /**
+     * 下单。
+     *
+     * <p>归属以服务端解析出的 {@code callerId}（来自 token）为准，
+     * 请求体里的 memberId 一律忽略，避免伪造他人身份下单 / 冒领首单减免。
+     */
+    public synchronized Order create(CreateOrderRequest request, String callerId) {
         String closedReason = repository.closedReason();
         if (closedReason != null) {
             throw new BusinessException(HttpStatus.CONFLICT, closedReason);
         }
-        String owner = normalizeMemberId(request.memberId());
+        String owner = normalizeMemberId(callerId);
         if (current(owner) != null) {
             throw new BusinessException(HttpStatus.CONFLICT, "当前有订单正在制作，请先完成取餐");
         }
@@ -72,17 +85,27 @@ public class OrderService {
         return repository.saveOrder(order);
     }
 
-    public PriceSummary quote(CreateOrderRequest request) {
-        String owner = normalizeMemberId(request.memberId());
+    /**
+     * 报价。首单减免依赖「该会员是否已有订单」，归属以 token 判定，
+     * 忽略请求体中的 memberId，避免被用来探测他人是否下过单。
+     */
+    public PriceSummary quote(CreateOrderRequest request, String callerId) {
+        String owner = normalizeMemberId(callerId);
         return calculate(buildItems(request.items()), owner);
     }
 
-    public synchronized Order complete(UUID id, String memberId) {
+    /** 完成订单：强制校验归属，非本人订单一律 403（不再允许 memberId 缺省来跳过校验）。 */
+    public synchronized Order complete(UUID id, String callerId) {
         Order existing = find(id);
-        if (memberId != null && !existing.memberId().equals(normalizeMemberId(memberId))) {
+        assertOwned(existing, callerId);
+        return markCompleted(existing);
+    }
+
+    /** 归属校验：订单必须属于当前登录会员。 */
+    private void assertOwned(Order order, String memberId) {
+        if (!order.memberId().equals(normalizeMemberId(memberId))) {
             throw new BusinessException(HttpStatus.FORBIDDEN, "无权操作该订单");
         }
-        return markCompleted(existing);
     }
 
     private Order markCompleted(Order existing) {

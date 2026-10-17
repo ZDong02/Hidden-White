@@ -13,6 +13,7 @@ import com.hiddenwhite.shop.dto.MemberRegistrationRequest;
 import com.hiddenwhite.shop.exception.BusinessException;
 import com.hiddenwhite.shop.exception.NotFoundException;
 import com.hiddenwhite.shop.util.PasswordHasher;
+import com.hiddenwhite.shop.service.MemberLevels;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,9 +21,11 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -62,12 +65,13 @@ public class ShopRepository {
     // ---- 门店 ----
 
     public StoreInfo store() {
-        return jdbc.query("SELECT name,address,short_address,latitude,longitude,distance_label,opening_time,closing_time,manual_closed,status_note " +
+        return jdbc.query("SELECT name,address,short_address,latitude,longitude,distance_label,opening_time,closing_time,manual_closed,manual_open,status_note " +
                         "FROM stores ORDER BY id LIMIT 1", (rs, row) -> {
                     var opening = rs.getTime("opening_time").toLocalTime();
                     var closing = rs.getTime("closing_time").toLocalTime();
-                    boolean open = !rs.getBoolean("manual_closed")
-                            && !java.time.LocalTime.now().isBefore(opening) && java.time.LocalTime.now().isBefore(closing);
+                    // 人工开启营业：强制开放，覆盖时间窗口自动判定；其余按人工打烊 + 时段判断
+                    boolean open = rs.getBoolean("manual_open") || (!rs.getBoolean("manual_closed")
+                            && !java.time.LocalTime.now().isBefore(opening) && java.time.LocalTime.now().isBefore(closing));
                     return new StoreInfo(rs.getString("name"), rs.getString("address"), rs.getString("short_address"),
                             rs.getBigDecimal("latitude"), rs.getBigDecimal("longitude"), rs.getString("distance_label"),
                             opening.toString().substring(0, 5) + "–" + closing.toString().substring(0, 5), open,
@@ -75,34 +79,47 @@ public class ShopRepository {
                 }).stream().findFirst().orElseThrow(() -> new NotFoundException("门店不存在"));
     }
 
+    /** stores 表单行快照，供打烊判定使用（RowMapper 必须返回非 null 对象）。 */
+    private record StoreStatus(boolean manualClosed, boolean manualOpen, String note,
+                               LocalTime opening, LocalTime closing) {}
+
     /**
      * 下单前的营业状态校验：可下单返回 null，否则返回打烊提示语。
-     * 优先级与店铺运营模块一致：人工打烊 > 当日休息 > 未到营业时间 > 已过打烊时间。
+     * 优先级与店铺运营模块一致：人工打烊 > 人工开启（强制营业）> 当日休息 > 未到营业时间 > 已过打烊时间。
+     * 判定逻辑在 mapper 之外执行，避免营业中返回 null 元素导致 findFirst() 抛 NPE。
      */
     public String closedReason() {
-        return jdbc.query("SELECT manual_closed,status_note,opening_time,closing_time FROM stores ORDER BY id LIMIT 1", (rs, row) -> {
-                    String note = rs.getString("status_note");
-                    if (rs.getBoolean("manual_closed")) {
-                        return note == null || note.isBlank() ? "店铺已打烊，期待与您再会" : note;
-                    }
-                    var today = LocalDate.now(ZONE).getDayOfWeek().getValue();
-                    List<Boolean> dayOff = jdbc.query(
-                            "SELECT closed FROM store_hours WHERE store_id=1 AND day_of_week=?",
-                            (rs2, r2) -> rs2.getBoolean("closed"), today);
-                    if (!dayOff.isEmpty() && dayOff.get(0)) {
-                        return "今日例休，期待与您再会";
-                    }
-                    var opening = rs.getTime("opening_time").toLocalTime();
-                    var closing = rs.getTime("closing_time").toLocalTime();
-                    var now = java.time.LocalTime.now();
-                    if (now.isBefore(opening)) {
-                        return "未到营业时间，营业时间 " + opening.toString().substring(0, 5) + "–" + closing.toString().substring(0, 5);
-                    }
-                    if (!now.isBefore(closing)) {
-                        return "今日已打烊，明日 " + opening.toString().substring(0, 5) + " 恢复营业";
-                    }
-                    return null;
-                }).stream().findFirst().orElse(null);
+        List<StoreStatus> rows = jdbc.query(
+                "SELECT manual_closed,manual_open,status_note,opening_time,closing_time FROM stores ORDER BY id LIMIT 1",
+                (rs, row) -> new StoreStatus(rs.getBoolean("manual_closed"), rs.getBoolean("manual_open"),
+                        rs.getString("status_note"),
+                        rs.getTime("opening_time").toLocalTime(), rs.getTime("closing_time").toLocalTime()));
+        if (rows.isEmpty()) {
+            return null;
+        }
+        StoreStatus store = rows.get(0);
+        if (store.manualClosed()) {
+            return store.note() == null || store.note().isBlank() ? "店铺已打烊，期待与您再会" : store.note();
+        }
+        // 人工开启营业：立即生效，跳过例休与时间窗口自动判定
+        if (store.manualOpen()) {
+            return null;
+        }
+        var today = LocalDate.now(ZONE).getDayOfWeek().getValue();
+        List<Boolean> dayOff = jdbc.query(
+                "SELECT closed FROM store_hours WHERE store_id=1 AND day_of_week=?",
+                (rs2, r2) -> rs2.getBoolean("closed"), today);
+        if (!dayOff.isEmpty() && dayOff.get(0)) {
+            return "今日例休，期待与您再会";
+        }
+        var now = LocalTime.now();
+        if (now.isBefore(store.opening())) {
+            return "未到营业时间，营业时间 " + store.opening().toString().substring(0, 5) + "–" + store.closing().toString().substring(0, 5);
+        }
+        if (!now.isBefore(store.closing())) {
+            return "今日已打烊，明日 " + store.opening().toString().substring(0, 5) + " 恢复营业";
+        }
+        return null;
     }
 
     // ---- 会员 ----
@@ -186,7 +203,34 @@ public class ShopRepository {
                             "VALUES(?,?,?,?,?,?,?,?,?)", order.id().toString(), item.productId(), item.name(), item.size(), item.temperature(),
                     item.milk(), item.quantity(), item.unitPrice(), item.lineTotal());
         }
+        awardOrderPoints(order);
         return order;
+    }
+
+    /**
+     * 下单发放积分与成长值，并按成长值晋升会员等级（等级只升不降）。
+     * <p>规则：积分 = 订单实付金额整数部分（1 元 = 1 积分，向下取整）；
+     * 成长值 = 积分 × 10（1 元 = 10 成长值）。金额为 0 时不发放。
+     * 等级取「现有等级阶位」与「累计成长值对应阶位」中较高者。</p>
+     * <p>调用时机：仅在 {@link #saveOrder} 事务内调用，下单失败时发放一并回滚。</p>
+     */
+    private void awardOrderPoints(Order order) {
+        // 向下取整取实付金额整数部分，如 26.00 → 26 积分
+        int points = order.total().setScale(0, RoundingMode.FLOOR).intValue();
+        if (points <= 0) {
+            return;
+        }
+        List<Member> rows = jdbc.query(
+                "SELECT id,display_name,phone,member_level,card_number,points,coupons,growth_value FROM members WHERE id=?",
+                MEMBER_MAPPER, order.memberId());
+        if (rows.isEmpty()) {
+            return;
+        }
+        Member current = rows.get(0);
+        int growthValue = current.growthValue() + points * 10;
+        String level = MemberLevels.maxLevel(current.level(), MemberLevels.levelFor(growthValue));
+        jdbc.update("UPDATE members SET points=points+?,growth_value=?,member_level=? WHERE id=?",
+                points, growthValue, level, order.memberId());
     }
 
     public Order complete(UUID id, OffsetDateTime completedAt) {

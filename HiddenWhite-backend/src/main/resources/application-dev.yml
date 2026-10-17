@@ -2,6 +2,12 @@
 # 开发环境：开启 MyBatis-Plus SQL 日志，排查隐藏 bug
 # 激活方式：默认即生效（application.yml 中 spring.profiles.active 默认 dev）
 # ============================================
+hiddenwhite:
+  cors:
+    # dev 放行本地前端开发服务器；管理端 vite 默认 5173，后端 8080 自调无需跨域。
+    # 仅用于本机调试，生产环境请在 application-prod.yml / 环境变量中覆盖。
+    allowed-origins: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080
+
 mybatis-plus:
   configuration:
     # 方案 A（默认）：标准输出实现 —— 直接 System.out 打印，无视日志级别、必定输出。

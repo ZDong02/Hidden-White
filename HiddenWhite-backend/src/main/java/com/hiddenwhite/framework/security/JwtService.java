@@ -58,6 +58,11 @@ public class JwtService {
         }
     }
 
+    /** 解析 token 的 subject；token 无效时返回 null。与 {@link #parseUsername} 同义，语义更明确。 */
+    public String parseSubjectOfToken(String token) {
+        return parseUsername(token);
+    }
+
     public long expiresSeconds() {
         return expiresSeconds;
     }

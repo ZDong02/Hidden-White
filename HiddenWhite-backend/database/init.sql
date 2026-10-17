@@ -557,7 +557,7 @@ INSERT IGNORE INTO sys_user_post (user_id, post_id) VALUES (1, 3), (2, 5), (3, 6
 
 INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
 VALUES
-    (1, 0, '工作台', 'menu', 'dashboard', '/dashboard', 'dashboard/index', '', 1, 1, 1, 'system', 'system'),
+    (1, 0, '工作台', 'menu', 'dashboard', '/dashboard', 'dashboard/index', 'system:dashboard:list', 1, 1, 1, 'system', 'system'),
     (100, 0, '系统管理', 'dir', 'gear', '/system', '', '', 2, 1, 1, 'system', 'system'),
     (101, 100, '用户管理', 'menu', 'users', '/system/user', 'system/user/index', 'system:user:list', 1, 1, 1, 'system', 'system'),
     (1011, 101, '新增用户', 'btn', '', '', '', 'system:user:add', 1, 1, 1, 'system', 'system'),
@@ -599,6 +599,10 @@ VALUES
 -- 超级管理员拥有全部菜单；其余角色由管理员在「角色管理」中按需授权
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, id FROM sys_menu;
+
+-- 工作台菜单补权限码：DashboardController 已加 @RequiresPermission("system:dashboard:list")，
+-- 存量库中该行 permission 为空，需幂等补齐，否则非超管角色将无法访问工作台。
+UPDATE sys_menu SET permission = 'system:dashboard:list' WHERE id = 1 AND (permission IS NULL OR permission = '');
 
 INSERT IGNORE INTO sys_dict_type (id, dict_name, dict_type, status, remark, create_by, update_by)
 VALUES

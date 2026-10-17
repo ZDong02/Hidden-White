@@ -3,6 +3,14 @@
 # 激活方式：SPRING_PROFILES_ACTIVE=prod
 # ============================================
 
+# 跨域白名单：生产环境必须显式指定前端域名，否则不启用任何跨域来源。
+# 强烈建议改用环境变量注入，避免把域名写死在仓库里：
+#   CORS_ALLOWED_ORIGINS=https://admin.example.com
+# 留空 = 不放行任何跨域来源（同源部署时本就无需跨域）。
+hiddenwhite:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
 # log-impl 继承 application.yml 的 Slf4jImpl（由 logback 统一管控），
 # 不做 StdOutImpl 覆盖 —— StdOutImpl 绕过日志级别、无法关闭，禁止用于生产。
 
