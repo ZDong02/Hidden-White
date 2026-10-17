@@ -20,24 +20,16 @@
         "modules" : {},
         /* 应用发布信息 */
         "distribute" : {
-            /* android打包配置 */
+            /* android打包配置
+               仅保留点单业务真正需要的权限：联网查询门店与下单、
+               读取 WiFi 状态用于后端地址探测、振动用于取餐提醒。
+               相机、日志、通讯录、IMEI、修改系统设置等与点单无关的
+               权限已移除，既降低隐私合规风险也减少用户授权弹窗。 */
             "android" : {
                 "permissions" : [
-                    "<uses-permission android:name=\"android.permission.CHANGE_NETWORK_STATE\"/>",
-                    "<uses-permission android:name=\"android.permission.MOUNT_UNMOUNT_FILESYSTEMS\"/>",
-                    "<uses-permission android:name=\"android.permission.VIBRATE\"/>",
-                    "<uses-permission android:name=\"android.permission.READ_LOGS\"/>",
-                    "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
-                    "<uses-feature android:name=\"android.hardware.camera.autofocus\"/>",
                     "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>",
-                    "<uses-permission android:name=\"android.permission.CAMERA\"/>",
-                    "<uses-permission android:name=\"android.permission.GET_ACCOUNTS\"/>",
-                    "<uses-permission android:name=\"android.permission.READ_PHONE_STATE\"/>",
-                    "<uses-permission android:name=\"android.permission.CHANGE_WIFI_STATE\"/>",
-                    "<uses-permission android:name=\"android.permission.WAKE_LOCK\"/>",
-                    "<uses-permission android:name=\"android.permission.FLASHLIGHT\"/>",
-                    "<uses-feature android:name=\"android.hardware.camera\"/>",
-                    "<uses-permission android:name=\"android.permission.WRITE_SETTINGS\"/>"
+                    "<uses-permission android:name=\"android.permission.ACCESS_WIFI_STATE\"/>",
+                    "<uses-permission android:name=\"android.permission.VIBRATE\"/>"
                 ]
             },
             /* ios打包配置 */

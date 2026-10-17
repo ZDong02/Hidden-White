@@ -11,7 +11,6 @@ import com.hiddenwhite.admin.coffee.domain.dto.StoreWriteRequest;
 import com.hiddenwhite.admin.coffee.mapper.CoffeeMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;

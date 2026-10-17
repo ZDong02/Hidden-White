@@ -22,12 +22,13 @@ npm run build
 | `src/api` | 统一 HTTP、会话存储、认证、系统管理与生成器接口 |
 | `src/router/index.ts` | 静态入口、动态菜单路由、登录守卫与会话失效跳转 |
 | `src/composables/auth.ts` | 当前用户、权限、动态菜单与会话版本 |
-| `src/components/ui` | 按钮、输入、下拉、表格、弹窗、抽屉、提示等基础控件 |
-| `src/components/business` | ListPage、SearchForm、FormDialog、PermissionButton 及字典、部门、用户选择 |
+| `src/components/ui` | 27 个基础控件：按钮、输入、下拉、表格、弹窗、抽屉、提示、步进器、头像、开关等 |
+| `src/components/business` | 20 个业务组件：ListPage、SearchForm、FormDialog、PermissionButton、看板、组织画布、权限矩阵、菜单星图、岗位阶梯、字典样本册、代码生成流水线等 |
+| `src/components/charts` | 6 个自绘图表：柱状、趋势、热力网格、关系图、泳道、刻度环 |
 | `src/components/layout` | 外壳、侧栏、顶栏、命令搜索、外观与密码弹窗 |
-| `src/composables` | 列表、字典 / 部门缓存、外观、动效、焦点与确认框 |
-| `src/styles` | 令牌、基础、材质、控件、外壳、页面六层样式 |
-| `src/views` | 登录、工作台、10 个管理页、无权限与未匹配页面 |
+| `src/composables` | 15 个组合式函数：登录态与动态菜单、GSAP 动效编排、列表状态机、字典 / 部门缓存、外观、视图记忆、焦点陷阱、画布视口、神经网络画布、问答坞、自动轮询等 |
+| `src/styles` | 令牌、基础、材质、控件、仪器、外壳、页面**七层**样式（详见 [DESIGN.md](../DESIGN.md)） |
+| `src/views` | 登录、工作台、**20 个业务管理页**（system 7 / coffee 6 / operation 3 / monitor 2 / tool 1 + 工作台），另有无权限与未匹配兜底页 |
 | `scripts/session-regression.py` | 真实浏览器会话、路由竞态与低权限回归 |
 
 ## 扩展约定
