@@ -53,7 +53,7 @@ public class OrderService {
     }
 
     public Order current(String memberId) {
-        return findAll(memberId).stream().filter(order -> order.status() == OrderStatus.IN_PROGRESS).findFirst().orElse(null);
+        return findAll(memberId).stream().filter(order -> order.status().isBlocking()).findFirst().orElse(null);
     }
 
     /**
@@ -69,7 +69,7 @@ public class OrderService {
         }
         String owner = normalizeMemberId(callerId);
         if (current(owner) != null) {
-            throw new BusinessException(HttpStatus.CONFLICT, "当前有订单正在制作，请先完成取餐");
+            throw new BusinessException(HttpStatus.CONFLICT, "当前有订单待支付或待取餐，请先处理或等待订单超时");
         }
         List<OrderItem> items = buildItems(request.items());
         PriceSummary summary = calculate(items, owner);
@@ -80,8 +80,9 @@ public class OrderService {
         Order order = new Order(UUID.randomUUID(), owner, List.copyOf(items), summary.subtotal(), summary.discount(),
                 PACKAGING_FEE, summary.total(),
                 items.stream().mapToInt(OrderItem::quantity).sum(), pickup,
-                number, created, ready, OrderStatus.IN_PROGRESS,
-                request.note() == null ? "" : request.note().trim(), null);
+                number, created, ready, OrderStatus.CREATED,
+                request.note() == null ? "" : request.note().trim(), null,
+                null, null, null, null, null, null, null, null, null);
         return repository.saveOrder(order);
     }
 
@@ -108,8 +109,26 @@ public class OrderService {
         }
     }
 
+    /**
+     * 完成取餐。
+     *
+     * <p>仅 {@code PAID} 可完成——「没付钱不能标记取餐」是状态机的核心不变式，
+     * 防止漏收。已超时取消的订单给出明确提示，区分「钱没收到」与「钱收到了需退款」。
+     */
     private Order markCompleted(Order existing) {
-        if (existing.status() == OrderStatus.COMPLETED) return existing;
+        if (existing.status() == OrderStatus.COMPLETED) {
+            return existing;
+        }
+        if (existing.status() == OrderStatus.CANCELLED) {
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "TIMEOUT_UNPICKED".equals(existing.cancelReason())
+                            ? "订单已超时取消，如已完成付款请联系门店协助退款"
+                            : "订单已取消，无法完成取餐");
+        }
+        if (existing.status().isAwaitingPayment()) {
+            throw new BusinessException(HttpStatus.CONFLICT, "订单尚未支付完成，无法标记取餐");
+        }
+        existing.status().assertCanTransitionTo(OrderStatus.COMPLETED);
         return repository.complete(existing.id(), OffsetDateTime.now(ZONE));
     }
 

@@ -75,7 +75,8 @@ class OrderServiceTest {
                 List.of(new OrderItem("latte", "拿铁", "标准杯 240 毫升", "热", "全脂奶", 1,
                         new BigDecimal("32"), new BigDecimal("32"))),
                 new BigDecimal("32"), BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("32"),
-                1, "001", "20261017001", created, created.plusMinutes(5), status, "", null);
+                1, "001", "20261017001", created, created.plusMinutes(5), status, "", null,
+                null, null, null, null, null, null, null, null, null);
     }
 
     private static CreateOrderRequest request(String memberIdInBody) {
@@ -87,7 +88,7 @@ class OrderServiceTest {
 
     @Test
     void readingAnotherMembersOrderIsRejected() {
-        Order bobOrder = orderOf(BOB, OrderStatus.IN_PROGRESS);
+        Order bobOrder = orderOf(BOB, OrderStatus.PAID);
         when(repository.order(bobOrder.id())).thenReturn(bobOrder);
 
         assertThatThrownBy(() -> service.findOwned(bobOrder.id(), ALICE))
@@ -98,7 +99,7 @@ class OrderServiceTest {
 
     @Test
     void completingAnotherMembersOrderIsRejected() {
-        Order bobOrder = orderOf(BOB, OrderStatus.IN_PROGRESS);
+        Order bobOrder = orderOf(BOB, OrderStatus.PAID);
         when(repository.order(bobOrder.id())).thenReturn(bobOrder);
 
         assertThatThrownBy(() -> service.complete(bobOrder.id(), ALICE))
@@ -109,12 +110,14 @@ class OrderServiceTest {
 
     @Test
     void ownerCanReadAndCompleteOwnOrder() {
-        Order mine = orderOf(ALICE, OrderStatus.IN_PROGRESS);
+        Order mine = orderOf(ALICE, OrderStatus.PAID);
         when(repository.order(mine.id())).thenReturn(mine);
         when(repository.complete(any(UUID.class), any(OffsetDateTime.class))).thenReturn(
                 new Order(mine.id(), ALICE, mine.items(), mine.subtotal(), mine.discount(),
                         mine.packagingFee(), mine.total(), mine.count(), mine.pickup(), mine.number(),
-                        mine.createdAt(), mine.readyAt(), OrderStatus.COMPLETED, mine.note(), mine.readyAt()));
+                        mine.createdAt(), mine.readyAt(), OrderStatus.COMPLETED, mine.note(), mine.readyAt(),
+                        mine.payChannel(), mine.transactionId(), mine.prepayId(), mine.prepayExpireAt(),
+                        mine.paidAt(), null, null, null, null));
 
         assertThat(service.findOwned(mine.id(), ALICE)).isNotNull();
         assertThat(service.complete(mine.id(), ALICE).status()).isEqualTo(OrderStatus.COMPLETED);
@@ -192,17 +195,17 @@ class OrderServiceTest {
 
     @Test
     void onlyOneInProgressOrderAllowedPerMember() {
-        when(repository.orders(ALICE)).thenReturn(List.of(orderOf(ALICE, OrderStatus.IN_PROGRESS)));
+        when(repository.orders(ALICE)).thenReturn(List.of(orderOf(ALICE, OrderStatus.PAID)));
 
         assertThatThrownBy(() -> service.create(request(null), ALICE))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("先完成取餐");
+                .hasMessageContaining("待支付或待取餐");
     }
 
     @Test
     void currentReturnsOnlyInProgressOrder() {
         Order completed = orderOf(ALICE, OrderStatus.COMPLETED);
-        Order running = orderOf(ALICE, OrderStatus.IN_PROGRESS);
+        Order running = orderOf(ALICE, OrderStatus.PAID);
         when(repository.orders(ALICE)).thenReturn(List.of(completed, running));
 
         assertThat(service.current(ALICE).id()).isEqualTo(running.id());
@@ -218,6 +221,53 @@ class OrderServiceTest {
         // 取餐号取订单号后 3 位，由后端生成，前端不可干预
         assertThat(created.pickup()).isEqualTo("001");
         assertThat(created.number()).isEqualTo("20261017001");
-        assertThat(created.status()).isEqualTo(OrderStatus.IN_PROGRESS);
+        // 下单即创建，尚未发起支付；发起 JSAPI 下单后才进入 PENDING_PAYMENT
+        assertThat(created.status()).isEqualTo(OrderStatus.CREATED);
+        assertThat(created.transactionId()).isNull();
+        assertThat(created.paidAt()).isNull();
+    }
+
+    // ---- 支付相关的不变式 ----
+
+    @Test
+    void cannotCompleteOrderBeforePaymentIsConfirmed() {
+        // 「没付钱不能标记取餐」：防止漏收，是支付接入后的最后一道闸门
+        Order unpaid = orderOf(ALICE, OrderStatus.PENDING_PAYMENT);
+        when(repository.order(unpaid.id())).thenReturn(unpaid);
+
+        assertThatThrownBy(() -> service.complete(unpaid.id(), ALICE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("尚未支付");
+    }
+
+    @Test
+    void cancelledOrderCannotBeCompleted() {
+        Order cancelled = orderOf(ALICE, OrderStatus.CANCELLED);
+        when(repository.order(cancelled.id())).thenReturn(cancelled);
+
+        assertThatThrownBy(() -> service.complete(cancelled.id(), ALICE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("已取消");
+    }
+
+    @Test
+    void pendingPaymentStillBlocksMemberFromOrderingAgain() {
+        // 已发起支付但未完成的订单必须占用名额，否则顾客可能重复下单
+        when(repository.orders(ALICE)).thenReturn(List.of(orderOf(ALICE, OrderStatus.PENDING_PAYMENT)));
+
+        assertThatThrownBy(() -> service.create(request(null), ALICE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("待支付或待取餐");
+    }
+
+    @Test
+    void terminalOrdersDoNotBlockNewOrdering() {
+        // 终态订单不再占用名额：超时取消后顾客可以重新下单（这正是修复的核心价值）
+        when(repository.orders(ALICE)).thenReturn(List.of(
+                orderOf(ALICE, OrderStatus.COMPLETED),
+                orderOf(ALICE, OrderStatus.CANCELLED)));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThat(service.create(request(null), ALICE).status()).isEqualTo(OrderStatus.CREATED);
     }
 }

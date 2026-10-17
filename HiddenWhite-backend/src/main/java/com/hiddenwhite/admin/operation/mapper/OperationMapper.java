@@ -94,7 +94,7 @@ public interface OperationMapper {
             """)
     Map<String, Object> dailySummary(@Param("date") String date);
 
-    @Select("SELECT COUNT(*) FROM ${coffeeDb}.orders WHERE status = 'IN_PROGRESS' AND DATE(created_at) = #{date}")
+    @Select("SELECT COUNT(*) FROM ${coffeeDb}.orders WHERE status IN ('CREATED','PENDING_PAYMENT','PAID') AND DATE(created_at) = #{date}")
     long countInProgress(@Param("date") String date);
 
     @Select("""

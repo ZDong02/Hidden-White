@@ -233,11 +233,115 @@ public class ShopRepository {
                 points, growthValue, level, order.memberId());
     }
 
+    /**
+     * 完成取餐。
+     *
+     * <p>仅允许从 {@code PAID} 推进——「没付钱不能标记取餐」是状态机的核心不变式。
+     * 条件更新天然防并发：若订单已被超时任务改为 CANCELLED，WHERE 不命中。
+     */
     public Order complete(UUID id, OffsetDateTime completedAt) {
-        jdbc.update("UPDATE orders SET status='COMPLETED',completed_at=? WHERE id=? AND status='IN_PROGRESS'",
+        int updated = jdbc.update(
+                "UPDATE orders SET status='COMPLETED',completed_at=? WHERE id=? AND status='PAID'",
                 toLocal(completedAt), id.toString());
+        if (updated == 0) {
+            // 未命中说明状态不是 PAID：让状态机给出准确原因（未收款 / 已取消 / 不存在）
+            order(id).status().assertCanTransitionTo(OrderStatus.COMPLETED);
+        }
         return order(id);
     }
+
+    /**
+     * 记录 JSAPI 预支付会话。
+     *
+     * <p>预支付会话有时效（默认 2 小时），过期后 {@code prepayId} 无法再唤起支付，
+     * 需重新统一下单。因此这里同时写入过期时间，供超时任务清理。
+     */
+    public Order markAwaitingPayment(UUID id, String prepayId, OffsetDateTime expireAt) {
+        int updated = jdbc.update(
+                "UPDATE orders SET status='PENDING_PAYMENT',prepay_id=?,prepay_expire_at=? "
+                        + "WHERE id=? AND status IN ('CREATED','PENDING_PAYMENT')",
+                prepayId, toLocal(expireAt), id.toString());
+        if (updated == 0) {
+            Order existing = order(id);
+            existing.status().assertCanTransitionTo(OrderStatus.PENDING_PAYMENT);
+        }
+        return order(id);
+    }
+
+    /**
+     * 确认支付成功。
+     *
+     * <p><b>幂等的关键</b>：条件里限定 {@code status='PENDING_PAYMENT'}，
+     * 且 {@code transaction_id} 上有唯一索引。微信支付的通知可能重复投递，
+     * 第二次调用会因条件不命中而返回 0，不会重复入账。
+     *
+     * @param channel 支付渠道，如 WECHAT_JSAPI
+     * @param transactionId 微信支付交易号
+     */
+    public Order markPaid(UUID id, String channel, String transactionId, OffsetDateTime paidAt) {
+        int updated = jdbc.update(
+                "UPDATE orders SET status='PAID',pay_channel=?,transaction_id=?,paid_at=?,prepay_id=NULL "
+                        + "WHERE id=? AND status IN ('CREATED','PENDING_PAYMENT')",
+                channel, transactionId, toLocal(paidAt), id.toString());
+        if (updated == 0) {
+            Order existing = order(id);
+            if (existing.status() == OrderStatus.PAID && transactionId.equals(existing.transactionId())) {
+                return existing; // 重复通知，幂等返回
+            }
+            existing.status().assertCanTransitionTo(OrderStatus.PAID);
+        }
+        return order(id);
+    }
+
+    /** 取消订单。{@code reason} 见 init.sql 注释。 */
+    public Order cancel(UUID id, String reason, OffsetDateTime cancelledAt) {
+        int updated = jdbc.update(
+                "UPDATE orders SET status='CANCELLED',cancel_reason=?,cancelled_at=? "
+                        + "WHERE id=? AND status IN ('CREATED','PENDING_PAYMENT','PAID')",
+                reason, toLocal(cancelledAt), id.toString());
+        if (updated == 0) {
+            order(id).status().assertCanTransitionTo(OrderStatus.CANCELLED);
+        }
+        return order(id);
+    }
+
+    /** 记录退款结果。仅更新退款相关列，不改动状态（退款后的终态由业务决定）。 */
+    public Order markRefunded(UUID id, String refundId, OffsetDateTime refundedAt) {
+        jdbc.update("UPDATE orders SET refund_id=?,refunded_at=? WHERE id=?",
+                refundId, toLocal(refundedAt), id.toString());
+        return order(id);
+    }
+
+    /** 按商户订单号查订单：支付回调按 out_trade_no 定位业务订单。 */
+    public Order findByNumber(String orderNumber) {
+        return jdbc.query("SELECT * FROM orders WHERE order_number=?", ORDER_MAPPER, orderNumber).stream()
+                .findFirst().orElseThrow(() -> new NotFoundException("订单不存在: " + orderNumber));
+    }
+
+    /**
+     * 找出已超过有效期仍未进入终态的订单，供超时取消任务扫描。
+     *
+     * <p>逐条判断有效期而非在 SQL 里比较 {@code prepay_expire_at}，是为了让
+     * 「制作时长 + 30 分钟缓冲」这条业务规则只存在于
+     * {@link OrderStatus#timeoutAfter} 一处，避免 SQL 与 Java 各写一套阈值而不一致。
+     */
+    public List<Order> findExpired(LocalDateTime now) {
+        List<Order> candidates = jdbc.query(SELECT_ACTIVE_ORDERS, ORDER_MAPPER);
+        OffsetDateTime moment = now.atZone(ZONE).toOffsetDateTime();
+        return candidates.stream()
+                .filter(order -> order.createdAt()
+                        .plus(OrderStatus.timeoutAfter(order.createdAt(), order.readyAt()))
+                        .plusSeconds(60)
+                        .isBefore(moment))
+                .toList();
+    }
+
+    /** 未进入终态的订单扫描语句。显式列字段，既保证行映射读到支付列，也避免索引回表开销。 */
+    private static final String SELECT_ACTIVE_ORDERS =
+            "SELECT id,member_id,subtotal,discount,packaging_fee,total,item_count,pickup,order_number," +
+                    "created_at,ready_at,status,note,completed_at,pay_channel,transaction_id,prepay_id," +
+                    "prepay_expire_at,paid_at,refund_id,refunded_at,cancelled_at,cancel_reason " +
+                    "FROM orders WHERE status IN ('CREATED','PENDING_PAYMENT','PAID')";
 
     private void ensureMember(String memberId) {
         if (jdbc.queryForObject("SELECT COUNT(*) FROM members WHERE id=?", Integer.class, memberId) == 0) {
@@ -252,11 +356,18 @@ public class ShopRepository {
                         rs.getString("product_name"), rs.getString("size_label"), rs.getString("temperature"), rs.getString("milk"),
                         rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total")), order.id().toString());
         return new Order(order.id(), order.memberId(), items, order.subtotal(), order.discount(), order.packagingFee(), order.total(),
-                order.count(), order.pickup(), order.number(), order.createdAt(), order.readyAt(), order.status(), order.note(), order.completedAt());
+                order.count(), order.pickup(), order.number(), order.createdAt(), order.readyAt(), order.status(), order.note(), order.completedAt(),
+                order.payChannel(), order.transactionId(), order.prepayId(), order.prepayExpireAt(), order.paidAt(),
+                order.refundId(), order.refundedAt(), order.cancelledAt(), order.cancelReason());
     }
 
     private static LocalDateTime toLocal(OffsetDateTime value) { return value.toInstant().atZone(ZONE).toLocalDateTime(); }
     private static OffsetDateTime toOffset(Timestamp value) { return value.toLocalDateTime().atZone(ZONE).toOffsetDateTime(); }
+
+    /** 可空时间列的读取：paid_at / refunded_at 等未发生时为 NULL。 */
+    private static OffsetDateTime toOffsetOrNull(Timestamp value) {
+        return value == null ? null : toOffset(value);
+    }
 
     private static final RowMapper<Product> PRODUCT_MAPPER = (rs, row) -> new Product(rs.getString("id"), rs.getString("name"),
             rs.getString("subtitle"), rs.getString("description"), rs.getString("detail_description"), rs.getBigDecimal("price"),
@@ -269,5 +380,8 @@ public class ShopRepository {
             rs.getBigDecimal("packaging_fee"), rs.getBigDecimal("total"), rs.getInt("item_count"), rs.getString("pickup"),
             rs.getString("order_number"), toOffset(rs.getTimestamp("created_at")), toOffset(rs.getTimestamp("ready_at")),
             OrderStatus.valueOf(rs.getString("status")), rs.getString("note"),
-            rs.getTimestamp("completed_at") == null ? null : toOffset(rs.getTimestamp("completed_at")));
+            toOffsetOrNull(rs.getTimestamp("completed_at")), rs.getString("pay_channel"), rs.getString("transaction_id"),
+            rs.getString("prepay_id"), toOffsetOrNull(rs.getTimestamp("prepay_expire_at")), toOffsetOrNull(rs.getTimestamp("paid_at")),
+            rs.getString("refund_id"), toOffsetOrNull(rs.getTimestamp("refunded_at")), toOffsetOrNull(rs.getTimestamp("cancelled_at")),
+            rs.getString("cancel_reason"));
 }

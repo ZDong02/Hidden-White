@@ -132,7 +132,21 @@ public class CoffeeService {
 
     public void completeOrder(String id) {
         int rows = mapper.completeOrder(id);
-        if (rows == 0) throw new BusinessException(404, "没有可完成的进行中订单: " + id);
+        // 条件更新为 0 有三种可能：订单不存在、尚未支付、已被取消。
+        // 区分三者便于店员判断该催顾客付款、查是否已取餐，还是报系统问题。
+        if (rows == 0) {
+            String status = mapper.orderStatus(id);
+            if (status == null) {
+                throw new BusinessException(404, "订单不存在: " + id);
+            }
+            if ("PENDING_PAYMENT".equals(status) || "CREATED".equals(status)) {
+                throw new BusinessException(409, "订单尚未支付完成，无法标记取餐");
+            }
+            if ("CANCELLED".equals(status)) {
+                throw new BusinessException(409, "订单已取消，无法标记完成；如已收款请联系顾客处理退款");
+            }
+            throw new BusinessException(409, "订单当前状态为 " + status + "，无法标记完成");
+        }
     }
 
     public void deleteOrder(String id) {
@@ -263,8 +277,9 @@ public class CoffeeService {
 
     private String normalizeStatus(String status) {
         if (status == null || status.isBlank()) return null;
-        if (!List.of("IN_PROGRESS", "COMPLETED").contains(status)) {
-            throw new BusinessException("订单状态只能是 IN_PROGRESS / COMPLETED");
+        // 与后端 OrderStatus 五态严格一致；不接受已废弃的 IN_PROGRESS
+        if (!List.of("CREATED", "PENDING_PAYMENT", "PAID", "COMPLETED", "CANCELLED").contains(status)) {
+            throw new BusinessException("订单状态只能是 CREATED / PENDING_PAYMENT / PAID / COMPLETED / CANCELLED");
         }
         return status;
     }

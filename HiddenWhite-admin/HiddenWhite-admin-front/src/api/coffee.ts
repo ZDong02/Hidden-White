@@ -57,6 +57,15 @@ export interface CoffeeOrderItem {
   lineTotal: number
 }
 
+/**
+ * 订单状态。与后端 OrderStatus 五态严格一致。
+ *
+ * CREATED=已创建 / PENDING_PAYMENT=待支付 / PAID=已支付制作中 /
+ * COMPLETED=已完成 / CANCELLED=已取消。
+ * 只有 PAID 能标记完成——「没付钱不能取餐」是状态机的核心不变式。
+ */
+export type CoffeeOrderStatus = 'CREATED' | 'PENDING_PAYMENT' | 'PAID' | 'COMPLETED' | 'CANCELLED'
+
 export interface CoffeeOrderRow {
   id: string
   memberId: string
@@ -69,9 +78,18 @@ export interface CoffeeOrderRow {
   orderNumber: string
   createdAt: string
   readyAt: string
-  status: 'IN_PROGRESS' | 'COMPLETED'
+  status: CoffeeOrderStatus
   note: string
   completedAt: string | null
+  /** 支付渠道：WECHAT_JSAPI；发起支付前为空 */
+  payChannel?: string | null
+  /** 微信支付交易号，对账与退款必需 */
+  transactionId?: string | null
+  paidAt?: string | null
+  refundId?: string | null
+  refundedAt?: string | null
+  /** 取消原因：TIMEOUT_UNPAID / TIMEOUT_UNPICKED / MANUAL / PAY_FAILED */
+  cancelReason?: string | null
   items?: CoffeeOrderItem[]
 }
 

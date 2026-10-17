@@ -137,9 +137,18 @@ CREATE TABLE IF NOT EXISTS orders (
     order_number VARCHAR(32) NOT NULL,
     created_at DATETIME(6) NOT NULL,
     ready_at DATETIME(6) NOT NULL,
-    status ENUM('IN_PROGRESS','COMPLETED') NOT NULL DEFAULT 'IN_PROGRESS',
+    status ENUM('CREATED','PENDING_PAYMENT','PAID','COMPLETED','CANCELLED') NOT NULL DEFAULT 'PENDING_PAYMENT',
     note VARCHAR(200) NOT NULL DEFAULT '',
     completed_at DATETIME(6) NULL,
+    pay_channel VARCHAR(32) NULL COMMENT '支付渠道：WECHAT_JSAPI；发起支付前为空',
+    transaction_id VARCHAR(64) NULL COMMENT '微信支付交易号，支付成功后回填，对账与退款必需',
+    prepay_id VARCHAR(64) NULL COMMENT '统一下单返回的 prepay_id，唤起支付用，过期作废',
+    prepay_expire_at DATETIME(6) NULL COMMENT '预支付会话过期时间，超时任务据此清理未支付订单',
+    paid_at DATETIME(6) NULL COMMENT '支付确认时间；已收款的取消订单保留以便对账',
+    refund_id VARCHAR(64) NULL COMMENT '微信退款单号，退款成功后回填',
+    refunded_at DATETIME(6) NULL COMMENT '退款完成时间',
+    cancelled_at DATETIME(6) NULL COMMENT '取消时间',
+    cancel_reason VARCHAR(32) NULL COMMENT '取消原因：TIMEOUT_UNPAID / TIMEOUT_UNPICKED / MANUAL / PAY_FAILED',
     PRIMARY KEY (id),
     UNIQUE KEY uk_orders_order_number (order_number),
     KEY idx_orders_member_created (member_id, created_at),
@@ -731,6 +740,108 @@ SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stores' AND COLUMN_NAME = 'manual_open');
 SET @sql := IF(@has_col = 0,
     'ALTER TABLE stores ADD COLUMN manual_open TINYINT(1) NOT NULL DEFAULT 0 COMMENT ''人工开启营业：TRUE 强制营业，覆盖例休与时间窗口自动判定'' AFTER manual_closed',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ---------------------------------------------------------------------
+-- 1.5 orders：接入微信支付（JSAPI），状态由 IN_PROGRESS 拆为五态
+--     拆分的意义在于把「有没有收到钱」与「做到哪一步」分开：
+--     JSAPI 下单只是发起预支付，用户可能关掉页面，此时订单既未付款也
+--     未制作。若无中间态，只能误判为已付（漏收钱）或直接取消（用户丢单）。
+--
+--     历史订单的 IN_PROGRESS 一律映射为 PAID：改造前系统只接受过
+--     「已确认取餐」这一动作，隐含已完成收款，不应误判为未收款而影响对账。
+-- ---------------------------------------------------------------------
+
+SET @has_status := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'status');
+SET @sql := IF(@has_status > 0,
+    'ALTER TABLE orders MODIFY COLUMN status
+       ENUM(''CREATED'',''PENDING_PAYMENT'',''PAID'',''COMPLETED'',''CANCELLED'')
+       NOT NULL DEFAULT ''PENDING_PAYMENT''
+       COMMENT ''CREATED=已创建 / PENDING_PAYMENT=待支付 / PAID=已支付制作中 / COMPLETED=已完成 / CANCELLED=已取消''',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 历史数据迁移：须紧跟改枚举之后，否则旧值不在新枚举内会被置为空值
+UPDATE orders SET status = 'PAID' WHERE status = 'IN_PROGRESS';
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'pay_channel');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN pay_channel VARCHAR(32) NULL COMMENT ''支付渠道：WECHAT_JSAPI'' AFTER completed_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'transaction_id');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN transaction_id VARCHAR(64) NULL COMMENT ''微信支付交易号，对账与退款必需'' AFTER pay_channel',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'prepay_id');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN prepay_id VARCHAR(64) NULL COMMENT ''统一下单返回的 prepay_id，唤起支付用'' AFTER transaction_id',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'prepay_expire_at');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN prepay_expire_at DATETIME(6) NULL COMMENT ''预支付会话过期时间'' AFTER prepay_id',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'paid_at');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN paid_at DATETIME(6) NULL COMMENT ''支付确认时间'' AFTER prepay_expire_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'refund_id');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN refund_id VARCHAR(64) NULL COMMENT ''微信退款单号'' AFTER paid_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'refunded_at');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN refunded_at DATETIME(6) NULL COMMENT ''退款完成时间'' AFTER refund_id',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'cancelled_at');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN cancelled_at DATETIME(6) NULL COMMENT ''取消时间'' AFTER refunded_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'cancel_reason');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE orders ADD COLUMN cancel_reason VARCHAR(32) NULL COMMENT ''取消原因：TIMEOUT_UNPAID / TIMEOUT_UNPICKED / MANUAL / PAY_FAILED'' AFTER cancelled_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 超时扫描与支付回调都要按状态定位订单，需联合索引
+SET @has_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'idx_orders_status_created');
+SET @sql := IF(@has_idx = 0,
+    'ALTER TABLE orders ADD KEY idx_orders_status_created (status, created_at)',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- transaction_id 唯一索引：回调幂等的基础，防止同一笔支付被重复入账
+SET @has_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'uk_orders_transaction');
+SET @sql := IF(@has_idx = 0,
+    'ALTER TABLE orders ADD UNIQUE KEY uk_orders_transaction (transaction_id)',
     'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 

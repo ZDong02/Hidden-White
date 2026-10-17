@@ -228,7 +228,14 @@ export function mapBackendOrder(order) {
     created: `${created.getFullYear()}年${created.getMonth() + 1}月${created.getDate()}日 ${pad(created.getHours())}:${pad(created.getMinutes())}`,
     ready: `${pad(ready.getHours())}:${pad(ready.getMinutes())}`,
     preparationTime: Math.max(0, Math.round((ready - created) / 60000)),
-    status: order.status === 'COMPLETED' ? 'completed' : 'in-progress'
+    // 与后端 OrderStatus 五态对应：
+    // CREATED / PENDING_PAYMENT → pending-payment（待支付）
+    // PAID → in-progress（制作中）
+    // COMPLETED → completed，CANCELLED → cancelled
+    status: order.status === 'COMPLETED' ? 'completed'
+      : order.status === 'CANCELLED' ? 'cancelled'
+        : order.status === 'PAID' ? 'in-progress'
+          : 'pending-payment'
   }
 }
 
@@ -242,8 +249,11 @@ export async function refreshOrders() {
 
   const rows = await requestApi('/orders')
   const mapped = rows.map(mapBackendOrder)
-  shop.order = mapped.find((row) => row.status === 'in-progress') || null
-  shop.orderHistory = mapped.filter((row) => row.status === 'completed').slice(0, MAX_ORDER_HISTORY)
+  // 待支付与制作中都属于「进行中」，都占用下单名额；已取消的不再占用
+  shop.order = mapped.find((row) => row.status === 'in-progress' || row.status === 'pending-payment') || null
+  shop.orderHistory = mapped
+    .filter((row) => row.status === 'completed' || row.status === 'cancelled')
+    .slice(0, MAX_ORDER_HISTORY)
 
   setStorageDebounced(ORDER_KEY, shop.order)
   setStorageDebounced(ORDER_HISTORY_KEY, shop.orderHistory)
@@ -263,7 +273,7 @@ export async function createOrder() {
       throw new Error('请先登录后再下单')
     }
     if (shop.order) {
-      throw new Error('当前有订单正在制作，请先完成取餐')
+      throw new Error('当前有订单待支付或待取餐，请先处理或等待订单超时')
     }
 
     validateCart(shop.cart)
@@ -316,6 +326,11 @@ export async function createOrder() {
 
 export async function completeOrder() {
   if (!shop.order) return
+
+  // 未支付不允许标记取餐——与后端状态机同一条不变式，防止漏收
+  if (shop.order.status === 'pending-payment') {
+    throw new Error('订单尚未支付完成，无法标记取餐')
+  }
 
   if (BACKEND_ENABLED && shop.order.id) {
     const backendOrder = await requestApi(`/orders/${shop.order.id}/complete`, {

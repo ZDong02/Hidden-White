@@ -196,12 +196,22 @@ public interface CoffeeMapper {
             """)
     List<Map<String, Object>> orderItems(@Param("orderId") String orderId);
 
+    /**
+     * 完成取餐。
+     *
+     * <p>仅允许从 PAID 推进，与点单端 OrderService 保持同一条不变式：
+     * 「没付钱不能标记取餐」。条件更新天然防并发。
+     */
     @Update("""
             UPDATE ${coffeeDb}.orders
             SET status = 'COMPLETED', completed_at = NOW()
-            WHERE id = #{id} AND status = 'IN_PROGRESS'
+            WHERE id = #{id} AND status = 'PAID'
             """)
     int completeOrder(@Param("id") String id);
+
+    /** 读取订单当前状态，供条件更新失败时给出准确提示。 */
+    @Select("SELECT status FROM ${coffeeDb}.orders WHERE id = #{id}")
+    String orderStatus(@Param("id") String id);
 
     @Delete("DELETE FROM ${coffeeDb}.orders WHERE id = #{id}")
     int deleteOrder(@Param("id") String id);
@@ -209,7 +219,8 @@ public interface CoffeeMapper {
     @Select("SELECT COUNT(*) FROM ${coffeeDb}.orders")
     long countAllOrders();
 
-    @Select("SELECT COUNT(*) FROM ${coffeeDb}.orders WHERE status = 'IN_PROGRESS'")
+    /** 未完成订单数：待支付 + 已支付制作中，两者都还未取餐。 */
+    @Select("SELECT COUNT(*) FROM ${coffeeDb}.orders WHERE status IN ('CREATED','PENDING_PAYMENT','PAID')")
     long countInProgressOrders();
 
     @Select("SELECT COUNT(*) FROM ${coffeeDb}.members")

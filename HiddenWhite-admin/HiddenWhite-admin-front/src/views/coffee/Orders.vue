@@ -8,10 +8,30 @@ import { useAutoRefresh } from '@/composables/poll'
 import { confirm } from '@/composables/confirm'
 import { pushToast, toastError } from '@/composables/toast'
 
-const STATUS: Record<string, { label: string; tone: 'warning' | 'success' }> = {
-  IN_PROGRESS: { label: '制作中', tone: 'warning' },
+/** 订单状态映射，与后端 OrderStatus 五态严格对应。 */
+const STATUS: Record<string, { label: string; tone: 'warning' | 'success' | 'info' | 'neutral' }> = {
+  CREATED: { label: '待支付', tone: 'neutral' },
+  PENDING_PAYMENT: { label: '待支付', tone: 'warning' },
+  PAID: { label: '制作中', tone: 'info' },
   COMPLETED: { label: '已完成', tone: 'success' },
+  CANCELLED: { label: '已取消', tone: 'neutral' },
 }
+
+/** 取消原因说明。区分「钱没到账」与「钱到了但顾客没来」，后者需人工退款。 */
+const CANCEL_REASON: Record<string, string> = {
+  TIMEOUT_UNPAID: '超时未支付，自动取消',
+  TIMEOUT_UNPICKED: '超时未取餐（已支付，需退款）',
+  MANUAL: '人工取消',
+  PAY_FAILED: '支付失败，自动取消',
+}
+
+const STATUS_FILTER = [
+  { label: '全部状态', value: '' },
+  { label: '待支付', value: 'PENDING_PAYMENT' },
+  { label: '制作中', value: 'PAID' },
+  { label: '已完成', value: 'COMPLETED' },
+  { label: '已取消', value: 'CANCELLED' },
+]
 
 const list = useListPage<CoffeeOrderRow, { keyword: string; status: string }>({
   query: { keyword: '', status: '' },
@@ -81,7 +101,7 @@ const itemsText = (row: CoffeeOrderRow) =>
       <Field label="状态">
         <Select
           v-model="list.query.status"
-          :options="[{ label: '全部状态', value: '' }, { label: '制作中', value: 'IN_PROGRESS' }, { label: '已完成', value: 'COMPLETED' }]"
+          :options="STATUS_FILTER"
           @update:model-value="list.search()"
         />
       </Field>
@@ -96,12 +116,16 @@ const itemsText = (row: CoffeeOrderRow) =>
     </template>
     <template #cell-status="{ row }">
       <Tag :tone="STATUS[row.status]?.tone ?? 'neutral'">{{ STATUS[row.status]?.label ?? row.status }}</Tag>
+      <span v-if="row.cancelReason" class="muted" style="display: block; font-size: 12px">
+        {{ CANCEL_REASON[row.cancelReason] ?? row.cancelReason }}
+      </span>
     </template>
     <template #cell-actions="{ row }">
       <div class="row-actions">
+        <!-- 只有已支付（PAID）才能标记完成：未支付直接放行会造成漏收 -->
         <PermissionButton
-          v-if="row.status === 'IN_PROGRESS'"
-          perm="coffee:order:edit" icon-only icon="check" label="完成"
+          v-if="row.status === 'PAID'"
+          perm="coffee:order:edit" icon-only icon="check" label="完成取餐"
           :loading="completing === row.id" @click="complete(row)"
         />
         <PermissionButton perm="coffee:order:remove" icon-only icon="trash" label="删除" danger @click="remove(row)" />
