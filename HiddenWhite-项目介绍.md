@@ -87,17 +87,16 @@ D:/Hidden White/
 
 ### 4.1 定位与功能页面
 
-面向顾客的点单应用，支持**微信小程序与 H5 双端**。共 7 个页面：
+面向顾客的点单应用，支持**微信小程序与 H5 双端**。共 4 个页面：
 
 | 页面 | 文件 | 功能 |
 | --- | --- | --- |
-| 首页/菜单 | `pages/index/index.vue` | 门店信息、营业状态、商品分类与列表、购物袋入口 |
+| 首页/菜单 | `pages/index/index.vue` | 壳页面：门店信息、营业状态、商品分类与列表、购物袋入口；内含订单 / 会员 / 我的三个 Tab 面板 |
 | 商品详情 | `pages/detail/detail.vue` | 规格选择（杯型/奶类/温度等）、数量、加入购物袋 |
 | 结算 | `pages/checkout/checkout.vue` | 订单确认、取餐方式、微信支付（演示，不实际扣款） |
-| 订单 | `pages/order/order.vue` | 当前订单与历史订单、取餐号、预计完成时间 |
-| 会员 | `pages/member/member.vue` | 会员权益、积分、优惠信息 |
-| 我的 | `pages/profile/profile.vue` | 账号信息、入口导航（体验版本提示） |
 | 登录 | `pages/auth/auth.vue` | 会员登录/注册 |
+
+订单 / 会员 / 我的为壳页面内的 Tab 面板（`components/tabs/`），通过 `?tab=` 直达对应分段，不单独注册为页面。
 
 自定义底部标签栏（`components/MainTabBar.vue`）：首页、订单、会员、我的。
 
@@ -113,11 +112,11 @@ D:/Hidden White/
 
 | 目录 | 职责 |
 | --- | --- |
-| `pages/` | 7 个业务页面，按 `pages.json` 注册 |
+| `pages/` | 4 个业务页面（订单/会员/我的为壳页内 Tab 面板），按 `pages.json` 注册 |
 | `components/` | 5 个共享组件：PhoneHeader（模拟手机头部）、HomeIndicator（底部指示条）、MainTabBar（标签栏）、StoreLine（门店信息行）、OrderItem（订单项）；`components/ui/` 子目录含 5 个统一 UI 组件：Card（卡片）、Button（按钮）、Input（输入框）、Stepper（数字步进器）、Modal（底部弹窗） |
 | `store/` | 状态管理：`index.js`（购物车/订单/商品，基于 Vue `reactive` 的轻量实现，本地存储持久化）、`auth.js`（登录态） |
 | `config/` | `backend.js`（统一请求封装 `requestApi` + 后端地址自动解析）、`backend-hosts.js`（候选后端地址列表，换网络只需改此文件）、`constants.js`（门店、业务规则、选项、图片路径等常量） |
-| `utils/` | 10 个工具模块：`format.js`（日期/取餐号/预计完成时间）、`navigation.js`（页面导航封装）、`validation.js`（购物车校验）、`price.js`（价格计算）、`storage.js`（防抖本地存储）、`toast.js`（统一提示）、`datetime.js`（日期时间增强）、`validators.js`（表单验证）、`image.js`（图片资源管理）、`composables.js`（Vue 组合式函数） |
+| `utils/` | 9 个工具模块：`format.js`（日期/取餐号/预计完成时间）、`navigation.js`（页面导航封装）、`validation.js`（购物车校验）、`price.js`（价格计算）、`storage.js`（防抖本地存储）、`toast.js`（统一提示）、`datetime.js`（日期时间增强）、`validators.js`（表单验证）、`image.js`（图片资源管理） |
 | `data/products.js` | 静态商品数据：API 加载前的初始渲染数据、后端不可用时的兜底、商品分类的唯一来源 |
 | `static/` | 图片资源（咖啡产品图、图标；图标由 SVG 经脚本生成 PNG） |
 | `scripts/` | `run-uni.cjs`（开发/构建统一入口）、`generate-icons.cjs`（SVG → PNG 图标生产链） |
