@@ -22,7 +22,7 @@
     <view class="orders-card">
       <view class="section-heading">
         <text>我的订单</text>
-        <view class="all-orders" @tap="openOrders">全部订单 <text>›</text></view>
+        <view class="all-orders" @tap="openOrders">全部订单 <text class="all-orders-arrow">›</text></view>
       </view>
       <view class="order-summary">
         <view class="order-stat" @tap="openOrders">
@@ -190,9 +190,9 @@ function handleAuth() {
   uni.showModal({
     title: '退出登录',
     content: '退出后需要重新登录才能下单。',
-    success: (res) => {
+    success: async (res) => {
       if (!res.confirm) return
-      logout()
+      await logout()
       shop.order = null
       shop.orderHistory = []
       uni.showToast({ title: '已退出登录', icon: 'none' })
@@ -363,7 +363,8 @@ defineExpose({ activate })
   font-weight: 400;
 }
 
-.all-orders text {
+/* 箭头「›」字号比文字大一号（原 .all-orders text，组件 wxss 不允许标签名选择器） */
+.all-orders-arrow {
   margin-left: 4rpx;
   font-size: 30rpx;
   line-height: 1;

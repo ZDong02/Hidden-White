@@ -1,6 +1,6 @@
 <template>
   <view class="screen profile-screen">
-    <PhoneHeader title="我的" />
+    <PhoneHeader title="我的" class="screen-header" />
 
     <scroll-view class="profile-content" scroll-y>
       <view class="profile-hero">
@@ -24,7 +24,7 @@
       <view class="orders-card">
         <view class="section-heading">
           <text>我的订单</text>
-          <view class="all-orders" @tap="openOrders">全部订单 <text>›</text></view>
+          <view class="all-orders" @tap="openOrders">全部订单 <text class="all-orders-arrow">›</text></view>
         </view>
         <view class="order-summary">
           <view class="order-stat" @tap="openOrders">
@@ -207,9 +207,9 @@ function handleAuth() {
   uni.showModal({
     title: '退出登录',
     content: '退出后需要重新登录才能下单。',
-    success: (res) => {
+    success: async (res) => {
       if (!res.confirm) return
-      logout()
+      await logout()
       shop.order = null
       shop.orderHistory = []
       uni.showToast({ title: '已退出登录', icon: 'none' })
@@ -238,7 +238,8 @@ function handleTabSelect(tab) {
   background: #f7f6f2;
 }
 
-.profile-screen > view:first-child {
+/* 顶栏不参与伸缩（原 .profile-screen > view:first-child，小程序端首个节点是 phone-header） */
+.screen-header {
   flex: 0 0 auto;
 }
 
@@ -379,7 +380,8 @@ function handleTabSelect(tab) {
   font-weight: 400;
 }
 
-.all-orders text {
+/* 箭头「›」字号比文字大一号（原 .all-orders text） */
+.all-orders-arrow {
   margin-left: 7rpx;
   font-size: 32rpx;
 }

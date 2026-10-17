@@ -15,15 +15,7 @@ const MAX_ORDER_HISTORY = 100
 
 // 初始化状态 - 使用新的 storage 工具
 const storedCart = getStorage(CART_KEY, [])
-const seededDemoCart = Array.isArray(storedCart) &&
-  storedCart.length === 1 &&
-  storedCart[0].id === 'latte' &&
-  storedCart[0].size === '标准杯 240 毫升' &&
-  storedCart[0].temperature === '热' &&
-  storedCart[0].milk === '全脂奶' &&
-  storedCart[0].quantity === 2 &&
-  storedCart[0].unitPrice === 32
-const cart = seededDemoCart ? [] : storedCart
+const cart = Array.isArray(storedCart) ? storedCart : []
 const order = getStorage(ORDER_KEY, null)
 const orderHistory = getStorage(ORDER_HISTORY_KEY, [])
 const apiProducts = reactive([...productData])
@@ -111,12 +103,15 @@ export const storeInfo = reactive({
   loaded: false
 })
 
+// 门店状态是时效敏感的轻量数据（管理端切换打烊/营业需尽快可见），TTL 远短于商品目录
+const STORE_TTL = 5000
 let storeLoadedAt = 0
 let storePending = null
 
-export async function loadStoreInfo() {
+export async function loadStoreInfo(options = {}) {
   if (!BACKEND_ENABLED) return storeInfo
-  if (storeInfo.loaded && Date.now() - storeLoadedAt < CATALOG_TTL) {
+  const now = Date.now()
+  if (!options.force && storeInfo.loaded && now - storeLoadedAt < STORE_TTL) {
     return storeInfo
   }
   if (storePending) return storePending
@@ -194,6 +189,8 @@ export function quickAdd(product) {
 
 function toBackendPayload() {
   return {
+    // 仅 /cart/quote 报价接口使用（用于判断首单减免）。
+    // 真正下单时服务端会以 token 中的会员 ID 为准，忽略此字段。
     memberId: currentUser.value.id,
     items: shop.cart.map((item) => ({
       productId: item.id,
@@ -243,7 +240,7 @@ export async function refreshOrders() {
   }
   if (!BACKEND_ENABLED) return { current: shop.order, history: shop.orderHistory }
 
-  const rows = await requestApi(`/orders?memberId=${encodeURIComponent(currentUser.value.id)}`)
+  const rows = await requestApi('/orders')
   const mapped = rows.map(mapBackendOrder)
   shop.order = mapped.find((row) => row.status === 'in-progress') || null
   shop.orderHistory = mapped.filter((row) => row.status === 'completed').slice(0, MAX_ORDER_HISTORY)
@@ -321,7 +318,7 @@ export async function completeOrder() {
   if (!shop.order) return
 
   if (BACKEND_ENABLED && shop.order.id) {
-    const backendOrder = await requestApi(`/orders/${shop.order.id}/complete?memberId=${encodeURIComponent(currentUser.value.id)}`, {
+    const backendOrder = await requestApi(`/orders/${shop.order.id}/complete`, {
       method: 'POST'
     })
     const completedOrder = mapBackendOrder(backendOrder)

@@ -1,4 +1,5 @@
 import { BACKEND_HOSTS } from './backend-hosts'
+import { clearToken, getToken } from '../store/token'
 
 // 后端接口地址解析与统一请求封装。
 //
@@ -209,9 +210,19 @@ function ensureBaseUrl() {
   return probing
 }
 
+/**
+ * 统一请求封装。
+ *
+ * 自动携带会员 token（Authorization: Bearer <token>）：
+ * 后端 /api/orders/** 与 /api/members/{id} 依据 token 判定会员归属，
+ * 不再信任客户端传入的 memberId。公开接口（菜单 / 门店 / 权益）带上 token 也无副作用。
+ *
+ * 同时统一处理 401：登录态失效时清除本地 token，避免后续请求持续失败。
+ */
 export async function requestApi(path, options = {}) {
   const base = await ensureBaseUrl()
   return new Promise((resolve, reject) => {
+    const token = options.auth === false ? '' : getToken()
     uni.request({
       url: `${base}${path}`,
       method: options.method || 'GET',
@@ -219,12 +230,17 @@ export async function requestApi(path, options = {}) {
       timeout: options.timeout ?? REQUEST_TIMEOUT,
       header: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.header || {})
       },
       success: (response) => {
         if (response.statusCode >= 200 && response.statusCode < 300) {
           resolve(response.data)
           return
+        }
+        // 登录态失效：清掉本地 token，让上层重新走登录流程
+        if (response.statusCode === 401) {
+          clearToken()
         }
         const message = response.data?.message || `请求失败（${response.statusCode}）`
         reject(new Error(message))

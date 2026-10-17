@@ -1,7 +1,7 @@
 <template>
   <!-- 壳页面：四个 Tab 面板通过横向 swiper 切换，底部固定分段控件与内容区同步移动 -->
   <view class="screen shell-screen">
-    <PhoneHeader />
+    <PhoneHeader class="screen-header" />
 
     <swiper
       class="tab-swiper"
@@ -14,7 +14,7 @@
         <MenuPanel ref="menuPanel" @switch-tab="switchTo" />
       </swiper-item>
       <swiper-item>
-        <OrdersPanel ref="ordersPanel" />
+        <OrdersPanel ref="ordersPanel" @show-voucher="voucherOpen = true" />
       </swiper-item>
       <swiper-item>
         <MemberPanel ref="memberPanel" />
@@ -44,13 +44,9 @@
 
       <template v-else-if="activeTab === 'orders' && order">
         <text class="muted order-hint">到店后向咖啡师出示取餐号即可</text>
+        <!-- 滑动确认胶囊：替代原「确认已取餐 / 查看取餐凭证」双按钮 -->
         <view class="order-footer-actions">
-          <UiButton variant="outline" @tap="completeCurrentOrder" style="flex: 1;">
-            确认已取餐
-          </UiButton>
-          <UiButton variant="primary" @tap="voucherOpen = true" style="flex: 1; border: 2rpx solid #b99737;">
-            查看取餐凭证
-          </UiButton>
+          <SlideConfirm ref="slideConfirm" @confirm="completeCurrentOrder" />
         </view>
       </template>
 
@@ -88,12 +84,16 @@
       </template>
     </Modal>
 
-    <!-- 取餐凭证弹窗 -->
+    <!--
+      取餐凭证弹窗
+      入口在「订单」面板的进度卡片内，但弹窗本体留在页面层渲染：
+      swiper-item 带 transform，弹窗若作为其后代，position: fixed 会在微信端相对 swiper-item 定位而错位。
+    -->
     <view v-if="voucherOpen && order" class="voucher-mask" @tap="voucherOpen = false">
       <view class="voucher" @tap.stop>
         <view class="voucher-heading">
           <text>取餐凭证</text>
-          <text class="sheet-close" @tap="voucherOpen = false">×</text>
+          <text class="sheet-close" hover-class="sheet-close--press" @tap="voucherOpen = false">×</text>
         </view>
         <text class="voucher-brand">隐白</text>
         <text class="muted">{{ storeName }}</text>
@@ -121,11 +121,12 @@ import ProfilePanel from '../../components/tabs/ProfilePanel.vue'
 import Modal from '../../components/ui/Modal.vue'
 import Stepper from '../../components/ui/Stepper.vue'
 import UiButton from '../../components/ui/Button.vue'
+import SlideConfirm from '../../components/ui/SlideConfirm.vue'
 import { shop, count, subtotal, saveCart, completeOrder, storeInfo } from '../../store/index'
 import { STORE } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
 import { isLoggedIn } from '../../store/auth'
-import { showInfo, showConfirm } from '../../utils/toast'
+import { showInfo } from '../../utils/toast'
 
 const TAB_IDS = ['home', 'orders', 'member', 'profile']
 
@@ -136,6 +137,8 @@ const voucherOpen = ref(false)
 
 const order = computed(() => shop.order)
 const storeName = STORE.name
+
+const slideConfirm = ref(null)
 
 const menuPanel = ref(null)
 const ordersPanel = ref(null)
@@ -201,19 +204,16 @@ function goToCheckout() {
   openPage('checkout')
 }
 
+/**
+ * 滑动确认胶囊达标后触发。
+ * 胶囊本身已锁定为完成态，这里只在失败时解锁重试，成功则随订单移入历史而卸载。
+ */
 async function completeCurrentOrder() {
-  const confirmed = await showConfirm({
-    title: '确认完成取餐',
-    content: '确认后订单会移入历史记录。'
-  })
-
-  if (confirmed) {
-    try {
-      voucherOpen.value = false
-      await completeOrder()
-    } catch (error) {
-      showInfo(error.message || '完成取餐失败')
-    }
+  try {
+    await completeOrder()
+  } catch (error) {
+    showInfo(error.message || '完成取餐失败')
+    slideConfirm.value?.settle(true)
   }
 }
 </script>
@@ -227,7 +227,9 @@ async function completeCurrentOrder() {
   overflow: hidden;
 }
 
-.shell-screen > view:first-child {
+/* 顶栏不参与伸缩（原 .shell-screen > view:first-child：小程序端首个子节点编译为
+   phone-header 而非 view，故该规则在微信端从未生效，只在 H5 端命中） */
+.screen-header {
   flex: 0 0 auto;
 }
 
@@ -275,10 +277,9 @@ async function completeCurrentOrder() {
   margin: $sp-2 40rpx 0;
 }
 
+/* 滑动确认胶囊独占整行 */
 .order-footer-actions {
-  display: flex;
-  gap: $sp-4;
-  margin: $sp-2 40rpx $sp-3;
+  margin: $sp-3 40rpx $sp-3;
 }
 
 /* 购物袋内容 */
@@ -304,10 +305,14 @@ async function completeCurrentOrder() {
   padding: $sp-5 0;
 }
 
-/* 取餐凭证 */
+/* ---- 取餐凭证弹窗（入口在订单面板，弹窗本体在页面层） ---- */
+
 .voucher-mask {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
   background: rgba(18, 14, 7, 0.6);
   z-index: 30;
   display: flex;
@@ -349,10 +354,9 @@ async function completeCurrentOrder() {
   color: $c-ink-muted;
   font-size: 48rpx;
   line-height: 1;
-  transition: background-color $dur-fast ease, color $dur-fast ease;
 }
 
-.sheet-close:active {
+.sheet-close--press {
   background: $c-surface-2;
   color: $c-ink-strong;
 }

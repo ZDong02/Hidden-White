@@ -3,7 +3,7 @@
   <scroll-view class="panel-scroll member-panel" scroll-y>
     <view class="member-card">
       <view class="card-top">
-        <view>
+        <view class="card-block">
           <text class="brand">隐白</text>
           <text class="brand-caption">HIDDEN WHITE · MEMBER</text>
         </view>
@@ -11,7 +11,7 @@
       </view>
 
       <view class="card-bottom">
-        <view>
+        <view class="card-block">
           <text class="card-label">会员卡号</text>
           <text class="card-number">{{ member.cardNumber || '游客体验卡' }}</text>
         </view>
@@ -171,8 +171,9 @@ defineExpose({ activate })
   min-width: 0;
 }
 
-.card-top > view,
-.card-bottom > view {
+/* 卡片上下两栏内的文字块：flex 子项需要 min-width:0 才能正常收缩省略 */
+.card-block,
+.points-block {
   min-width: 0;
 }
 

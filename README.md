@@ -156,6 +156,7 @@ npm run dev:mp-weixin
 | `JWT_SECRET` | JWT 签名密钥（生产必配，至少 32 字节） | 开发默认值 |
 | `JWT_EXPIRES_SECONDS` | Token 有效期（秒） | `7200` |
 | `COFFEE_DB_NAME` | 咖啡业务表所在库 | `hidden_white` |
+| `CORS_ALLOWED_ORIGINS` | 跨域白名单（逗号分隔），**仅 prod 生效**；留空 = 不放行任何跨域来源 | 空 |
 
 点单端后端地址配置：编辑 `HiddenWhite-front/config/backend-hosts.js`，添加你的后端 IP 即可，应用启动时自动探测连通的地址。
 
@@ -165,11 +166,21 @@ npm run dev:mp-weixin
 
 | 端 | 前缀 | 鉴权 | 说明 |
 |----|------|------|------|
-| 小程序 / H5 | `/api/**` | 无需登录 | auth、products、store、cart、orders、members |
-| 管理端 | `/api/admin/**` | JWT 登录 | auth、coffee、operation、system、dashboard、monitor、tool/generator |
+| 小程序 / H5 | `/api/auth/login`、`/api/auth/register` | 无需登录 | 登录 / 注册，**返回 `{ member, token }`** |
+| 小程序 / H5 | `/api/products`、`/api/products/options`、`/api/store`、`/api/cart/quote`、`/api/members/benefits` | 无需登录 | 浏览类公开接口 |
+| 小程序 / H5 | `/api/orders/**`、`/api/members/{id}` | **需登录** | 会员归属以 token 判定，不接受客户端传入 memberId |
+| 管理端 | `/api/admin/**` | JWT 登录 + 权限码 | auth、coffee、operation、system、dashboard、monitor、tool/generator |
 | 健康检查 | `/api/health` | 放行 | 点单端用于后端地址自动探测 |
 
-> 管理端登录地址：`/api/admin/auth/login`
+> 管理端登录地址：`/api/admin/auth/login`；点单端注销地址：`/api/auth/logout`
+
+### 点单端鉴权约定（2026-10-17 安全加固）
+
+- 登录 / 注册成功后，后端签发 JWT，客户端存入 `hidden-white-token`，此后所有请求自动带 `Authorization: Bearer <token>`。
+- 会员 token 的 subject 为 `member:<会员ID>`，管理端 token 的 subject 是 `sys_user.username`。两者靠前缀天然隔离：点单端 token 打不进管理端接口，管理端 token 也进不了点单端接口。
+- **订单归属一律以 token 判定**：`GET /api/orders`、`GET /api/orders/{id}`、`POST /api/orders`、`POST /api/orders/{id}/complete`、`GET /api/members/{id}` 均不接受客户端传入 memberId，传入也会被忽略。
+- `SecurityConfig` 兜底为 `denyAll()`：新增路径若忘记配置，默认拒绝而非默认放行。
+- token 与验证码存内存（`ConcurrentHashMap`），**应用重启后需重新登录**；单实例部署，不支持多副本。
 
 ---
 
@@ -181,6 +192,8 @@ npm run dev:mp-weixin
 - **双异常结构**：小程序端返回 `ApiError`，管理端返回 `R`，按请求路径前缀自动区分
 - **双数据访问风格**：小程序端用 `JdbcTemplate`，管理端用 MyBatis-Plus Mapper，共用一个数据源
 - **珍珠玻璃设计语言**：管理端自有组件库，不依赖 Element Plus 等第三方 UI 框架
+- **JWT 双主体**：管理端与点单端共用一套密钥，靠 subject 前缀（`member:`）隔离权限域
+
 
 ---
 

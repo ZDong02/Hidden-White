@@ -10,19 +10,29 @@
         <text class="current-badge">制作中</text>
       </view>
 
-      <!-- 制作进度卡片 -->
-      <view v-if="order" class="progress-card">
+      <!-- 制作进度卡片：点击展开取餐凭证 -->
+      <view
+        v-if="order"
+        class="progress-card"
+        hover-class="progress-card--press"
+        @tap="emit('show-voucher')"
+      >
         <text class="progress-caption">咖啡师正在为你制作</text>
         <text class="pickup-number">{{ order.pickup }}</text>
         <text class="ready-caption">预计 {{ order.ready }} 可取 · 约需 {{ order.preparationTime || 5 }} 分钟</text>
         <view class="progress-track">
-          <view />
-          <view />
+          <view class="track-segment track-segment--done" />
+          <view class="track-segment" />
         </view>
         <view class="progress-labels">
-          <text>已接单</text>
+          <text class="progress-label-done">已接单</text>
           <text class="gold">制作中</text>
           <text>待取餐</text>
+        </view>
+        <!-- 取餐凭证入口：由底部操作区的按钮迁到这里，点击展开完整凭证 -->
+        <view class="voucher-entry">
+          <text class="voucher-entry-text">出示取餐凭证</text>
+          <view class="voucher-entry-arrow" />
         </view>
       </view>
 
@@ -44,15 +54,15 @@
 
       <!-- 订单信息 -->
       <view v-if="order" class="order-metadata">
-        <view>
+        <view class="metadata-row">
           <text class="muted">实付金额</text>
           <text class="gold">¥{{ order.total }} · 微信支付</text>
         </view>
-        <view>
+        <view class="metadata-row">
           <text class="muted">下单时间</text>
           <text>{{ order.created }}</text>
         </view>
-        <view>
+        <view class="metadata-row">
           <text class="muted">订单编号</text>
           <text>{{ order.number }}</text>
         </view>
@@ -84,8 +94,8 @@
           </view>
           <view class="history-divider" />
           <view class="history-items">
-            <text>{{ historyOrder.summary }}</text>
-            <text class="muted">共 {{ historyOrder.count }} 杯</text>
+            <text class="history-summary">{{ historyOrder.summary }}</text>
+            <text class="muted history-qty">共 {{ historyOrder.count }} 杯</text>
           </view>
           <view class="history-meta">
             <text class="muted">{{ historyOrder.created }}</text>
@@ -123,6 +133,13 @@ const historyItems = computed(() => shop.orderHistory.map((historyOrder) => ({
   summary: (historyOrder.items || []).map((item) => `${item.name} ×${item.quantity}`).join('、')
 })))
 const storeAddress = STORE.address
+
+/**
+ * 取餐凭证入口迁入本面板，但弹窗本体留在壳页面（index.vue）渲染。
+ * 原因：swiper-item 会带 transform，弹窗作为 scroll-view 的子节点时
+ * position: fixed 在微信端会相对 swiper-item 定位而错位；放在页面层才稳定。
+ */
+const emit = defineEmits(['show-voucher'])
 
 // 壳页面在切到本面板 / 页面 onShow 时调用；
 // refreshOrders 内部已做并发去重，频繁切 Tab 不会重复请求
@@ -167,6 +184,13 @@ defineExpose({ activate })
   text-align: center;
   padding: $sp-7 $sp-6;
   box-shadow: $sh-dark;
+  transition: transform $dur-fast ease-out, opacity $dur-fast ease-out;
+}
+
+/* 按压反馈用 hover-class：小程序 :active 在真机不可靠 */
+.progress-card--press {
+  transform: scale(0.985);
+  opacity: 0.9;
 }
 
 /* 与首页 Banner 同源的暗金细环，强化「同一套设计语言」 */
@@ -215,13 +239,14 @@ defineExpose({ activate })
   margin-top: $sp-5;
 }
 
-.progress-track view {
+/* 进度条分段：原为 .progress-track view / :first-child，组件 wxss 不允许标签名选择器 */
+.track-segment {
   border-radius: $r-pill;
   background: #4a4a4a;
   flex: 1;
 }
 
-.progress-track view:first-child {
+.track-segment--done {
   background: $c-gold;
 }
 
@@ -233,8 +258,36 @@ defineExpose({ activate })
   margin-top: $sp-4;
 }
 
-.progress-labels text:first-child {
+/* 已完成的那一段（原 .progress-labels text:first-child） */
+.progress-label-done {
   color: #d5d5d5;
+}
+
+/* ---- 取餐凭证入口（原在底部操作区，现并入进度卡片） ---- */
+
+.voucher-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $sp-3;
+  margin-top: $sp-6;
+  padding-top: $sp-5;
+  border-top: 1rpx solid rgba(212, 173, 47, 0.18);
+}
+
+.voucher-entry-text {
+  font-size: 22rpx;
+  color: $c-gold-on-dark;
+  letter-spacing: $ls-wide;
+}
+
+/* 右向雪佛龙：与 SlideConfirm 的箭头同一套画法 */
+.voucher-entry-arrow {
+  width: 12rpx;
+  height: 12rpx;
+  border-top: 2rpx solid $c-gold-on-dark;
+  border-right: 2rpx solid $c-gold-on-dark;
+  transform: rotate(45deg);
 }
 
 .store-block {
@@ -255,7 +308,8 @@ defineExpose({ activate })
   margin-top: $sp-6;
 }
 
-.store-actions button {
+/* 两个按钮等宽（原 .store-actions button，组件 wxss 不允许标签名选择器） */
+.outline-button {
   flex: 1;
 }
 
@@ -267,7 +321,8 @@ defineExpose({ activate })
   margin-top: $sp-7;
 }
 
-.order-metadata > view {
+/* 每行「标签 + 值」左右分栏（原 .order-metadata > view） */
+.metadata-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -383,13 +438,15 @@ defineExpose({ activate })
   font-size: 24rpx;
 }
 
-.history-items > text:first-child {
+/* 左侧商品摘要：占满剩余宽度并允许收缩换行（原 .history-items > text:first-child） */
+.history-summary {
   flex: 1;
   min-width: 0;
   line-height: 1.6;
 }
 
-.history-items > text:last-child {
+/* 右侧杯数不参与收缩（原 .history-items > text:last-child） */
+.history-qty {
   flex-shrink: 0;
 }
 

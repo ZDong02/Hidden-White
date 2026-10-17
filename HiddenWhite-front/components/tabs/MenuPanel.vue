@@ -41,7 +41,7 @@
           <text class="banner-link">品味招牌馥白</text>
           <text class="banner-link-arrow gold">↗</text>
         </view>
-        <image :src="bannerImage" mode="aspectFill" />
+        <image class="banner-image" :src="bannerImage" mode="aspectFill" />
       </view>
 
       <!-- 分类：可横向滚动的紧凑标签列，选中项金色下划线跟随 -->
@@ -135,7 +135,9 @@ async function refreshAll(force = false) {
   const results = await Promise.allSettled([
     loadProducts({ force }),
     refreshOrders(),
-    loadStoreInfo()
+    // 门店营业状态直接决定能否下单，每次 activate（onShow / 切 tab）都强制刷新，
+    // 不吃缓存；单条门店查询开销极小，实时性优先
+    loadStoreInfo({ force: true })
   ])
   const failed = results.find((item) => item.status === 'rejected')
   // 只有商品列表失败才算致命：订单 / 门店失败仍可展示缓存内容
@@ -362,7 +364,7 @@ defineExpose({ activate })
   color: $c-gold-on-dark;
 }
 
-.banner image {
+.banner-image {
   position: absolute;
   right: 28rpx;
   top: 32rpx;
