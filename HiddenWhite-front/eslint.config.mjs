@@ -33,4 +33,11 @@ export default defineConfig([
     files: ["pages/**/*.vue"],
     rules: { "vue/multi-word-component-names": "off" },
   },
+  {
+    // components/ui/ 是项目自有基础组件库，命名沿用通用词汇（Button / Modal /
+    // Input / Card / Stepper），与 Element Plus 等主流库的用法一致。
+    // 这些名字已被全项目 import，重命名收益低于成本，故豁免该规则。
+    files: ["components/ui/**/*.vue"],
+    rules: { "vue/multi-word-component-names": "off" },
+  },
 ]);

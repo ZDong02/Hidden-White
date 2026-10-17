@@ -87,10 +87,11 @@ export function showPrompt(options) {
   return new Promise((resolve) => {
     uni.showModal({
       title,
-      content,
-      editable: true,
-      placeholderText: placeholder,
+      // editable 模式下 content 为输入框初始值，只能写一次
       content: value,
+      editable: true,
+      // content 作为提示语使用：调用方未显式传 placeholder 时以它兜底
+      placeholderText: placeholder || content,
       success: (res) => {
         if (res.confirm) {
           const inputValue = res.content?.trim() || ''

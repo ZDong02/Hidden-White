@@ -46,7 +46,7 @@
 ```
 Hidden White/
 ├── HiddenWhite-front/                  # 点单端：uni-app（微信小程序 / H5）
-│   ├── pages/                          # 7 个业务页面
+│   ├── pages/                          # 4 个业务页面（订单/会员/我的为壳页内 Tab 面板）
 │   ├── components/                     # 共享组件 + components/ui/ 统一 UI 组件库
 │   ├── store/                          # 状态管理（购物车 / 订单 / 登录态）
 │   ├── config/                         # backend.js（统一请求）+ backend-hosts.js（候选地址）
