@@ -49,7 +49,7 @@
       <!-- 支付方式 -->
       <view class="payment">
         <view class="wallet-icon">
-          <image :src="walletIcon" />
+          <image class="wallet-icon-image" :src="walletIcon" />
         </view>
         <view>
           <text class="payment-name">微信支付 · 演示</text>
@@ -61,7 +61,7 @@
       <!-- 订单备注 -->
       <view class="note-row" @tap="editNote">
         <text class="muted">订单备注</text>
-        <view>{{ shop.note || '无需餐具' }} <text>›</text></view>
+        <view>{{ shop.note || '无需餐具' }} <text class="note-arrow">›</text></view>
       </view>
     </view>
 
@@ -275,7 +275,8 @@ async function submit() {
   flex-shrink: 0;
 }
 
-.wallet-icon image {
+/* 支付图标尺寸（原 .wallet-icon image，组件/页面均改用 class） */
+.wallet-icon-image {
   width: 38rpx;
   height: 38rpx;
 }
@@ -316,7 +317,8 @@ async function submit() {
   padding: $sp-5 0 $sp-6;
 }
 
-.note-row view text {
+/* 备注行右侧的箭头（原 .note-row view text） */
+.note-arrow {
   font-size: 30rpx;
   color: $c-ink-faint;
 }
@@ -341,7 +343,7 @@ async function submit() {
 }
 
 /* #ifdef H5 */
-.note-row:hover view text {
+.note-row:hover .note-arrow {
   color: $c-ink;
 }
 /* #endif */

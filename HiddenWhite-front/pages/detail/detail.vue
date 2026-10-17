@@ -7,7 +7,7 @@
     <view class="detail-body">
       <!-- 产品标题 -->
       <view class="detail-title">
-        <text>{{ product.name }}</text>
+        <text class="detail-title-name">{{ product.name }}</text>
         <text class="gold">¥{{ unitPrice }}</text>
       </view>
 
@@ -214,7 +214,8 @@ function addToBag() {
   gap: $sp-4;
 }
 
-.detail-title > text:first-child {
+/* 产品名（原 .detail-title > text:first-child） */
+.detail-title-name {
   font-family: $font-display;
   font-size: $fs-h2;
   line-height: $lh-display;

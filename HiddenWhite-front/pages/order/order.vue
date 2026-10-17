@@ -17,11 +17,11 @@
         <text class="pickup-number">{{ order.pickup }}</text>
         <text class="ready-caption">预计 {{ order.ready }} 可取 · 约需 {{ order.preparationTime || 5 }} 分钟</text>
         <view class="progress-track">
-          <view />
-          <view />
+          <view class="track-segment track-segment--done" />
+          <view class="track-segment" />
         </view>
         <view class="progress-labels">
-          <text>已接单</text>
+          <text class="progress-label-done">已接单</text>
           <text class="gold">制作中</text>
           <text>待取餐</text>
         </view>
@@ -32,8 +32,8 @@
         <StoreLine :arrow="false" />
         <text class="address muted">{{ storeAddress }}</text>
         <view class="store-actions">
-          <button class="outline-button" @tap="handleNavigateStore">导航到店</button>
-          <button class="outline-button" @tap="handleShowStore">联系门店</button>
+          <button class="outline-button store-action-btn" @tap="handleNavigateStore">导航到店</button>
+          <button class="outline-button store-action-btn" @tap="handleShowStore">联系门店</button>
         </view>
       </view>
 
@@ -45,15 +45,15 @@
 
       <!-- 订单信息 -->
       <view v-if="order" class="order-metadata">
-        <view>
+        <view class="metadata-row">
           <text class="muted">实付金额</text>
           <text class="gold">¥{{ order.total }} · 微信支付</text>
         </view>
-        <view>
+        <view class="metadata-row">
           <text class="muted">下单时间</text>
           <text>{{ order.created }}</text>
         </view>
-        <view>
+        <view class="metadata-row">
           <text class="muted">订单编号</text>
           <text>{{ order.number }}</text>
         </view>
@@ -85,8 +85,8 @@
           </view>
           <view class="history-divider" />
           <view class="history-items">
-            <text>{{ historyOrder.summary }}</text>
-            <text class="muted">共 {{ historyOrder.count }} 杯</text>
+            <text class="history-summary">{{ historyOrder.summary }}</text>
+            <text class="muted history-qty">共 {{ historyOrder.count }} 杯</text>
           </view>
           <view class="history-meta">
             <text class="muted">{{ historyOrder.created }}</text>
@@ -104,10 +104,10 @@
     <!-- 底部操作栏 -->
     <view class="bottom-fixed order-footer">
       <template v-if="order">
-        <text class="muted">到店后向咖啡师出示取餐号即可</text>
+        <text class="muted footer-hint">到店后向咖啡师出示取餐号即可</text>
         <view class="order-footer-actions">
-          <button class="outline-button" @tap="completeCurrentOrder">确认已取餐</button>
-          <button class="black-button" @tap="voucherOpen = true">查看取餐凭证</button>
+          <button class="outline-button footer-action-btn" @tap="completeCurrentOrder">确认已取餐</button>
+          <button class="black-button footer-action-btn" @tap="voucherOpen = true">查看取餐凭证</button>
         </view>
       </template>
       <MainTabBar active="orders" @select="handleTabSelect" />
@@ -255,13 +255,14 @@ function completeCurrentOrder() {
   margin-top: 34rpx;
 }
 
-.progress-track view {
+/* 进度条分段（原 .progress-track view / :first-child，组件/页面均改用 class） */
+.track-segment {
   border-radius: 20rpx;
   background: #565656;
   flex: 1;
 }
 
-.progress-track view:first-child {
+.track-segment--done {
   background: #d4ad2f;
 }
 
@@ -273,7 +274,7 @@ function completeCurrentOrder() {
   margin-top: 29rpx;
 }
 
-.progress-labels text:first-child {
+.progress-label-done {
   color: #ccc;
 }
 
@@ -295,7 +296,7 @@ function completeCurrentOrder() {
   margin-top: 42rpx;
 }
 
-.store-actions button {
+.store-action-btn {
   flex: 1;
 }
 
@@ -307,7 +308,7 @@ function completeCurrentOrder() {
   margin-top: 55rpx;
 }
 
-.order-metadata > view {
+.metadata-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -323,7 +324,7 @@ function completeCurrentOrder() {
   padding: 18rpx 0 0;
 }
 
-.order-footer > text {
+.footer-hint {
   display: block;
   text-align: center;
   font-size: 20rpx;
@@ -340,7 +341,7 @@ function completeCurrentOrder() {
   margin: 0 44rpx 18rpx;
 }
 
-.order-footer-actions button {
+.footer-action-btn {
   flex: 1;
 }
 
@@ -448,13 +449,13 @@ function completeCurrentOrder() {
   font-size: 22rpx;
 }
 
-.history-items > text:first-child {
+.history-summary {
   flex: 1;
   min-width: 0;
   line-height: 1.5;
 }
 
-.history-items > text:last-child {
+.history-qty {
   flex-shrink: 0;
 }
 

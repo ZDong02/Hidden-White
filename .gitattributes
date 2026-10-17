@@ -1,0 +1,21 @@
+# 统一换行符策略，避免跨平台协作时整个文件被标记为「已修改」。
+# 依据 CODESTYLE.md 第 1 节：全仓 UTF-8 + LF，仅 .cmd/.bat 必须 CRLF。
+
+* text=auto eol=lf
+
+# Windows 批处理必须 CRLF，否则在 cmd 下可能无法执行
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件不做换行符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.jar binary
+*.class binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
