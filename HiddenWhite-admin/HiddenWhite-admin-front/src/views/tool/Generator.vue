@@ -109,7 +109,8 @@ async function generate(row: TableRow) {
     :min-width="960"
   >
     <template #actions>
-      <PermissionButton perm="tool:gen:list" variant="primary" icon="upload" @click="openImport">导入数据表</PermissionButton>
+      <!-- 导入会写入 gen_table，故用 edit 权限码而非 list（与后端权限拆分保持一致） -->
+      <PermissionButton perm="tool:gen:edit" variant="primary" icon="upload" @click="openImport">导入数据表</PermissionButton>
     </template>
 
     <template #search>

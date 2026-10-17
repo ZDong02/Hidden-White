@@ -594,11 +594,22 @@ VALUES
     (202, 200, '登录日志', 'menu', 'lock', '/monitor/login-log', 'monitor/loginlog/index', 'monitor:loginlog:list', 2, 1, 1, 'system', 'system'),
     (2021, 202, '清理登录日志', 'btn', '', '', '', 'monitor:loginlog:remove', 1, 1, 1, 'system', 'system'),
     (300, 0, '系统工具', 'dir', 'tool', '/tool', '', '', 4, 1, 1, 'system', 'system'),
-    (301, 300, '代码生成', 'menu', 'command', '/tool/generator', 'tool/gen/index', 'tool:gen:list', 1, 1, 1, 'system', 'system');
+    (301, 300, '代码生成', 'menu', 'command', '/tool/generator', 'tool/gen/index', 'tool:gen:list', 1, 1, 1, 'system', 'system'),
+    (3011, 301, '导入表', 'btn', '', '', '', 'tool:gen:edit', 1, 1, 1, 'system', 'system'),
+    (3012, 301, '修改配置', 'btn', '', '', '', 'tool:gen:edit', 2, 1, 1, 'system', 'system'),
+    (3013, 301, '生成代码', 'btn', '', '', '', 'tool:gen:code', 3, 1, 1, 'system', 'system'),
+    (3014, 301, '下载代码', 'btn', '', '', '', 'tool:gen:code', 4, 1, 1, 'system', 'system');
 
 -- 超级管理员拥有全部菜单；其余角色由管理员在「角色管理」中按需授权
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, id FROM sys_menu;
+
+-- 研发工程师（role_id=4）默认拥有代码生成器的读写权限：
+-- 该角色职责本就是「使用代码生成与开发模块」，生成代码会写文件，
+-- 故 edit 与 code 两个写权限一并授予；其余角色仍由管理员按需授权。
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 4, id FROM sys_menu
+WHERE id IN (301, 3011, 3012, 3013, 3014);
 
 -- 工作台菜单补权限码：DashboardController 已加 @RequiresPermission("system:dashboard:list")，
 -- 存量库中该行 permission 为空，需幂等补齐，否则非超管角色将无法访问工作台。
