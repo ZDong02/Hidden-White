@@ -24,8 +24,8 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 店铺运营服务：营业状态（人工打烊优先）、每日运营时段、日流量统计。
- * 营业状态是随时计算的派生值：人工打烊 &gt; 当日休息 &gt; 未到营业时间 &gt; 已过打烊时间 &gt; 营业中。
+ * 店铺运营服务：营业状态（人工开关优先）、每日运营时段、日流量统计。
+ * 营业状态是随时计算的派生值：人工打烊 &gt; 人工开启 &gt; 当日休息 &gt; 未到营业时间 &gt; 已过打烊时间 &gt; 营业中。
  */
 @Service
 public class OperationService {
@@ -48,6 +48,7 @@ public class OperationService {
     public Map<String, Object> status() {
         Map<String, Object> store = requireStore();
         boolean manualClosed = truthy(store.get("manualClosed"));
+        boolean manualOpen = truthy(store.get("manualOpen"));
         String note = text(store.get("statusNote"));
         LocalDate today = LocalDate.now(ZONE);
         Map<String, Object> todayHours = hoursOfDay(today);
@@ -65,6 +66,11 @@ public class OperationService {
             status = "CLOSED";
             reason = "MANUAL";
             message = note.isBlank() ? "店铺已打烊，期待与您再会" : note;
+        } else if (manualOpen) {
+            // 人工开启营业：立即生效，覆盖例休与时间窗口自动判定，与人工打烊对称
+            status = "OPEN";
+            reason = "MANUAL_OPEN";
+            message = null;
         } else if (dayOff) {
             status = "CLOSED";
             reason = "DAY_OFF";
@@ -88,6 +94,7 @@ public class OperationService {
         Map<String, Object> trafficRow = mapper.findTraffic(todayKey);
         return Map.of(
                 "manualClosed", manualClosed,
+                "manualOpen", manualOpen,
                 "statusNote", note,
                 "current", Map.of("status", status, "reason", reason == null ? "" : reason,
                         "note", message == null ? "" : message),
@@ -103,7 +110,8 @@ public class OperationService {
     }
 
     /**
-     * 切换营业 / 打烊（幂等）：打烊即时结算当日流量；恢复营业累计人工打烊时长。
+     * 切换人工开关（三态语义）：打烊 → 人工打烊并即时结算当日流量；
+     * 开启 → 人工开启营业（强制覆盖例休与时间窗口）并累计人工打烊时长。
      * 状态不变时仅更新提示语，不重复结算。
      */
     @Transactional

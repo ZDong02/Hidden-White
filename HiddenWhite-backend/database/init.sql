@@ -711,6 +711,14 @@ SET @sql := IF(@has_col = 0,
     'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- manual_open：人工开启营业（与 manual_closed 对称，强制覆盖例休与时间窗口自动判定）
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stores' AND COLUMN_NAME = 'manual_open');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE stores ADD COLUMN manual_open TINYINT(1) NOT NULL DEFAULT 0 COMMENT ''人工开启营业：TRUE 强制营业，覆盖例休与时间窗口自动判定'' AFTER manual_closed',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- ---------------------------------------------------------------------
 -- 2. store_hours：按星期运营时段（进阶配置，stores 默认时段作兜底）
 -- ---------------------------------------------------------------------
@@ -760,7 +768,7 @@ CREATE TABLE IF NOT EXISTS store_daily_traffic (
 -- 4. 只读检查
 -- ---------------------------------------------------------------------
 SELECT COLUMN_NAME FROM information_schema.COLUMNS
-WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stores' AND COLUMN_NAME IN ('manual_closed', 'status_note', 'closed_at');
+WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stores' AND COLUMN_NAME IN ('manual_closed', 'manual_open', 'status_note', 'closed_at');
 SELECT COUNT(*) AS store_hours_rows FROM store_hours;
 
 

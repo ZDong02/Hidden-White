@@ -21,18 +21,24 @@ public interface OperationMapper {
     // ---- 营业状态 ----
 
     @Select("""
-            SELECT manual_closed AS manualClosed, status_note AS statusNote, closed_at AS closedAt
+            SELECT manual_closed AS manualClosed, manual_open AS manualOpen,
+                   status_note AS statusNote, closed_at AS closedAt
             FROM ${coffeeDb}.stores ORDER BY id LIMIT 1
             """)
     Map<String, Object> storeStatusRow();
 
-    /** 切换人工打烊开关；manual_closed 已是目标状态时不更新（幂等，closed_at 不重复写入）。 */
+    /**
+     * 切换人工开关（三态语义）：closed=TRUE → 人工打烊（manual_closed=1, manual_open=0）；
+     * closed=FALSE → 人工开启营业（manual_closed=0, manual_open=1），强制覆盖例休与时间窗口。
+     * 目标状态已是当前状态时不更新（幂等，closed_at 不重复写入）；存量的
+     * “自动判断”行（manual_closed=0 且 manual_open=0）切换为人工开启时必须命中。
+     */
     @Update("""
             UPDATE ${coffeeDb}.stores
-            SET manual_closed = #{closed}, status_note = #{note},
+            SET manual_closed = #{closed}, manual_open = NOT #{closed}, status_note = #{note},
                 closed_at = CASE WHEN #{closed} THEN NOW() ELSE NULL END
             WHERE id = (SELECT id FROM (SELECT id FROM ${coffeeDb}.stores ORDER BY id LIMIT 1) t)
-              AND manual_closed <> #{closed}
+              AND (manual_closed <> #{closed} OR manual_open = #{closed})
             """)
     int switchStatus(@Param("closed") boolean closed, @Param("note") String note);
 
