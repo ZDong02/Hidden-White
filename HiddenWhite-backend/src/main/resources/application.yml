@@ -68,6 +68,13 @@ hiddenwhite:
     notify-url: ${WECHAT_PAY_NOTIFY_URL:https://your-domain.example.com/api/pay/notify}
     # 统一下单时声明的商户订单号前缀，便于与业务订单号区分与对账
     order-prefix: ${WECHAT_PAY_ORDER_PREFIX:HW}
+    # -------------------------------------------------------------------
+    # 开发模式：跳过真实支付，下单直接置为 PAID。
+    # ⚠️ 仅供本地开发跑通「下单→制作中→已取餐」流程，绝不可用于生产。
+    #    非 dev profile 下开启会直接阻断应用启动（见 PayDevModeGuard）。
+    #    本地开启：设环境变量 HW_PAY_DEV_MODE=true
+    # -------------------------------------------------------------------
+    dev-mode: ${HW_PAY_DEV_MODE:false}
 
 springdoc:
   swagger-ui:

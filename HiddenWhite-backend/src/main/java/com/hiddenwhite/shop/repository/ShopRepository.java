@@ -5,6 +5,7 @@ import com.hiddenwhite.shop.domain.MemberBenefit;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderItem;
 import com.hiddenwhite.shop.domain.OrderStatus;
+import com.hiddenwhite.shop.domain.PickupNumber;
 import com.hiddenwhite.shop.domain.Product;
 import com.hiddenwhite.shop.domain.ProductOption;
 import com.hiddenwhite.shop.domain.StoreInfo;
@@ -179,16 +180,55 @@ public class ShopRepository {
                 .findFirst().map(this::withItems).orElseThrow(() -> new NotFoundException("订单不存在: " + id));
     }
 
-    /** 生成当日订单号（yyyyMMdd + 3 位序号），序号达到 999 后从头循环。 */
+    /**
+     * 生成当日订单号（yyyyMMdd + 4 位序号），序号达到 9999 后从头循环。
+     *
+     * <p><b>为何必须用 CAST 转数值比较</b>：早期实现写的是
+     * {@code MAX(order_number)}——那是<b>字符串</b>比较。当历史数据存在
+     * 3 位序号（11 位号码，如 {@code 20261018101}）与 4 位序号（12 位号码，
+     * 如 {@code 202610180102}）两种长度时，字符串排序会把 3 位序号那批
+     * 判为"更大"，于是每次都拿它当基准，生成的号反复撞唯一索引
+     * {@code uk_orders_order_number}，表现为「第一单能下、第二单必失败」。
+     * 转成数值后再比较，11 位与 12 位号码能被正确解析成 101 与 102。
+     */
     public String nextOrderNumber(LocalDate date) {
         String prefix = NUMBER_DATE.format(date);
-        String max = jdbc.queryForObject("SELECT MAX(order_number) FROM orders WHERE order_number LIKE ?", String.class, prefix + "%");
-        int next = 100;
-        if (max != null && max.length() > prefix.length()) {
-            int last = Integer.parseInt(max.substring(prefix.length()));
-            next = last >= 999 ? 100 : last + 1;
+        // SUBSTRING 从第 9 位（下标 8）起取序号：前缀 yyyyMMdd 恒为 8 位
+        Integer maxSeq = jdbc.queryForObject(
+                "SELECT MAX(CAST(SUBSTRING(order_number, 9) AS UNSIGNED)) FROM orders "
+                        + "WHERE order_number LIKE ? AND order_number REGEXP CONCAT('^[0-9]{8}[0-9]+$')",
+                Integer.class, prefix + "%");
+        int lastSeq = maxSeq == null ? 0 : maxSeq;
+        // 序号下限固定 1000（4 位），避免与 3 位旧号混淆
+        int next = lastSeq >= ORDER_SEQ_MAX ? 1000 : lastSeq + 1;
+        if (next < 1000) {
+            next = 1000;
         }
-        return prefix + String.format("%03d", next);
+        return prefix + String.format("%04d", next);
+    }
+
+    /** 订单号序号上限（4 位共 9999 个）。 */
+    private static final int ORDER_SEQ_MAX = 9999;
+
+    /**
+     * 分配当日取餐号（1~999 循环）。
+     *
+     * <p><b>与 {@link #nextOrderNumber} 的区别</b>：订单号是对账凭据，跨日重置但当日严格递增；
+     * 取餐号是门店叫号凭据，同样跨日重置，但必须<b>从 1 开始</b>，
+     * 且当日取餐号互不相同。两者不再互相派生——改造前取餐号取自订单号末 3 位，
+     * 上限只有 999，且与订单号序号强耦合。
+     *
+     * <p>取号基准是<b>当日全店已分配过的最大取餐号</b>（含已取消订单）：
+     * 只要门店不存在两笔同号进行中订单，就不会拿错餐；递增扫描天然保证这一点。
+     */
+    public String nextPickupNumber(LocalDate date) {
+        // 声明为 Integer 而非 int：当日无任何订单时 MAX(...) 返回 NULL，
+        // 用原始类型会导致 jdbc 取值时抛类型转换异常而非返回 null。
+        Integer max = jdbc.queryForObject(
+                "SELECT MAX(CAST(pickup AS UNSIGNED)) FROM orders WHERE DATE(created_at)=? AND pickup REGEXP '^[0-9]+$'",
+                Integer.class, date);
+        int lastUsed = max == null ? 0 : max;
+        return PickupNumber.format(PickupNumber.nextAfter(lastUsed));
     }
 
     @Transactional

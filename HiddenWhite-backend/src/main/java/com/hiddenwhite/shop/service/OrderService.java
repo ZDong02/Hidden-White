@@ -1,6 +1,7 @@
 package com.hiddenwhite.shop.service;
 
 import com.hiddenwhite.shop.domain.Order;
+import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderItem;
 import com.hiddenwhite.shop.domain.OrderStatus;
 import com.hiddenwhite.shop.domain.PriceSummary;
@@ -8,6 +9,7 @@ import com.hiddenwhite.shop.domain.Product;
 import com.hiddenwhite.shop.dto.CreateOrderRequest;
 import com.hiddenwhite.shop.dto.OrderItemRequest;
 import com.hiddenwhite.shop.exception.BusinessException;
+import com.hiddenwhite.shop.pay.PayDevModeProperties;
 import com.hiddenwhite.shop.repository.ShopRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,12 +31,17 @@ public class OrderService {
     private static final int PREPARATION_MINUTES = 5;
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
+    /** 开发模式下的支付渠道标记。对账时一眼可辨不是真实微信支付。 */
+    private static final String DEV_PAY_CHANNEL = "DEV_MODE";
+
     private final CatalogService catalog;
     private final ShopRepository repository;
+    private final PayDevModeProperties devMode;
 
-    public OrderService(CatalogService catalog, ShopRepository repository) {
+    public OrderService(CatalogService catalog, ShopRepository repository, PayDevModeProperties devMode) {
         this.catalog = catalog;
         this.repository = repository;
+        this.devMode = devMode;
     }
 
     public List<Order> findAll(String memberId) {
@@ -75,15 +82,27 @@ public class OrderService {
         PriceSummary summary = calculate(items, owner);
         OffsetDateTime created = OffsetDateTime.now(ZONE);
         OffsetDateTime ready = created.plusMinutes(PREPARATION_MINUTES);
-        String number = repository.nextOrderNumber(LocalDate.ofInstant(created.toInstant(), ZONE));
-        String pickup = number.substring(number.length() - 3);
+        LocalDate orderDate = LocalDate.ofInstant(created.toInstant(), ZONE);
+        String number = repository.nextOrderNumber(orderDate);
+        // 取餐号独立取号：1~9999 每日循环，不再从订单号尾部派生。
+        // 原实现 orderNumber.substring(len-3) 有两个硬伤：上限只有 999，
+        // 且取餐号随订单号跨日重置，门店叫号时分不清是哪一天的号。
+        String pickup = repository.nextPickupNumber(orderDate);
         Order order = new Order(UUID.randomUUID(), owner, List.copyOf(items), summary.subtotal(), summary.discount(),
                 PACKAGING_FEE, summary.total(),
                 items.stream().mapToInt(OrderItem::quantity).sum(), pickup,
                 number, created, ready, OrderStatus.CREATED,
                 request.note() == null ? "" : request.note().trim(), null,
                 null, null, null, null, null, null, null, null, null);
-        return repository.saveOrder(order);
+        Order saved = repository.saveOrder(order);
+
+        // 开发模式：跳过真实支付，直接推进到 PAID，
+        // 让「下单 → 制作中 → 已取餐」的完整流程在没有支付凭据时也能跑通。
+        if (devMode.isDevMode()) {
+            saved = repository.markPaid(saved.id(), DEV_PAY_CHANNEL,
+                    PayDevModeProperties.DEV_TX_PREFIX + UUID.randomUUID(), created);
+        }
+        return saved;
     }
 
     /**
@@ -100,6 +119,39 @@ public class OrderService {
         Order existing = find(id);
         assertOwned(existing, callerId);
         return markCompleted(existing);
+    }
+
+    /**
+     * 主动取消订单。
+     *
+     * <p><b>为什么必须有这条路径</b>：改造前只有超时任务能取消订单，意味着顾客下错单、
+     * 支付未接入、或临时不想要了，唯一出路是<b>被动等待 35 分钟</b>超时
+     * （制作 5 分钟 + 30 分钟缓冲）。那段时间里该会员被「仅一张进行中订单」
+     * 的名额锁住，既不能重新下单，也不能确认取餐——形成一个体验极差的死等。
+     * 提供主动取消让顾客立刻释放名额。
+     *
+     * <p><b>已付款的订单不能由前端直接取消</b>：钱已经到账，再取消等于让门店白做、
+     * 顾客白花钱。此类订单必须走退款流程（{@code ShopRepository.markRefunded}），
+     * 由店员介入，不给前端开这个口子。
+     */
+    public synchronized Order cancel(UUID id, String callerId) {
+        Order existing = find(id);
+        assertOwned(existing, callerId);
+
+        if (existing.status() == OrderStatus.COMPLETED) {
+            throw new BusinessException(HttpStatus.CONFLICT, "订单已完成取餐，无法取消");
+        }
+        // 兼容已取消：重复点击直接返回当前状态，不报错
+        if (existing.status() == OrderStatus.CANCELLED) {
+            return existing;
+        }
+        if (existing.status().isPaid()) {
+            // PAID 分支走到这里说明是已付款未取餐，属于需要人工对账的异常场景
+            throw new BusinessException(HttpStatus.CONFLICT,
+                    "订单已支付，请联系门店协助取消与退款");
+        }
+        existing.status().assertCanTransitionTo(OrderStatus.CANCELLED);
+        return repository.cancel(existing.id(), OrderCancelReason.MANUAL, OffsetDateTime.now(ZONE));
     }
 
     /** 归属校验：订单必须属于当前登录会员。 */
