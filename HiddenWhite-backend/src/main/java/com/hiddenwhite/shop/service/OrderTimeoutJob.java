@@ -1,6 +1,7 @@
 package com.hiddenwhite.shop.service;
 
 import com.hiddenwhite.shop.domain.Order;
+import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderStatus;
 import com.hiddenwhite.shop.repository.ShopRepository;
 import org.slf4j.Logger;
@@ -38,11 +39,10 @@ public class OrderTimeoutJob {
     private static final Logger log = LoggerFactory.getLogger(OrderTimeoutJob.class);
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
-    /** 取消原因：超时未支付。 */
-    public static final String REASON_UNPAID = "TIMEOUT_UNPAID";
+    /** 取消原因常量统一由 {@link com.hiddenwhite.shop.domain.OrderCancelReason} 提供，此处仅保留兼容别名。 */
+    public static final String REASON_UNPAID = OrderCancelReason.TIMEOUT_UNPAID;
 
-    /** 取消原因：超时未取餐（已支付，需人工对账退款）。 */
-    public static final String REASON_UNPICKED = "TIMEOUT_UNPICKED";
+    public static final String REASON_UNPICKED = OrderCancelReason.TIMEOUT_UNPICKED;
 
     private final ShopRepository repository;
 

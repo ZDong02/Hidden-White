@@ -64,6 +64,18 @@ public class OrderController {
         return orderService.complete(id, callerId());
     }
 
+    /**
+     * 主动取消订单；非本人订单返回 403。
+     *
+     * <p>仅允许取消未支付订单。已支付需联系门店走退款流程，此处不开放，
+     * 避免「钱收了、订单没了」却无退款记录的资损场景。
+     * 重复取消幂等返回当前状态，不报错。
+     */
+    @PostMapping("/{id}/cancel")
+    public Order cancel(@PathVariable UUID id) {
+        return orderService.cancel(id, callerId());
+    }
+
     /** 取当前登录会员 ID；未登录由 SecurityConfig 拦截，这里仅作防御性兜底。 */
     private String callerId() {
         return sessionService.currentMemberId()

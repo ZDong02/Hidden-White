@@ -48,6 +48,13 @@
         <view class="order-footer-actions">
           <SlideConfirm ref="slideConfirm" @confirm="completeCurrentOrder" />
         </view>
+        <!--
+          取消订单：仅未支付时展示。
+          已支付订单不给这个选项——钱已到账，取消须走退款流程，前端直接放行会造成资损。
+        -->
+        <view v-if="order.status !== 'in-progress'" class="order-cancel-row">
+          <text class="order-cancel-link" @tap="confirmCancelOrder">取消订单</text>
+        </view>
       </template>
 
       <MainTabBar :active="activeTab" @select="switchTo" />
@@ -122,7 +129,7 @@ import Modal from '../../components/ui/Modal.vue'
 import Stepper from '../../components/ui/Stepper.vue'
 import UiButton from '../../components/ui/Button.vue'
 import SlideConfirm from '../../components/ui/SlideConfirm.vue'
-import { shop, count, subtotal, saveCart, completeOrder, storeInfo } from '../../store/index'
+import { shop, count, subtotal, saveCart, completeOrder, cancelOrder, storeInfo } from '../../store/index'
 import { STORE } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
 import { isLoggedIn } from '../../store/auth'
@@ -216,6 +223,35 @@ async function completeCurrentOrder() {
     slideConfirm.value?.settle(true)
   }
 }
+
+/**
+ * 取消当前订单。
+ *
+ * 已支付的订单不可自行取消（后端会拦），按钮隐藏避免给出无法兑现的选项；
+ * 未支付订单给出二次确认，防止误触丢失订单。
+ */
+function confirmCancelOrder() {
+  if (order.value?.status === 'in-progress') {
+    showInfo('订单已支付，请联系门店协助取消与退款')
+    return
+  }
+  uni.showModal({
+    title: '取消订单',
+    content: '确定要取消这笔订单吗？取消后可以重新下单。',
+    confirmText: '确定取消',
+    cancelText: '再想想',
+    confirmColor: '#8a6a4a',
+    success: async ({ confirm }) => {
+      if (!confirm) return
+      try {
+        await cancelOrder()
+        showInfo('订单已取消')
+      } catch (error) {
+        showInfo(error.message || '取消订单失败')
+      }
+    }
+  })
+}
 </script>
 
 <style lang="scss" scoped>
@@ -280,6 +316,23 @@ async function completeCurrentOrder() {
 /* 滑动确认胶囊独占整行 */
 .order-footer-actions {
   margin: $sp-3 40rpx $sp-3;
+}
+
+/* 取消订单入口：弱化为文字链，避免与滑动确认的主操作争夺视觉权重 */
+.order-cancel-row {
+  display: flex;
+  justify-content: center;
+  margin: 0 40rpx $sp-3;
+}
+
+.order-cancel-link {
+  font-size: 26rpx;
+  color: #9a9a9a;
+  padding: $sp-2 $sp-4;
+}
+
+.order-cancel-link:active {
+  color: #6b6b6b;
 }
 
 /* 购物袋内容 */

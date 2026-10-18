@@ -292,11 +292,22 @@ export async function createOrder() {
       return shop.order
     }
 
-    // 本地模式（使用新的 datetime 工具）
-    const now = new Date()
-    const formatted = formatDateTime(now)
-    const readyTime = calculateReadyTime(BUSINESS.preparationTime)
-    const pickupNumber = String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')
+// 本地模式（后端不可用时的降级路径）
+const now = new Date()
+const formatted = formatDateTime(now)
+const readyTime = calculateReadyTime(BUSINESS.preparationTime)
+// 与后端 PickupNumber 规则保持一致：当日 1~999 循环、固定 3 位。
+// 原实现是Math.random()，随机数必然可能重复——顾客报同一个号取到两杯咖啡，
+// 是门店真实会出事故的缺陷。改为从当日历史订单里推出的最大号继续递增。
+const todayKey = formatted.orderNumber
+const usedToday = shop.orderHistory.filter((row) => String(row.number || '').startsWith(todayKey))
+const lastUsed = usedToday.reduce((max, row) => {
+  const raw = String(row.pickup || '').replace(/^0+/, '')
+  const value = Number(raw || 0)
+  return Number.isFinite(value) && value > max ? value : max
+}, 0)
+const nextPickup = lastUsed >= 999 ? 1 : lastUsed + 1
+const pickupNumber = String(nextPickup).padStart(3, '0')
 
     shop.order = {
       items: JSON.parse(JSON.stringify(shop.cart)),
@@ -352,6 +363,45 @@ export async function completeOrder() {
     completedAt: completedAt.datetime
   }
   shop.orderHistory.unshift(completedOrder)
+  shop.orderHistory.splice(MAX_ORDER_HISTORY)
+  shop.order = null
+  setStorageImmediate(ORDER_KEY, null)
+  setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
+}
+
+/**
+ * 主动取消当前订单。
+ *
+ * 存在的意义：下单后不想要了、或支付未接入时放弃，
+ * 不必被动等待服务端 35 分钟超时才能重新下单。
+ * 取消后立即释放「同一会员仅一张进行中订单」的名额。
+ */
+export async function cancelOrder() {
+  if (!shop.order) return
+
+  // 与后端同一条不变式：已付款不能由顾客直接取消，否则钱收了订单没了
+  if (shop.order.status === 'in-progress') {
+    throw new Error('订单已支付，请联系门店协助取消与退款')
+  }
+
+  if (BACKEND_ENABLED && shop.order.id) {
+    const backendOrder = await requestApi(`/orders/${shop.order.id}/cancel`, {
+      method: 'POST'
+    })
+    const cancelledOrder = mapBackendOrder(backendOrder)
+    shop.orderHistory.unshift(cancelledOrder)
+    shop.orderHistory.splice(MAX_ORDER_HISTORY)
+    shop.order = null
+    setStorageImmediate(ORDER_KEY, null)
+    setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
+    return
+  }
+
+  const cancelledOrder = {
+    ...JSON.parse(JSON.stringify(shop.order)),
+    status: 'cancelled'
+  }
+  shop.orderHistory.unshift(cancelledOrder)
   shop.orderHistory.splice(MAX_ORDER_HISTORY)
   shop.order = null
   setStorageImmediate(ORDER_KEY, null)
