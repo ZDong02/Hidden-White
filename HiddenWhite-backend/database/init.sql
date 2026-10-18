@@ -133,7 +133,7 @@ CREATE TABLE IF NOT EXISTS orders (
     packaging_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     total DECIMAL(10,2) NOT NULL,
     item_count INT NOT NULL,
-    pickup VARCHAR(3) NOT NULL,
+    pickup VARCHAR(3) NOT NULL COMMENT '取餐号：当日 1~999 循环，固定 3 位',
     order_number VARCHAR(32) NOT NULL,
     created_at DATETIME(6) NOT NULL,
     ready_at DATETIME(6) NOT NULL,
@@ -826,6 +826,21 @@ SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'cancel_reason');
 SET @sql := IF(@has_col = 0,
     'ALTER TABLE orders ADD COLUMN cancel_reason VARCHAR(32) NULL COMMENT ''取消原因：TIMEOUT_UNPAID / TIMEOUT_UNPICKED / MANUAL / PAY_FAILED'' AFTER cancelled_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 取餐号位数规范化：3 位。历史上曾扩到 4 位后又收回，
+-- 此处按列宽双向兼容，存量库重跑本脚本即可自动对齐。
+SET @pickup_len := (SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'pickup');
+-- 先把超长数据截到 3 位，避免 ALTER 时因截断报错中断
+SET @sql := IF(@pickup_len > 3,
+    'UPDATE orders SET pickup = RIGHT(LPAD(CAST(CAST(pickup AS UNSIGNED) AS CHAR), 4, ''0''), 3) WHERE pickup REGEXP ''^[0-9]+$'' AND CHAR_LENGTH(pickup) > 3',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql := IF(@pickup_len <> 3,
+    'ALTER TABLE orders MODIFY COLUMN pickup VARCHAR(3) NOT NULL COMMENT ''取餐号：当日 1~999 循环，固定 3 位''',
     'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
