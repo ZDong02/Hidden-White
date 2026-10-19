@@ -6,7 +6,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
+
+import static com.hiddenwhite.common.domain.Constants.ZONE;
 
 /**
  * 日客流结算任务。
@@ -27,7 +28,6 @@ import java.time.ZoneId;
 public class DailyTrafficSettleJob {
 
     private static final Logger log = LoggerFactory.getLogger(DailyTrafficSettleJob.class);
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     /** 一次补结算回溯的天数上限。门店若长期未结算，回溯过多会造成不必要的全表聚合。 */
     private static final int BACKFILL_DAYS = 7;

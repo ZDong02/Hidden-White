@@ -1,7 +1,6 @@
 package com.hiddenwhite.shop.controller;
 
 import com.hiddenwhite.shop.domain.Product;
-import com.hiddenwhite.shop.domain.ProductOption;
 import com.hiddenwhite.shop.service.CatalogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;

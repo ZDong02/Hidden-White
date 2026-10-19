@@ -11,9 +11,7 @@ import java.util.List;
 @Service
 public class CatalogService {
     public static final String STANDARD_SIZE = "标准杯 240 毫升";
-    public static final String LARGE_SIZE = "大杯 360 毫升";
     public static final String HOT = "热";
-    public static final String ICE = "冰";
     public static final String NO_MILK = "无奶";
 
     private final ShopRepository repository;

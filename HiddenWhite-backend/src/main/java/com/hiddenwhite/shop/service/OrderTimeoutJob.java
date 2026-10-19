@@ -11,9 +11,10 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+
+import static com.hiddenwhite.common.domain.Constants.ZONE;
 
 /**
  * 订单超时取消任务。
@@ -37,7 +38,6 @@ import java.util.UUID;
 public class OrderTimeoutJob {
 
     private static final Logger log = LoggerFactory.getLogger(OrderTimeoutJob.class);
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     /** 取消原因常量统一由 {@link com.hiddenwhite.shop.domain.OrderCancelReason} 提供，此处仅保留兼容别名。 */
     public static final String REASON_UNPAID = OrderCancelReason.TIMEOUT_UNPAID;

@@ -22,10 +22,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.hiddenwhite.common.domain.Constants.SUPER_ADMIN;
+
 @Service
 public class AuthService {
-
-    private static final String SUPER_ADMIN = "super_admin";
 
     private final AuthMapper authMapper;
     private final PasswordEncoder passwordEncoder;

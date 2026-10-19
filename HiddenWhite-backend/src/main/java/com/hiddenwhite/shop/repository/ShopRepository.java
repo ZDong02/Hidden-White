@@ -28,16 +28,17 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
+import static com.hiddenwhite.common.domain.Constants.ZONE;
+
 /** 小程序 / H5 端数据访问（hidden_white 库）。 */
 @Repository
 public class ShopRepository {
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter NUMBER_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
+
     private final JdbcTemplate jdbc;
 
     public ShopRepository(JdbcTemplate jdbc) {
@@ -295,6 +296,9 @@ public class ShopRepository {
      *
      * <p>预支付会话有时效（默认 2 小时），过期后 {@code prepayId} 无法再唤起支付，
      * 需重新统一下单。因此这里同时写入过期时间，供超时任务清理。
+     *
+     * <p><b>保留说明</b>：微信支付接入尚未启用，本方法当前零调用方，
+     * 但下单链路已实现，接入支付时直接启用。
      */
     public Order markAwaitingPayment(UUID id, String prepayId, OffsetDateTime expireAt) {
         int updated = jdbc.update(
@@ -345,14 +349,24 @@ public class ShopRepository {
         return order(id);
     }
 
-    /** 记录退款结果。仅更新退款相关列，不改动状态（退款后的终态由业务决定）。 */
+    /**
+     * 记录退款结果。仅更新退款相关列，不改动状态（退款后的终态由业务决定）。
+     *
+     * <p><b>保留说明</b>：微信支付接入尚未启用，本方法当前零调用方，
+     * 但退款回调落地时需要它，且对应 orders 表的 refund_id / refunded_at 列。
+     * 接入支付时直接启用，不需重写。
+     */
     public Order markRefunded(UUID id, String refundId, OffsetDateTime refundedAt) {
         jdbc.update("UPDATE orders SET refund_id=?,refunded_at=? WHERE id=?",
                 refundId, toLocal(refundedAt), id.toString());
         return order(id);
     }
 
-    /** 按商户订单号查订单：支付回调按 out_trade_no 定位业务订单。 */
+    /**
+     * 按商户订单号查订单：支付回调按 out_trade_no 定位业务订单。
+     *
+     * <p><b>保留说明</b>：同 {@link #markRefunded}，为支付回调预留，当前零调用方。
+     */
     public Order findByNumber(String orderNumber) {
         return jdbc.query("SELECT * FROM orders WHERE order_number=?", ORDER_MAPPER, orderNumber).stream()
                 .findFirst().orElseThrow(() -> new NotFoundException("订单不存在: " + orderNumber));

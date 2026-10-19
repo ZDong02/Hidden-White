@@ -25,6 +25,10 @@ const CANCEL_REASON: Record<string, string> = {
   PAY_FAILED: '支付失败，自动取消',
 }
 
+/**
+ * 状态筛选项。刻意不与 STATUS 逐项对齐：CREATED 与 PENDING_PAYMENT 在展示上
+ * 同为「待支付」，查询时用 PENDING_PAYMENT 一项即可覆盖，不能按 STATUS 机械派生。
+ */
 const STATUS_FILTER = [
   { label: '全部状态', value: '' },
   { label: '待支付', value: 'PENDING_PAYMENT' },

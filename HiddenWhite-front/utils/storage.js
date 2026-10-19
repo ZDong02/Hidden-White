@@ -41,17 +41,6 @@ export function removeStorage(key) {
   }
 }
 
-// 清空所有存储
-export function clearStorage() {
-  try {
-    uni.clearStorageSync()
-    return true
-  } catch (error) {
-    console.error('清空存储失败:', error)
-    return false
-  }
-}
-
 // 防抖存储：连续写入时只保存最后一次
 const debounceTimers = new Map()
 

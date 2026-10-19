@@ -30,17 +30,14 @@ export function showInfo(message, duration = 2000) {
   })
 }
 
-// 加载中提示
-export function showLoading(message = '加载中...') {
-  uni.showLoading({
-    title: message,
-    mask: true
+// 纯告知弹窗（仅「知道了」按钮，不可取消）
+export function showNotice(title, content) {
+  uni.showModal({
+    title,
+    content,
+    showCancel: false,
+    confirmText: '知道了'
   })
-}
-
-// 隐藏加载提示
-export function hideLoading() {
-  uni.hideLoading()
 }
 
 // 确认对话框
@@ -101,22 +98,6 @@ export function showPrompt(options) {
           if (onCancel) onCancel()
           resolve(null)
         }
-      }
-    })
-  })
-}
-
-// 操作菜单
-export function showActionSheet(itemList, onSelect) {
-  return new Promise((resolve) => {
-    uni.showActionSheet({
-      itemList,
-      success: (res) => {
-        if (onSelect) onSelect(res.tapIndex)
-        resolve(res.tapIndex)
-      },
-      fail: () => {
-        resolve(-1)
       }
     })
   })

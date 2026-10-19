@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { Field, Panel, TextInput } from '@/components/ui'
-import { Button } from '@/components/ui'
+import { Button, Field, Panel, TextInput } from '@/components/ui'
 import { coffeeApi, type CoffeeStoreRow } from '@/api'
 import { pushToast, toastError } from '@/composables/toast'
 import { required, pattern, validate } from '@/utils/validate'
-
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
+import { TIME_PATTERN } from '@/data'
 
 const store = ref<CoffeeStoreRow | null>(null)
 const loading = ref(false)

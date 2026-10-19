@@ -1,7 +1,7 @@
 import { ref, type Ref } from 'vue'
 import { systemApi } from '@/api'
 
-/* 字典缓存：同一字典类型只请求一次，DictSelect / DictTag 共用。 */
+/* 字典缓存：同一字典类型只请求一次，DictSelect 与页面共用。 */
 export interface DictOption {
   label: string
   value: string

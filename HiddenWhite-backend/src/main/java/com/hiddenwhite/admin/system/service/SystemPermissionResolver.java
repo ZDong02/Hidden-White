@@ -4,10 +4,10 @@ import com.hiddenwhite.framework.security.PermissionResolver;
 import com.hiddenwhite.admin.system.mapper.AuthMapper;
 import org.springframework.stereotype.Service;
 
+import static com.hiddenwhite.common.domain.Constants.SUPER_ADMIN;
+
 @Service
 public class SystemPermissionResolver implements PermissionResolver {
-
-    private static final String SUPER_ADMIN = "super_admin";
 
     private final AuthMapper authMapper;
 

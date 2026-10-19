@@ -42,9 +42,6 @@ export const IMAGES = {
     pin: '/static/icons/pin.png',
     back: '/static/icons/back.png',
     wifi: '/static/icons/wifi.png',
-    wallet: '/static/icons/wallet.png',
-    cup: '/static/icons/cup.png',
-    orders: '/static/icons/orders.png',
-    user: '/static/icons/user.png'
+    wallet: '/static/icons/wallet.png'
   }
 }

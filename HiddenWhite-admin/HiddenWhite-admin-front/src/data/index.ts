@@ -1,6 +1,8 @@
 /* ============================================================
    品牌与全局配置：换品牌只改这里。
    ============================================================ */
+import type { StatsRange } from '@/api'
+
 export const APP = Object.freeze({
   name: '通用后台管理系统',
   shortName: '管理后台',
@@ -60,3 +62,18 @@ export interface Dept extends BaseRow {
 
 /** 头像底色：由名称稳定映射，避免同一个人每次颜色不同 */
 export const AVATAR_TINTS = ['#236de9', '#3f9d3a', '#4b5a63', '#2f8f9d', '#7a5cd6', '#c2603e']
+
+/* ── 跨页面共用的展示常量 ────────────────────────────────────── */
+
+/** 统计范围选项（操作日志 / 登录日志共用），value 对应 api 的 StatsRange */
+export const STATS_RANGES: { label: string; value: StatsRange }[] = [
+  { label: '24 小时', value: '24h' },
+  { label: '7 天', value: '7d' },
+  { label: '30 天', value: '30d' },
+]
+
+/** 星期中文名，下标对应 dayOfWeek（1=周一 … 7=周日） */
+export const WEEK_NAMES = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
+
+/** HH:mm 时间格式 */
+export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/

@@ -34,7 +34,7 @@ const TAU = Math.PI * 2
 const rgba = (c: RGB, a: number) => `rgba(${c}, ${Math.max(0, Math.min(1, a))})`
 
 /** 稳定伪随机：同一 seed 每帧一致 */
-export const seedOf = (id: string) => {
+const seedOf = (id: string) => {
   let h = 0
   for (let i = 0; i < id.length; i += 1) h = (h * 31 + id.charCodeAt(i)) | 0
   return (Math.abs(h) % 1000) / 1000

@@ -3,10 +3,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { Button, Field, Panel, Switch, TextInput } from '@/components/ui'
 import { operationApi, type OperationDayHours } from '@/api'
 import { pushToast, toastError } from '@/composables/toast'
-import { pattern, validate } from '@/utils/validate'
-
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/
-const WEEK_NAMES = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
+import { TIME_PATTERN, WEEK_NAMES } from '@/data'
 
 const loading = ref(false)
 const saving = ref(false)

@@ -12,6 +12,7 @@ import { revealCascade } from '@/composables/motion'
 import { useListPage } from '@/composables/list'
 import { confirm } from '@/composables/confirm'
 import { pushToast, toastError } from '@/composables/toast'
+import { STATS_RANGES } from '@/data'
 
 interface LoginRow { id: number; username: string; status: number; msg?: string; ip?: string; location?: string; browser?: string; os?: string; loginTime: string }
 
@@ -34,7 +35,6 @@ const columns: Column[] = [
 const STATUSES = [{ label: '全部结果', value: '' }, { label: '成功', value: '1' }, { label: '失败', value: '0' }]
 
 /* ── 01 概览 / 02 趋势 ── */
-const RANGES = [{ label: '24 小时', value: '24h' as StatsRange }, { label: '7 天', value: '7d' as StatsRange }, { label: '30 天', value: '30d' as StatsRange }]
 const range = ref<StatsRange>('24h')
 const stats = ref<LoginLogStats | null>(null)
 const series = computed(() => stats.value?.series ?? [])
@@ -122,7 +122,7 @@ async function clearAll() {
       <section class="band reveal">
         <div class="band-head">
           <SectionLabel title="概览" />
-          <Segmented v-model="range" label="统计范围" :options="RANGES" />
+          <Segmented v-model="range" label="统计范围" :options="STATS_RANGES" />
         </div>
         <div class="readout-strip">
           <Metric label="登录次数" :value="stats?.total" unit="次" />
@@ -137,7 +137,7 @@ async function clearAll() {
         <div class="band-head">
           <SectionLabel :title="trendView === 'heat' ? '登录热力' : '登录与失败趋势'" />
           <span class="band-tools">
-            <span class="bento-meta">{{ trendView === 'heat' ? `近 ${heatDays} 天 · 星期 × 小时` : RANGES.find(r => r.value === range)?.label }}</span>
+            <span class="bento-meta">{{ trendView === 'heat' ? `近 ${heatDays} 天 · 星期 × 小时` : STATS_RANGES.find(r => r.value === range)?.label }}</span>
             <Segmented v-model="trendView" label="趋势视图" :options="TREND_VIEWS" />
           </span>
         </div>

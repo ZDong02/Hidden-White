@@ -76,6 +76,7 @@
 import { ref } from 'vue'
 import { currentUser, isLoggedIn } from '../../store/auth'
 import { BACKEND_ENABLED, requestApi } from '../../config/backend'
+import { showNotice } from '../../utils/toast'
 
 const defaultBenefits = [
   { icon: '◇', title: '积分兑换', description: '好礼随心兑' },
@@ -110,12 +111,7 @@ async function activate() {
 }
 
 function showFeature(title) {
-  uni.showModal({
-    title,
-    content: '该会员服务当前仅展示权益说明，积分兑换与优惠券核销尚未开放。',
-    showCancel: false,
-    confirmText: '知道了'
-  })
+  showNotice(title, '该会员服务当前仅展示权益说明，积分兑换与优惠券核销尚未开放。')
 }
 
 defineExpose({ activate })

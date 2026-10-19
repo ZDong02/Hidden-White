@@ -18,7 +18,7 @@ export const navGroups = ref<NavGroup[]>([])
 export const dynamicRoutes = ref<RouteRecordRaw[]>([])
 export const sessionVersion = ref(0)
 /** 页面组件标识 → 当前账号可访问的路由路径（如 monitor/operlog/index → /monitor/operlog） */
-export const componentPaths = ref<Record<string, string>>({})
+const componentPaths = ref<Record<string, string>>({})
 
 /** 当前账号可访问时返回该页面路径，否则 null；跨页跳转统一走这里，避免写死菜单路径 */
 export function pathOf(component: string) {
@@ -59,7 +59,7 @@ const COMPONENT_MAP: Record<string, () => Promise<{ default: Component }>> = {
 }
 
 /** 路由名由路径推导：/system/user → system-user */
-export function routeNameOf(path: string) {
+function routeNameOf(path: string) {
   return path.replace(/^\/+|\/+$/g, '').replace(/\//g, '-') || 'home'
 }
 

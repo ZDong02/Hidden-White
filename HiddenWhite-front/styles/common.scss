@@ -313,21 +313,6 @@ button[disabled] {
 }
 
 /* --------------------------------------------------------------- 7. 按钮元件 */
-/* 主按钮：深炭底 + 浅金文字。金色对 #171713 约 11:1，远超 AA。 */
-.black-button {
-  background: $c-dark;
-  color: $c-gold-on-dark;
-  min-height: 96rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: $r-md;
-  font-size: $fs-title-sm;
-  font-weight: 600;
-  letter-spacing: 0.5rpx;
-  box-shadow: $sh-2;
-}
-
 /* 次按钮：描边样式，文字回到 $c-ink 保证对比度 */
 .outline-button {
   border: 1rpx solid $c-border-strong;
@@ -443,19 +428,16 @@ input:focus {
 /* 按压反馈（小程序与 H5 都支持 active） */
 .screen button:not([disabled]):active,
 .back-button:active,
-.tab-item:active,
 .store-line:active {
   transform: scale(0.97);
   opacity: 0.82;
 }
 
 /* --------------------------------------------------------------- 11. 弹层与卡片入场 */
-.modal-mask,
 .voucher-mask {
   animation: modal-enter 200ms ease both;
 }
 
-.bag-panel,
 .voucher {
   animation: sheet-enter 240ms $ease-out both;
 }
@@ -566,14 +548,8 @@ uni-button[disabled] {
   }
 
   /* 遮罩铺满整个视口，弹层本体居中在应用列内，桌面端不会只暗一半 */
-  .modal-mask,
   .voucher-mask {
     max-width: none;
-  }
-
-  .bag-panel {
-    max-width: $app-max;
-    margin: 0 auto;
   }
 
   .voucher {

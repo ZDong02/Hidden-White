@@ -14,6 +14,10 @@ import java.util.Properties;
  * 传入参数 fix 时先删除并重建数据库。
  * 运行方式（项目根目录）：
  *   mvn -q compile exec:java -Dexec.mainClass=com.hiddenwhite.tools.DbInit
+ *
+ * <p><b>危险操作</b>：带 {@code fix} 参数会执行 {@code DROP DATABASE}，
+ * 目标库内的全部数据不可恢复。仅用于本地开发库，严禁对生产或共享库执行。
+ * 进度信息走 stdout 而非 logger，是命令行工具的常规做法。
  */
 public class DbInit {
 

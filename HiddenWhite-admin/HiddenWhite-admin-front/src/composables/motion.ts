@@ -18,7 +18,7 @@ export const EASE = Object.freeze({
   settle: 'back.out(1.6)', // 落定确认
 })
 
-export const DUR = Object.freeze({
+const DUR = Object.freeze({
   press: 0.14,
   release: 0.46,
   hoverIn: 0.34,
@@ -183,12 +183,6 @@ export function pageEnter(el: Element, done: () => void) {
   if (cards.length) tl.to(cards, { opacity: 1, y: 0, duration: 0.72, ease: EASE.reveal, stagger: { each: 0.045, from: 'center' }, clearProps: 'opacity,transform' }, 0.1)
 }
 
-/** 首屏页面（无过渡钩子时）：同样走一遍进场 */
-export function revealPage(page: HTMLElement | null) {
-  if (!page || page.classList.contains('is-entrance-ready')) return
-  pageEnter(page, () => {})
-}
-
 /* ── 外壳首次入场：品牌 → 导航组（from start）→ 顶栏 ── */
 export function playShellEntrance(frame: HTMLElement) {
   if (skipMotion()) {
@@ -232,7 +226,7 @@ export function slideThumb(thumb: HTMLElement | null, target: HTMLElement | null
 }
 
 /* ── 最近一次指针按下的位置：弹窗据此从触发点展开（键盘打开时为 null，回落中心） ── */
-export const lastPointer: { x: number; y: number; at: number } = { x: 0, y: 0, at: 0 }
+const lastPointer: { x: number; y: number; at: number } = { x: 0, y: 0, at: 0 }
 let pointerTracked = false
 function trackPointer() {
   if (pointerTracked || typeof document === 'undefined') return

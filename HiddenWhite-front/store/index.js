@@ -1,7 +1,7 @@
 import { reactive, computed } from 'vue'
 import { productData } from '../data/products'
 import { BUSINESS } from '../config/constants'
-import { formatDateTime, calculateReadyTime } from '../utils/datetime'
+import { formatDateTime, formatTime, calculateReadyTime } from '../utils/datetime'
 import { validateCart } from '../utils/validation'
 import { BACKEND_ENABLED, requestApi } from '../config/backend'
 import { currentUser, isLoggedIn } from './auth'
@@ -175,18 +175,6 @@ export function addItem(item, replace = false) {
   saveCart()
 }
 
-export function quickAdd(product) {
-  const item = {
-    ...product,
-    size: '标准杯 240 毫升',
-    temperature: '热',
-    milk: product.hasMilk ? '全脂奶' : '无奶',
-    quantity: 1,
-    unitPrice: product.price
-  }
-  addItem(item)
-}
-
 function toBackendPayload() {
   return {
     // 仅 /cart/quote 报价接口使用（用于判断首单减免）。
@@ -206,7 +194,6 @@ function toBackendPayload() {
 export function mapBackendOrder(order) {
   const created = new Date(order.createdAt)
   const ready = new Date(order.readyAt)
-  const pad = (value) => String(value).padStart(2, '0')
   const productIndex = new Map(apiProducts.map((product) => [product.id, product]))
 
   return {
@@ -225,8 +212,8 @@ export function mapBackendOrder(order) {
     subtotal: Number(order.subtotal),
     total: Number(order.total),
     count: order.count,
-    created: `${created.getFullYear()}年${created.getMonth() + 1}月${created.getDate()}日 ${pad(created.getHours())}:${pad(created.getMinutes())}`,
-    ready: `${pad(ready.getHours())}:${pad(ready.getMinutes())}`,
+    created: formatDateTime(created).datetime,
+    ready: formatTime(ready),
     preparationTime: Math.max(0, Math.round((ready - created) / 60000)),
     // 与后端 OrderStatus 五态对应：
     // CREATED / PENDING_PAYMENT → pending-payment（待支付）
@@ -292,22 +279,22 @@ export async function createOrder() {
       return shop.order
     }
 
-// 本地模式（后端不可用时的降级路径）
-const now = new Date()
-const formatted = formatDateTime(now)
-const readyTime = calculateReadyTime(BUSINESS.preparationTime)
-// 与后端 PickupNumber 规则保持一致：当日 1~999 循环、固定 3 位。
-// 原实现是Math.random()，随机数必然可能重复——顾客报同一个号取到两杯咖啡，
-// 是门店真实会出事故的缺陷。改为从当日历史订单里推出的最大号继续递增。
-const todayKey = formatted.orderNumber
-const usedToday = shop.orderHistory.filter((row) => String(row.number || '').startsWith(todayKey))
-const lastUsed = usedToday.reduce((max, row) => {
-  const raw = String(row.pickup || '').replace(/^0+/, '')
-  const value = Number(raw || 0)
-  return Number.isFinite(value) && value > max ? value : max
-}, 0)
-const nextPickup = lastUsed >= 999 ? 1 : lastUsed + 1
-const pickupNumber = String(nextPickup).padStart(3, '0')
+    // 本地模式（后端不可用时的降级路径）
+    const now = new Date()
+    const formatted = formatDateTime(now)
+    const readyTime = calculateReadyTime(BUSINESS.preparationTime)
+    // 与后端 PickupNumber 规则保持一致：当日 1~999 循环、固定 3 位。
+    // 原实现是Math.random()，随机数必然可能重复——顾客报同一个号取到两杯咖啡，
+    // 是门店真实会出事故的缺陷。改为从当日历史订单里推出的最大号继续递增。
+    const todayKey = formatted.orderNumber
+    const usedToday = shop.orderHistory.filter((row) => String(row.number || '').startsWith(todayKey))
+    const lastUsed = usedToday.reduce((max, row) => {
+      const raw = String(row.pickup || '').replace(/^0+/, '')
+      const value = Number(raw || 0)
+      return Number.isFinite(value) && value > max ? value : max
+    }, 0)
+    const nextPickup = lastUsed >= 999 ? 1 : lastUsed + 1
+    const pickupNumber = String(nextPickup).padStart(3, '0')
 
     shop.order = {
       items: JSON.parse(JSON.stringify(shop.cart)),
@@ -406,9 +393,4 @@ export async function cancelOrder() {
   shop.order = null
   setStorageImmediate(ORDER_KEY, null)
   setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
-}
-
-export function clearCart() {
-  shop.cart = []
-  saveCartNow()
 }

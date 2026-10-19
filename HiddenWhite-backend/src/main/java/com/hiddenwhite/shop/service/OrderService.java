@@ -17,10 +17,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import static com.hiddenwhite.common.domain.Constants.ZONE;
 
 /** 订单服务：下单、报价、查询与完成。 */
 @Service
@@ -29,7 +30,6 @@ public class OrderService {
     private static final BigDecimal PACKAGING_FEE = BigDecimal.ZERO;
     private static final BigDecimal FIRST_ORDER_DISCOUNT = BigDecimal.valueOf(6);
     private static final int PREPARATION_MINUTES = 5;
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
     /** 开发模式下的支付渠道标记。对账时一眼可辨不是真实微信支付。 */
     private static final String DEV_PAY_CHANNEL = "DEV_MODE";

@@ -61,7 +61,7 @@
         <text class="service-description">积分与专属礼遇</text>
         <text class="service-arrow">›</text>
       </view>
-      <view class="service-row" @tap="showStore">
+      <view class="service-row" @tap="showStoreInfo">
         <view class="service-icon">⌖</view>
         <text class="service-title">门店信息</text>
         <text class="service-description">地址与营业时间</text>
@@ -93,6 +93,7 @@ import { computed, ref } from 'vue'
 import { shop, refreshOrders, invalidateCatalog } from '../../store/index'
 import { currentUser, isLoggedIn, logout } from '../../store/auth'
 import { openPage, showStoreInfo } from '../../utils/navigation'
+import { showNotice } from '../../utils/toast'
 import { checkApiHealth, resetApiBaseUrl, setApiBaseUrl } from '../../config/backend'
 
 const emit = defineEmits(['switch-tab'])
@@ -165,16 +166,7 @@ function onBackendLongPress() {
 }
 
 function showFeature(title) {
-  uni.showModal({
-    title,
-    content: '当前为体验版本，该服务暂未开放。你仍可浏览菜单、创建演示订单并查看取餐记录。',
-    showCancel: false,
-    confirmText: '知道了'
-  })
-}
-
-function showStore() {
-  showStoreInfo()
+  showNotice(title, '当前为体验版本，该服务暂未开放。你仍可浏览菜单、创建演示订单并查看取餐记录。')
 }
 
 function openOrders() {

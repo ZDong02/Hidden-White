@@ -147,11 +147,6 @@ export async function getApiBaseUrl() {
   return apiBaseUrl
 }
 
-/** 同步读取当前 baseUrl，未解析完成时返回已探测值或空串（供展示用）。 */
-export function peekApiBaseUrl() {
-  return apiBaseUrl
-}
-
 /** 运行时切换后端地址并持久化，用于"我的"页手动配置。 */
 export function setApiBaseUrl(value) {
   const normalized = ensureApiSuffix(value)

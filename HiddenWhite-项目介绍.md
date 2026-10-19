@@ -116,11 +116,10 @@ D:/Hidden White/
 | `components/` | 5 个共享组件：PhoneHeader（模拟手机头部）、HomeIndicator（底部指示条）、MainTabBar（标签栏）、StoreLine（门店信息行）、OrderItem（订单项）；`components/ui/` 子目录含 5 个统一 UI 组件：Card（卡片）、Button（按钮）、Input（输入框）、Stepper（数字步进器）、Modal（底部弹窗） |
 | `store/` | 状态管理：`index.js`（购物车/订单/商品，基于 Vue `reactive` 的轻量实现，本地存储持久化）、`auth.js`（登录态） |
 | `config/` | `backend.js`（统一请求封装 `requestApi` + 后端地址自动解析）、`backend-hosts.js`（候选后端地址列表，换网络只需改此文件）、`constants.js`（门店、业务规则、选项、图片路径等常量） |
-| `utils/` | 9 个工具模块：`format.js`（日期/取餐号/预计完成时间）、`navigation.js`（页面导航封装）、`validation.js`（购物车校验）、`price.js`（价格计算）、`storage.js`（防抖本地存储）、`toast.js`（统一提示）、`datetime.js`（日期时间增强）、`validators.js`（表单验证）、`image.js`（图片资源管理） |
+| `utils/` | 8 个工具模块：`navigation.js`（页面导航封装）、`validation.js`（购物车校验）、`price.js`（价格计算）、`storage.js`（防抖本地存储）、`toast.js`（统一提示）、`datetime.js`（日期时间格式化）、`validators.js`（表单验证）、`image.js`（图片资源管理） |
 | `data/products.js` | 静态商品数据：API 加载前的初始渲染数据、后端不可用时的兜底、商品分类的唯一来源 |
 | `static/` | 图片资源（咖啡产品图、图标；图标由 SVG 经脚本生成 PNG） |
 | `scripts/` | `run-uni.cjs`（开发/构建统一入口）、`generate-icons.cjs`（SVG → PNG 图标生产链） |
-| `preview/` | UI 设计稿截图（设计参考，不参与构建） |
 
 ### 4.4 关键设计与机制
 

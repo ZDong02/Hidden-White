@@ -10,6 +10,7 @@ import { useListPage } from '@/composables/list'
 import { confirm } from '@/composables/confirm'
 import { pushToast, toastError } from '@/composables/toast'
 import { revealCascade } from '@/composables/motion'
+import { STATS_RANGES } from '@/data'
 
 interface OperRow {
   id: number
@@ -65,7 +66,6 @@ const prettyParams = computed(() => {
 })
 
 /* ── 01 概览 / 02 趋势：横带分层的上两层 ── */
-const RANGES = [{ label: '24 小时', value: '24h' as StatsRange }, { label: '7 天', value: '7d' as StatsRange }, { label: '30 天', value: '30d' as StatsRange }]
 const range = ref<StatsRange>('24h')
 const view = ref<'trend' | 'lanes'>('trend')
 const stats = ref<OperLogStats | null>(null)
@@ -136,7 +136,7 @@ async function clearAll() {
       <section class="band reveal">
         <div class="band-head">
           <SectionLabel title="概览" />
-          <Segmented v-model="range" label="统计范围" :options="RANGES" />
+          <Segmented v-model="range" label="统计范围" :options="STATS_RANGES" />
         </div>
         <div class="readout-strip">
           <Metric label="操作次数" :value="stats?.total" unit="次" />

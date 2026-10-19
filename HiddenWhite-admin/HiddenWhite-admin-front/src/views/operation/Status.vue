@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Button, Field, Metric, Panel, Tag, TextInput } from '@/components/ui'
+import { Field, Metric, Panel, Tag, TextInput } from '@/components/ui'
 import { PermissionButton } from '@/components/business'
 import { operationApi, type OperationStatus } from '@/api'
 import { confirm } from '@/composables/confirm'
 import { pushToast, toastError } from '@/composables/toast'
 import { maxLength, validate } from '@/utils/validate'
+import { WEEK_NAMES } from '@/data'
 
 const REASON_LABELS: Record<string, string> = {
   MANUAL: '人工打烊',
@@ -13,7 +14,6 @@ const REASON_LABELS: Record<string, string> = {
   NOT_YET_OPEN: '未到营业时间',
   AFTER_HOURS: '已过打烊时间',
 }
-const WEEK_NAMES = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
 
 const status = ref<OperationStatus | null>(null)
 const loading = ref(false)

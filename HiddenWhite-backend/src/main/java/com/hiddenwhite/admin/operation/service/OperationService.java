@@ -16,12 +16,13 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+
+import static com.hiddenwhite.common.domain.Constants.ZONE;
 
 /**
  * 店铺运营服务：营业状态（人工开关优先）、每日运营时段、日流量统计。
@@ -30,7 +31,6 @@ import java.util.regex.Pattern;
 @Service
 public class OperationService {
 
-    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final Pattern TIME_PATTERN = Pattern.compile("^([01]\\d|2[0-3]):[0-5]\\d$");
     private static final Pattern DATE_PATTERN = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
