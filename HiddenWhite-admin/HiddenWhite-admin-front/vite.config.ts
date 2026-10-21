@@ -20,6 +20,12 @@ export default defineConfig({
         target: apiProxyTarget,
         changeOrigin: true,
       },
+      // 管理端上传的商品图由后端以 /uploads/** 暴露，
+      // 预览图同样需要代理到后端，否则开发态下图片 404。
+      '/uploads': {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
     },
   },
 })

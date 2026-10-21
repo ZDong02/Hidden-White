@@ -2,8 +2,9 @@ import { reactive, computed } from 'vue'
 import { productData } from '../data/products'
 import { BUSINESS } from '../config/constants'
 import { formatDateTime, formatTime, calculateReadyTime } from '../utils/datetime'
-import { validateCart } from '../utils/validation'
+import { validateCart } from '../utils/validators'
 import { BACKEND_ENABLED, requestApi } from '../config/backend'
+import { resolveImageUrl } from '../utils/image'
 import { currentUser, isLoggedIn } from './auth'
 import { getStorage, setStorageDebounced, setStorageImmediate } from '../utils/storage'
 import { calculateCartTotal, calculateCartCount } from '../utils/price'
@@ -29,7 +30,7 @@ export const shop = reactive({
 
 export const products = apiProducts
 
-export function mapBackendProduct(product) {
+function mapBackendProduct(product) {
   const price = Number(product.price)
   return {
     ...product,
@@ -37,8 +38,10 @@ export function mapBackendProduct(product) {
     price: Number.isFinite(price) ? price : 0,
     category: Number(product.category) || 0,
     hasMilk: product.hasMilk === true || product.hasMilk === 1,
-    image: product.image || '',
-    detailImage: product.detailImage || product.image || ''
+    // 图片在数据层统一解析成可加载地址：
+    // 管理端上传的图片是 /uploads/... 相对路径，小程序无法直接加载。
+    image: resolveImageUrl(product.image),
+    detailImage: resolveImageUrl(product.detailImage || product.image)
   }
 }
 
@@ -153,7 +156,7 @@ export function saveCart() {
   setStorageDebounced(CART_KEY, shop.cart)
 }
 
-export function saveCartNow() {
+function saveCartNow() {
   setStorageImmediate(CART_KEY, shop.cart)
 }
 
@@ -191,7 +194,7 @@ function toBackendPayload() {
   }
 }
 
-export function mapBackendOrder(order) {
+function mapBackendOrder(order) {
   const created = new Date(order.createdAt)
   const ready = new Date(order.readyAt)
   const productIndex = new Map(apiProducts.map((product) => [product.id, product]))
@@ -248,9 +251,15 @@ export async function refreshOrders() {
   return { current: shop.order, history: shop.orderHistory }
 }
 
+/** 下单前校验购物车：结构化结果转成抛错，保持对外错误语义不变。 */
+function assertCart() {
+  const result = validateCart(shop.cart)
+  if (!result.valid) throw new Error(result.message)
+}
+
 export async function quoteCart() {
   if (!isLoggedIn.value) throw new Error('请先登录后再下单')
-  validateCart(shop.cart)
+  assertCart()
   return requestApi('/cart/quote', { method: 'POST', data: toBackendPayload() })
 }
 
@@ -263,7 +272,7 @@ export async function createOrder() {
       throw new Error('当前有订单待支付或待取餐，请先处理或等待订单超时')
     }
 
-    validateCart(shop.cart)
+    assertCart()
 
     if (BACKEND_ENABLED) {
       const backendOrder = await requestApi('/orders', {

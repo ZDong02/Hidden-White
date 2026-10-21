@@ -16,8 +16,8 @@ export function getStorage(key, fallback = null) {
   }
 }
 
-// 保存到本地存储
-export function setStorage(key, value) {
+// 保存到本地存储（供防抖/立即写入两个出口复用）
+function setStorage(key, value) {
   try {
     // uni.setStorageSync 内部会进行 JSON 序列化
     // 使用 toRaw 移除响应式包装，避免存储多余的响应式元数据

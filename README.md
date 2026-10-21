@@ -50,7 +50,7 @@ Hidden White/
 │   ├── components/                     # 共享组件 + components/ui/ 统一 UI 组件库
 │   ├── store/                          # 状态管理（购物车 / 订单 / 登录态）
 │   ├── config/                         # backend.js（统一请求）+ backend-hosts.js（候选地址）
-│   ├── utils/                          # 10 个工具模块
+│   ├── utils/                          # 8 个工具模块
 │   └── static/                         # 图片资源
 │
 ├── HiddenWhite-admin/                  # 管理端
@@ -133,7 +133,7 @@ npm install
 # H5 调试
 npm run dev:h5
 
-# 微信小程序（产出后用微信开发者工具导入 unpackage/dist/build/mp-weixin）
+# 微信小程序（产出后用微信开发者工具导入 dist/dev/mp-weixin）
 npm run dev:mp-weixin
 ```
 
@@ -201,7 +201,7 @@ npm run dev:mp-weixin
 
 | 项目 | 命令 | 说明 |
 |------|------|------|
-| 点单端 | `npm run build:h5` / `build:mp-weixin` | 产物在 `dist/`、`unpackage/` |
+| 点单端 | `npm run build:h5` / `build:mp-weixin` | 正式产物在 `dist/build/`，调试产物在 `dist/dev/` |
 | 点单端 | `npx eslint .` | ESLint 检查 |
 | 管理端前端 | `npm run test:unit` | Node 内置测试运行器（API + utils） |
 | 管理端前端 | `npm run build` | vue-tsc 类型检查 + vite build |

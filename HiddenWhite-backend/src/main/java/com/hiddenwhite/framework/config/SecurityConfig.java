@@ -78,6 +78,9 @@ public class SecurityConfig {
                         // 管理端统一要求登录，细粒度权限码由 @RequiresPermission 把关
                         .requestMatchers(antMatcher("/api/admin/**")).authenticated()
 
+                        // 上传的商品图片：点单端（小程序 / H5）跨源读取，无需登录
+                        .requestMatchers(antMatcher("/uploads/**")).permitAll()
+
                         // API 文档
                         .requestMatchers(
                                 antMatcher("/doc.html"),

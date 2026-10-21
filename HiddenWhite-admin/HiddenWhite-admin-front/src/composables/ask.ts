@@ -23,7 +23,7 @@ export interface AskIntent {
 }
 
 const intents: AskIntent[] = []
-export function registerIntent(intent: AskIntent) {
+function registerIntent(intent: AskIntent) {
   if (!intents.some(i => i.id === intent.id)) intents.push(intent)
 }
 

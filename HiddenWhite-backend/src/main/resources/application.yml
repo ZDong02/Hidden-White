@@ -18,6 +18,13 @@ spring:
   sql:
     init:
       mode: never
+  servlet:
+    multipart:
+      # 容器层上限须略大于业务上限（hiddenwhite.image.max-bytes），
+      # 否则超过容器限制的请求会在进入业务校验前就被截断，
+      # 运营者只会看到笼统的「上传失败」而不是「图片太大」。
+      max-file-size: 12MB
+      max-request-size: 16MB
 
 server:
   port: ${SERVER_PORT:8080}
@@ -43,6 +50,31 @@ hiddenwhite:
     # 生产环境务必通过环境变量 JWT_SECRET 覆盖；默认值仅供本地开发
     secret: ${JWT_SECRET:dev-only-0123456789abcdef0123456789abcdef}
     expires-seconds: ${JWT_EXPIRES_SECONDS:7200}
+
+  # ===================================================================
+  # 图片上传与处理
+  # -------------------------------------------------------------------
+  # 列表图与详情图各自独立配置目标宽高与缩放方式：
+  #   mode = cover   居中裁剪，铺满目标框（不留白边）
+  #   mode = contain 等比缩放，完整保留原图（空白处填 background 色）
+  #
+  # ⚠️ 目标宽高应与点单端的展示容器比例接近：
+  #    列表图出现在商品卡片（两列栅格），详情图出现在详情页大图区。
+  #    比例偏差过大时 cover 模式会裁掉较多内容。
+  # ===================================================================
+  image:
+    # 上传文件落盘目录（相对路径以进程工作目录为基准）
+    upload-dir: ${IMAGE_UPLOAD_DIR:./data/uploads}
+    # 单张图片大小上限（字节），默认 10MB
+    max-bytes: 10485760
+    list:
+      width: 600
+      height: 400
+      mode: cover
+    detail:
+      width: 1200
+      height: 800
+      mode: cover
 
   pay:
     # ===================================================================

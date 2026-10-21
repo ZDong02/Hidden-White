@@ -141,6 +141,49 @@ export interface CoffeeStoreRow {
   closingTime: string
 }
 
+/** 图片用途：列表图 / 详情图，两者目标宽高独立配置 */
+export type CoffeeImageSlot = 'list' | 'detail'
+
+/** 单个用途的图片目标规格 */
+export interface CoffeeImageTarget {
+  /** 目标宽度（像素） */
+  width: number
+  /** 目标高度（像素） */
+  height: number
+  /** 缩放方式：cover 居中裁剪 / contain 等比缩放 */
+  mode: 'cover' | 'contain'
+}
+
+/** 图片上传规格：各用途目标 + 大小上限 */
+export interface CoffeeImageSpec {
+  /** 单张图片大小上限（字节） */
+  maxBytes: number
+  /** 列表图目标 */
+  list: CoffeeImageTarget
+  /** 详情图目标 */
+  detail: CoffeeImageTarget
+}
+
+/** 图片上传结果 */
+export interface CoffeeImageUpload {
+  /** 图片可访问地址 */
+  url: string
+  /** 处理后宽度 */
+  width: number
+  /** 处理后高度 */
+  height: number
+  /** 输出格式 */
+  format: string
+  /** 输出字节数 */
+  size: number
+  /** 原图宽度 */
+  sourceWidth: number
+  /** 原图高度 */
+  sourceHeight: number
+  /** 原图与目标比例是否不一致（true 表示发生了裁剪） */
+  ratioChanged: boolean
+}
+
 export interface CoffeeSummary {
   productCount: number
   memberCount: number
@@ -186,6 +229,17 @@ export function createCoffeeApi(client: HttpClient) {
     store: {
       get: () => client.get<CoffeeStoreRow>('/coffee/store'),
       update: (body: CoffeeStoreRow) => client.put<void>('/coffee/store', body),
+    },
+    images: {
+      /** 查询各用途图片的目标规格（用于上传前预校验与提示） */
+      spec: () => client.get<CoffeeImageSpec>('/coffee/images/spec'),
+      /** 上传图片并按目标比例处理，返回可访问地址 */
+      upload: (file: File, slot: CoffeeImageSlot) => {
+        const form = new FormData()
+        form.append('file', file)
+        form.append('slot', slot)
+        return client.upload<CoffeeImageUpload>('/coffee/images/upload', form)
+      },
     },
   }
 }

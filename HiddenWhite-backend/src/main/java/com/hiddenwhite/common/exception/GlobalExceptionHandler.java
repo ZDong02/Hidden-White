@@ -15,6 +15,10 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -99,6 +103,54 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Object> noResource(NoResourceFoundException exception, HttpServletRequest request) {
         return response(HttpStatus.NOT_FOUND, "资源不存在", request, List.of());
+    }
+
+    // ---- 上传异常 ----
+
+    /**
+     * 上传文件超过容器限制。
+     *
+     * <p>Spring 在读取 multipart 时就会中断，这里兜住它，
+     * 否则会掉进通用兜底分支，运营者只能看到「服务器内部错误」，
+     * 不知道是图片太大。
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Object> uploadTooLarge(MaxUploadSizeExceededException exception,
+                                                  HttpServletRequest request) {
+        return response(HttpStatus.PAYLOAD_TOO_LARGE, "图片大小超过服务器限制，请压缩后再上传", request, List.of());
+    }
+
+    /**
+     * multipart 请求本身不合法（格式错误等）。
+     */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<Object> multipartInvalid(MultipartException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "图片上传请求有误，请重新选择图片上传", request, List.of());
+    }
+
+    /**
+     * 缺少必填的请求参数（如未选择文件）。
+     *
+     * <p>该异常继承自 ServletRequestBindingException 而非 MultipartException，
+     * 不单独兜住会掉进通用兜底分支，只能看到「服务器内部错误」。
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Object> missingParameter(MissingServletRequestParameterException exception,
+                                                   HttpServletRequest request) {
+        String name = exception.getParameterName();
+        String message = "file".equals(name) ? "请选择要上传的图片" : "缺少必要参数：" + name;
+        return response(HttpStatus.BAD_REQUEST, message, request, List.of());
+    }
+
+    /**
+     * 缺少必填的请求体片段（multipart 中的文件字段缺失）。
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<Object> missingPart(MissingServletRequestPartException exception,
+                                              HttpServletRequest request) {
+        String name = exception.getRequestPartName();
+        String message = "file".equals(name) ? "请选择要上传的图片" : "缺少必要内容：" + name;
+        return response(HttpStatus.BAD_REQUEST, message, request, List.of());
     }
 
     // ---- 兜底 ----

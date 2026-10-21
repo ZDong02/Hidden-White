@@ -74,6 +74,18 @@
 **业务规则**：删除商品时若已产生订单，改为软下架（`enabled=false`）并返回提示文案，不做物理删除。
 `guest` 会员受保护，不可删除。
 
+**商品图片上传**（列表图 / 详情图各自独立配置目标宽高）：
+
+| 接口 | 方法 | 说明 | 权限码 |
+|---|---|---|---|
+| `/api/admin/coffee/images/upload` | POST | multipart 上传，`slot` 取 `list` / `detail` | `coffee:product:add` |
+| `/api/admin/coffee/images/spec` | GET | 各用途目标宽高与缩放方式 | `coffee:product:list` |
+| `/uploads/**` | GET | 上传后的图片静态资源（免登录，供点单端加载） | 匿名 |
+
+- 缩放由服务端完成，**解码一次 + 编码一次**，不产生二次压缩失真；大图缩小时走渐进式降采样保留细节。
+- 列表图与详情图目标宽高在 `hiddenwhite.image.list` / `hiddenwhite.image.detail` 分别配置。
+- 图片路径存相对路径（如 `/uploads/2026/10/21/xxx.jpg`），点单端在 `utils/image.js` 统一补全域名。
+
 ### 4.2 门店运营
 
 | 页面 | 组件标识 | 接口前缀 | 权限码 |

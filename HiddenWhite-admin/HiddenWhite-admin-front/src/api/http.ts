@@ -17,6 +17,13 @@ export interface HttpClient {
   put<T>(path: string, body?: unknown): Promise<T>
   delete<T>(path: string): Promise<T>
   download(path: string, query?: QueryParams): Promise<Blob>
+  /**
+   * multipart/form-data 上传。
+   *
+   * 刻意不复用 post：FormData 的 Content-Type 必须由浏览器生成（带 boundary），
+   * 手动设置会导致服务端解析不出文件边界。
+   */
+  upload<T>(path: string, form: FormData): Promise<T>
 }
 
 export type QueryParams = Record<string, string | number | boolean | null | undefined>
@@ -80,12 +87,33 @@ export function createHttpClient(options: HttpClientOptions = {}): HttpClient {
     return response.blob()
   }
 
+  /**
+   * multipart/form-data 上传。
+   *
+   * 不设置 Content-Type：交给浏览器按 FormData 生成带 boundary 的请求头，
+   * 手动设置会覆盖掉 boundary，导致服务端读不到文件内容。
+   */
+  async function upload<T>(path: string, form: FormData): Promise<T> {
+    const headers: Record<string, string> = { Accept: 'application/json' }
+    const token = tokenProvider()
+    if (token) headers.Authorization = `Bearer ${token}`
+
+    const response = await fetcher(buildUrl(baseUrl, path), { method: 'POST', headers, body: form })
+    const payload = await parseJson<ApiResponse<T>>(response)
+    if (!response.ok || payload.code !== 200) {
+      if ((payload.code === 401 || response.status === 401) && token && token === tokenProvider()) unauthorizedHandler?.()
+      throw new ApiError(payload.message || '上传失败', payload.code || response.status, response.status, payload.traceId)
+    }
+    return payload.data
+  }
+
   return {
     get: (path, query) => request('GET', path, undefined, query),
     post: (path, body) => request('POST', path, body),
     put: (path, body) => request('PUT', path, body),
     delete: (path) => request('DELETE', path),
     download,
+    upload,
   }
 }
 

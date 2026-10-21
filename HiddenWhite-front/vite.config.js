@@ -12,6 +12,12 @@ export default defineConfig({
       '/api': {
         target: apiProxyTarget,
         changeOrigin: true
+      },
+      // 管理端上传的商品图由后端以 /uploads/** 暴露，同样代理到后端，
+      // 否则 H5 开发态下图片会 404。
+      '/uploads': {
+        target: apiProxyTarget,
+        changeOrigin: true
       }
     }
   }

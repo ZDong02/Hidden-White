@@ -29,17 +29,51 @@ java -jar target\hiddenwhite-server-0.2.0-SNAPSHOT.jar
 | 小程序 / H5 | `/api/**`（auth、products、store、cart、orders、members） | 无需登录 | `com.hiddenwhite.shop` |
 | 管理端 | `/api/admin/**`（auth、coffee、system、dashboard、monitor、tool/generator） | JWT 登录 | `com.hiddenwhite.admin` |
 | 健康检查 | `/api/health` | 放行 | `com.hiddenwhite.admin.controller` |
+| 上传图片 | `/uploads/**` | 放行 | 静态资源（供点单端加载商品图） |
 
 注意：管理端登录为 `/api/admin/auth/login`（原独立管理端后端为 `/api/auth/login`），管理端前端 `HiddenWhite-admin-front` 的 baseURL 已同步改为 `/api/admin`。
+
+## 商品图片上传
+
+管理端商品表单的「列表图 / 详情图」支持从本地选图上传，图片按各自目标比例由服务端处理。
+
+| 接口 | 方法 | 说明 |
+|---|---|---|
+| `/api/admin/coffee/images/upload` | POST | multipart 上传，`slot` 取 `list` / `detail` |
+| `/api/admin/coffee/images/spec` | GET | 各用途目标宽高与缩放方式 |
+| `/uploads/**` | GET | 处理后的图片（免登录） |
+
+- **一次编码**：解码 → 缩放 → 编码只走一遍，不做「先压缩再压缩」，避免代际画质损失；
+  大图缩小时采用渐进式降采样（二分逼近）保留细节。
+- **目标宽高分别配置**（`application.yml`）：
+
+  ```yaml
+  hiddenwhite:
+    image:
+      upload-dir: ./data/uploads   # 上传目录（生产建议指向独立数据盘）
+      max-bytes: 10485760          # 单张上限 10MB
+      list:                        # 列表图
+        width: 600
+        height: 400
+        mode: cover                # cover 居中裁剪 / contain 等比缩放
+      detail:                      # 详情图
+        width: 1200
+        height: 800
+        mode: cover
+  ```
+
+- 支持 JPG / PNG / WebP，输出：无透明通道转 JPEG（含透明则保留 PNG）。
+- 落盘路径按 `yyyy/MM/dd` 分目录，文件名为内容哈希前 16 位，同图重复上传不产生冗余文件。
+- 路径存相对路径（如 `/uploads/2026/10/21/xxx.jpg`），点单端在 `utils/image.js` 统一补全域名。
 
 ## 包结构
 
 ```
 com.hiddenwhite
 ├── HiddenWhiteApplication   # 唯一启动类
-├── common/                  # R / 分页 / 异常与统一异常处理
+├── common/                  # R / 分页 / 异常与统一异常处理 / image(图片处理)
 ├── framework/               # 安全(JWT+验证码)、操作日志、数据权限、TraceId
-├── config/                  # Web MVC（CORS）
+├── config/                  # Web MVC（CORS + 上传资源映射）
 ├── shop/                    # 小程序端：controller / service / repository / domain / dto
 ├── admin/                   # 管理端：system(权限/角色/菜单) coffee(咖啡业务) generator
 └── tools/                   # DbInit 数据库初始化工具

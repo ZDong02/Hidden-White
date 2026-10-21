@@ -139,7 +139,7 @@ async function resolveApiBaseUrl() {
 }
 
 /** 取当前 baseUrl；首次调用时会触发一次地址解析（必要时探测）。 */
-export async function getApiBaseUrl() {
+async function getApiBaseUrl() {
   if (!resolved) {
     apiBaseUrl = await resolveApiBaseUrl()
     resolved = true
@@ -162,7 +162,7 @@ export function setApiBaseUrl(value) {
   return apiBaseUrl
 }
 
-/** 清除手动配置，下次调用 getApiBaseUrl 时重新探测。 */
+/** 清除手动配置，下次解析 baseUrl 时重新探测。 */
 export function resetApiBaseUrl() {
   resolved = false
   probing = null
@@ -172,6 +172,22 @@ export function resetApiBaseUrl() {
   } catch {
     // 忽略
   }
+}
+
+/**
+ * 站点根地址（不含 /api 后缀），用于拼接后端静态资源。
+ *
+ * 上传的图片由后端以 /uploads/** 暴露，不在 /api 之下，
+ * 因此不能直接用 apiBaseUrl 拼；需去掉尾部 /api 得到 origin。
+ *
+ * 例：apiBaseUrl = 'http://192.168.1.5:8080/api' → origin = 'http://192.168.1.5:8080'
+ *
+ * 同步返回：图片地址要在模板渲染时直接可用，不能等待异步探测。
+ * 地址尚未探测出来时回退为空串，调用方据此保留原始相对路径。
+ */
+export function getApiOrigin() {
+  if (!apiBaseUrl) return ''
+  return apiBaseUrl.replace(/\/api\/?$/i, '')
 }
 
 /** 连通性自检，供设置页展示诊断信息。 */

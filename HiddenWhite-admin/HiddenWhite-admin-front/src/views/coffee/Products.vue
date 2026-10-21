@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { Field, Select, Switch, Tag, TextInput, type Column } from '@/components/ui'
-import { FormDialog, ListPage, PermissionButton } from '@/components/business'
-import { coffeeApi } from '@/api'
+import { FormDialog, ImageUpload, ListPage, PermissionButton } from '@/components/business'
+import { coffeeApi, type CoffeeImageSpec } from '@/api'
 import { useListPage } from '@/composables/list'
 import { confirm } from '@/composables/confirm'
 import { pushToast, toastError } from '@/composables/toast'
@@ -43,6 +43,18 @@ const saving = ref(false)
 const editingId = ref<string | null>(null)
 const form = reactive<ProductForm>(emptyForm())
 const errors = ref<Partial<Record<keyof ProductForm, string>>>({})
+
+/** 图片目标规格：列表图 / 详情图各自独立配置，由服务端下发 */
+const imageSpec = ref<CoffeeImageSpec | null>(null)
+
+onMounted(async () => {
+  // 规格拉取失败不阻断表单，仅退化为组件内置的默认提示
+  try {
+    imageSpec.value = await coffeeApi.images.spec()
+  } catch (error) {
+    console.warn('图片规格获取失败，使用默认提示', error)
+  }
+})
 
 function openCreate() {
   Object.assign(form, emptyForm())
@@ -176,11 +188,11 @@ async function remove(row: ProductRow) {
       <Field label="状态" group>
         <Switch v-model="form.enabled" :label="form.enabled ? '在售' : '下架'" />
       </Field>
-      <Field label="列表图路径" span>
-        <TextInput v-model="form.image" placeholder="/static/coffee/latte.png" />
+      <Field label="列表图" span hint="用于点单端商品卡片，建议使用与商品主体一致的构图">
+        <ImageUpload v-model="form.image" slot="list" :target="imageSpec?.list" :max-bytes="imageSpec?.maxBytes" />
       </Field>
-      <Field label="详情图路径" span>
-        <TextInput v-model="form.detailImage" placeholder="/static/coffee/detail.png" />
+      <Field label="详情图" span hint="用于点单端商品详情页大图">
+        <ImageUpload v-model="form.detailImage" slot="detail" :target="imageSpec?.detail" :max-bytes="imageSpec?.maxBytes" />
       </Field>
       <Field label="简介（列表展示）" span>
         <TextInput v-model="form.description" multiline :rows="2" />

@@ -1,5 +1,3 @@
-import { downloadBlob } from './download.ts'
-
 export interface CsvColumn<T = Record<string, unknown>> {
   title: string
   key?: keyof T | string
@@ -13,11 +11,6 @@ export function toCsv<T>(columns: CsvColumn<T>[], rows: T[]) {
     return escapeCell(value)
   }).join(','))
   return [header, ...body].join('\n')
-}
-
-export function downloadCsv<T>(filename: string, columns: CsvColumn<T>[], rows: T[]) {
-  const blob = new Blob(['\ufeff', toCsv(columns, rows)], { type: 'text/csv;charset=UTF-8' })
-  downloadBlob(blob, filename)
 }
 
 function escapeCell(value: unknown) {

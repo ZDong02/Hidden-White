@@ -29,11 +29,11 @@ let cancelRouteLoad: (() => void) | null = null
 const removeRoutes: Array<() => void> = []
 
 /** 登录后的落点：有工作台权限去工作台，否则去第一个可见菜单 */
-export function homePath() {
+function homePath() {
   return navGroups.value[0]?.items[0]?.path ?? '/no-access'
 }
 
-export function resetRoutes() {
+function resetRoutes() {
   removeRoutes.splice(0).forEach(remove => remove())
   routesReady = false
   cancelRouteLoad?.()

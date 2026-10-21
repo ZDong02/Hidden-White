@@ -81,7 +81,7 @@ function applyAuth(auth) {
   return currentUser.value
 }
 
-export function setCurrentUser(user) {
+function setCurrentUser(user) {
   const session = {
     id: user.id,
     displayName: user.displayName,

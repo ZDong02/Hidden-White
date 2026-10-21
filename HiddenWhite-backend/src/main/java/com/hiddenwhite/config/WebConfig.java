@@ -1,14 +1,16 @@
 package com.hiddenwhite.config;
 
+import com.hiddenwhite.common.image.ImageProperties;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.Arrays;
 
 /**
- * Web MVC 配置：跨域白名单。
+ * Web MVC 配置：跨域白名单 + 上传图片的静态资源映射。
  *
  * <p><b>dev / prod 差异</b>：
  * <ul>
@@ -25,11 +27,18 @@ public class WebConfig implements WebMvcConfigurer {
     /** 允许的来源，逗号分隔；为空表示不启用跨域。 */
     private final String[] allowedOrigins;
 
-    public WebConfig(@Value("${hiddenwhite.cors.allowed-origins:}") String allowedOrigins) {
+    /** 上传图片的静态资源映射路径。 */
+    private static final String UPLOAD_PATTERN = "/uploads/**";
+
+    private final ImageProperties imageProperties;
+
+    public WebConfig(@Value("${hiddenwhite.cors.allowed-origins:}") String allowedOrigins,
+                      ImageProperties imageProperties) {
         this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toArray(String[]::new);
+        this.imageProperties = imageProperties;
     }
 
     @Override
@@ -44,5 +53,24 @@ public class WebConfig implements WebMvcConfigurer {
                 // 允许携带凭证时不能使用通配来源，这里按白名单精确匹配，因此可以安全开启
                 .allowCredentials(true)
                 .maxAge(3600);
+        // 上传图片由管理端与点单端跨源读取，单独放行同样的来源白名单
+        registry.addMapping(UPLOAD_PATTERN)
+                .allowedOriginPatterns(allowedOrigins)
+                .allowedMethods("GET")
+                .allowedHeaders("*")
+                .maxAge(3600);
+    }
+
+    /**
+     * 把 {@code /uploads/**} 映射到本地上传目录。
+     *
+     * <p>点单端（小程序 / H5）需要直接以 HTTP 地址读取商品图，
+     * 因此图片走静态资源而非需要鉴权的业务接口。
+     */
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        String location = imageProperties.getUploadDir();
+        registry.addResourceHandler(UPLOAD_PATTERN)
+                .addResourceLocations("file:" + location + "/");
     }
 }

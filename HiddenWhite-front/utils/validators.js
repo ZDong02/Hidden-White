@@ -43,7 +43,12 @@ export function validateDisplayName(name) {
   return { valid: true, value: trimmed }
 }
 
-// 验证购物车
+/**
+ * 校验购物车，供下单前使用。
+ *
+ * 与其余校验函数不同，这里返回结构化结果而不是抛错，
+ * 由调用方（store）决定如何转成对外错误——保持既有调用语义不变。
+ */
 export function validateCart(cart) {
   if (!cart || !Array.isArray(cart)) {
     return { valid: false, message: '购物车数据格式错误' }

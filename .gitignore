@@ -20,6 +20,10 @@ logs/
 hs_err_pid*
 replay_pid*
 
+# ===== 上传的商品图片（运行时生成，不入库）=====
+data/uploads/
+uploads/
+
 # ===== 环境变量与密钥（严禁提交）=====
 .env
 .env.*
