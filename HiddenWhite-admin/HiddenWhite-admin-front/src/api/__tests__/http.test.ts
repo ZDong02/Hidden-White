@@ -67,3 +67,49 @@ test('an unauthorized download for the current session uses the same login-expir
     setUnauthorizedHandler(null)
   }
 })
+
+test('a gateway HTML error page becomes ApiError instead of a runtime SyntaxError', async () => {
+  // 反向代理在 502/504 时常直接吐 HTML，裸 JSON.parse 会抛 SyntaxError，
+  // 让页面里所有 `instanceof ApiError` 的分支失效
+  const client = createHttpClient({
+    baseUrl: '/api',
+    tokenProvider: () => null,
+    fetcher: async () => new Response('<html><body>502 Bad Gateway</body></html>', {
+      status: 502,
+      headers: { 'content-type': 'text/html' },
+    }),
+  })
+
+  await assert.rejects(
+    () => client.get('/system/users'),
+    (error: unknown) => error instanceof ApiError && error.status === 502 && error.message.includes('502'),
+  )
+})
+
+test('a request that never settles fails with a readable ApiError on timeout', async () => {
+  const client = createHttpClient({
+    baseUrl: '/api',
+    tokenProvider: () => null,
+    timeoutMs: 10,
+    // 只监听 abort：模拟后端假死，连接一直不回
+    fetcher: (_url, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new Error('The operation was aborted')))
+    }),
+  })
+
+  await assert.rejects(
+    () => client.get('/system/users'),
+    (error: unknown) => error instanceof ApiError && error.message.includes('超时'),
+  )
+})
+
+test('an empty 204 response resolves instead of being reported as a failure', async () => {
+  const client = createHttpClient({
+    baseUrl: '/api',
+    tokenProvider: () => null,
+    fetcher: async () => new Response(null, { status: 204 }),
+  })
+
+  assert.equal(await client.delete('/system/users/1'), null)
+})
+

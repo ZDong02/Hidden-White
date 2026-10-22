@@ -1,3 +1,5 @@
+import { authSession } from './session.ts'
+
 export interface ApiResponse<T> {
   code: number
   message: string
@@ -9,6 +11,8 @@ export interface HttpClientOptions {
   baseUrl?: string
   tokenProvider?: () => string | null
   fetcher?: typeof fetch
+  /** 单次请求超时（毫秒）。超时后会抛出 ApiError，避免界面无限等待。 */
+  timeoutMs?: number
 }
 
 export interface HttpClient {
@@ -27,6 +31,15 @@ export interface HttpClient {
 }
 
 export type QueryParams = Record<string, string | number | boolean | null | undefined>
+
+/**
+ * 默认超时。
+ *
+ * <p>取 15 秒：普通查询远用不到，而导出、批量操作这类慢接口也不至于被误杀。
+ * 没有超时的时候，后端假死（线程池打满、连接不释放）会让页面永远转圈，
+ * 用户既看不到失败也无法重试。
+ */
+const DEFAULT_TIMEOUT_MS = 15_000
 
 export class ApiError extends Error {
   code: number
@@ -53,35 +66,66 @@ export function createHttpClient(options: HttpClientOptions = {}): HttpClient {
   const baseUrl = normalizeBaseUrl(options.baseUrl ?? defaultBaseUrl())
   const tokenProvider = options.tokenProvider ?? authSession.token
   const fetcher = options.fetcher ?? fetch
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+
+  function authHeaders(accept: string, token: string | null): Record<string, string> {
+    const headers: Record<string, string> = { Accept: accept }
+    if (token) headers.Authorization = `Bearer ${token}`
+    return headers
+  }
+
+  /**
+   * 发请求并统一处理「超时 / 网络不通」。
+   *
+   * <p>两类失败原先都以原生 TypeError 冒出去，页面里的 `catch (e) => e.message`
+   * 拿到的是「Failed to fetch」这种英文且无上下文的文案；
+   * 现在统一转成 ApiError，文案可直接展示给运营者。
+   */
+  async function send(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      return await fetcher(url, { ...init, signal: controller.signal })
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new ApiError('请求超时，请稍后重试', 0, 0)
+      }
+      throw new ApiError(describeNetworkError(error), 0, 0)
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  /** 401 时通知路由层清会话；只对「发起请求时的那个 token」生效，避免旧请求踢掉新会话。 */
+  function notifyUnauthorized(response: Response, code: number | undefined, token: string | null) {
+    if ((code === 401 || response.status === 401) && token && token === tokenProvider()) {
+      unauthorizedHandler?.()
+    }
+  }
 
   async function request<T>(method: string, path: string, body?: unknown, query?: QueryParams): Promise<T> {
-    const headers: Record<string, string> = { Accept: 'application/json' }
     const token = tokenProvider()
-    if (token) headers.Authorization = `Bearer ${token}`
+    const headers = authHeaders('application/json', token)
     const init: RequestInit = { method, headers }
     if (body !== undefined) {
       headers['Content-Type'] = 'application/json'
       init.body = JSON.stringify(body)
     }
-
-    const response = await fetcher(buildUrl(baseUrl, path, query), init)
-    const payload = await parseJson<ApiResponse<T>>(response)
-    if (!response.ok || payload.code !== 200) {
-      if ((payload.code === 401 || response.status === 401) && token && token === tokenProvider()) unauthorizedHandler?.()
-      throw new ApiError(payload.message || '请求失败', payload.code || response.status, response.status, payload.traceId)
-    }
-    return payload.data
+    const response = await send(buildUrl(baseUrl, path, query), init)
+    const payload = await readPayload<T>(response)
+    assertOk(response, payload, '请求失败', () => notifyUnauthorized(response, payload.code, token))
+    return payload.data as T
   }
 
   async function download(path: string, query?: QueryParams): Promise<Blob> {
-    const headers: Record<string, string> = { Accept: 'text/csv,application/octet-stream,*/*' }
     const token = tokenProvider()
-    if (token) headers.Authorization = `Bearer ${token}`
-
-    const response = await fetcher(buildUrl(baseUrl, path, query), { method: 'GET', headers })
+    const response = await send(buildUrl(baseUrl, path, query), {
+      method: 'GET',
+      headers: authHeaders('text/csv,application/octet-stream,*/*', token),
+    })
     if (!response.ok) {
-      const payload = await parseJson<ApiResponse<unknown>>(response)
-      if ((payload.code === 401 || response.status === 401) && token && token === tokenProvider()) unauthorizedHandler?.()
+      const payload = await readPayload<unknown>(response)
+      notifyUnauthorized(response, payload.code, token)
       throw new ApiError(payload.message || '下载失败', payload.code || response.status, response.status, payload.traceId)
     }
     return response.blob()
@@ -94,17 +138,15 @@ export function createHttpClient(options: HttpClientOptions = {}): HttpClient {
    * 手动设置会覆盖掉 boundary，导致服务端读不到文件内容。
    */
   async function upload<T>(path: string, form: FormData): Promise<T> {
-    const headers: Record<string, string> = { Accept: 'application/json' }
     const token = tokenProvider()
-    if (token) headers.Authorization = `Bearer ${token}`
-
-    const response = await fetcher(buildUrl(baseUrl, path), { method: 'POST', headers, body: form })
-    const payload = await parseJson<ApiResponse<T>>(response)
-    if (!response.ok || payload.code !== 200) {
-      if ((payload.code === 401 || response.status === 401) && token && token === tokenProvider()) unauthorizedHandler?.()
-      throw new ApiError(payload.message || '上传失败', payload.code || response.status, response.status, payload.traceId)
-    }
-    return payload.data
+    const response = await send(buildUrl(baseUrl, path), {
+      method: 'POST',
+      headers: authHeaders('application/json', token),
+      body: form,
+    })
+    const payload = await readPayload<T>(response)
+    assertOk(response, payload, '上传失败', () => notifyUnauthorized(response, payload.code, token))
+    return payload.data as T
   }
 
   return {
@@ -142,14 +184,50 @@ function toQueryString(query: QueryParams) {
   return params.toString()
 }
 
-async function parseJson<T>(response: Response): Promise<T> {
+/**
+ * 读取响应体。
+ *
+ * <p>非 JSON 响应必须自己兜住：反向代理/容器在 502、504 时会直接返回一段 HTML 错误页，
+ * 裸 `JSON.parse` 会抛 SyntaxError —— 它不是 ApiError，页面里 `instanceof ApiError`
+ * 的分支全部落空，最终展示的是「Unexpected token '<'」这种东西。
+ * 空响应体（204）视为成功、`data` 为 null。
+ */
+async function readPayload<T>(response: Response): Promise<Partial<ApiResponse<T>>> {
   const text = await response.text()
   if (!text) {
-    return { code: response.status, message: response.statusText, data: null } as T
+    return { data: null as T }
   }
-  return JSON.parse(text) as T
+  try {
+    return JSON.parse(text) as ApiResponse<T>
+  } catch {
+    throw new ApiError(
+      response.ok ? '服务返回了无法解析的响应' : `服务暂时不可用（HTTP ${response.status}）`,
+      0,
+      response.status,
+    )
+  }
 }
 
-import { authSession } from './session.ts'
+function assertOk(
+  response: Response,
+  payload: Partial<ApiResponse<unknown>>,
+  fallbackMessage: string,
+  onUnauthorized: () => void,
+) {
+  // code 缺失说明响应体是空的（204 之类），此时只以 HTTP 状态码为准
+  const failed = !response.ok || (payload.code !== undefined && payload.code !== 200)
+  if (!failed) return
+  onUnauthorized()
+  throw new ApiError(payload.message || fallbackMessage, payload.code ?? response.status, response.status, payload.traceId)
+}
+
+function describeNetworkError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  // fetch 在跨域被拦、后端没起、断网时都只给一句 Failed to fetch，补上可操作的方向
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return '无法连接后端服务，请确认后端已启动或网络可达'
+  }
+  return message || '网络异常，请稍后重试'
+}
 
 export const httpClient = createHttpClient()
