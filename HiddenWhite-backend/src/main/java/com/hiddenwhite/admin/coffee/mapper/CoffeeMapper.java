@@ -189,12 +189,24 @@ public interface CoffeeMapper {
                                          @Param("offset") long offset,
                                          @Param("size") int size);
 
+    /**
+     * 批量取多张订单的明细。
+     *
+     * <p>订单列表页原先是对每行单独查一次明细（{@code pageSize} 最大 100，
+     * 即一次翻页最多 100 次往返）。这里改为一次 {@code IN} 查询，
+     * 与 {@code ShopRepository.attachItems} 用的是同一套思路。
+     */
     @Select("""
-            SELECT product_name AS name, size_label AS size, temperature, milk,
+            <script>
+            SELECT order_id AS orderId, product_name AS name, size_label AS size, temperature, milk,
                    quantity, unit_price AS unitPrice, line_total AS lineTotal
-            FROM ${coffeeDb}.order_items WHERE order_id = #{orderId} ORDER BY id
+            FROM ${coffeeDb}.order_items
+            WHERE order_id IN
+            <foreach collection="orderIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+            ORDER BY id
+            </script>
             """)
-    List<Map<String, Object>> orderItems(@Param("orderId") String orderId);
+    List<Map<String, Object>> orderItemsByOrderIds(@Param("orderIds") List<String> orderIds);
 
     /**
      * 完成取餐。

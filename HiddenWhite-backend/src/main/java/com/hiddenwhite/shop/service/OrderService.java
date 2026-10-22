@@ -59,8 +59,9 @@ public class OrderService {
         return order;
     }
 
+    /** 当前占名额的订单；状态过滤下推到 SQL，不读整段历史。 */
     public Order current(String memberId) {
-        return findAll(memberId).stream().filter(order -> order.status().isBlocking()).findFirst().orElse(null);
+        return repository.activeOrder(normalizeMemberId(memberId));
     }
 
     /**
@@ -68,6 +69,18 @@ public class OrderService {
      *
      * <p>归属以服务端解析出的 {@code callerId}（来自 token）为准，
      * 请求体里的 memberId 一律忽略，避免伪造他人身份下单 / 冒领首单减免。
+     *
+     * <p><b>为什么这里必须 synchronized</b>：订单号与取餐号都是「先查当日最大值再 +1」
+     * 的读—写序列，这两步之间没有数据库层面的唯一约束替我们兜底（{@code pickup} 列上
+     * 没有唯一索引，{@code order_number} 上虽有却只会报错而非自动换号）。
+     * 单实例部署下用方法级锁把取号串起来最省事。
+     *
+     * <p>代价是下单彼此串行，因此方法体内只能做必要的数据库访问 ——
+     * 首单判定与名额判定都改成了 {@code LIMIT 1} 探测（见 {@code calculate} 与本方法首段），
+     * 不再在锁内读整段订单历史。
+     *
+     * <p><b>已知边界</b>：多实例部署时该锁不跨进程，取号需改为数据库序列或
+     * 「唯一索引 + 重试」。当前为单店单实例，暂不需要。
      */
     public synchronized Order create(CreateOrderRequest request, String callerId) {
         String closedReason = repository.closedReason();
@@ -75,7 +88,8 @@ public class OrderService {
             throw new BusinessException(HttpStatus.CONFLICT, closedReason);
         }
         String owner = normalizeMemberId(callerId);
-        if (current(owner) != null) {
+        // 只探测「是否存在占名额的订单」，不再把整段订单历史连同明细读回来做 null 判断。
+        if (repository.hasActiveOrder(owner)) {
             throw new BusinessException(HttpStatus.CONFLICT, "当前有订单待支付或待取餐，请先处理或等待订单超时");
         }
         List<OrderItem> items = buildItems(request.items());
@@ -114,8 +128,15 @@ public class OrderService {
         return calculate(buildItems(request.items()), owner);
     }
 
-    /** 完成订单：强制校验归属，非本人订单一律 403（不再允许 memberId 缺省来跳过校验）。 */
-    public synchronized Order complete(UUID id, String callerId) {
+    /**
+     * 完成订单：强制校验归属，非本人订单一律 403（不再允许 memberId 缺省来跳过校验）。
+     *
+     * <p>不加 {@code synchronized}：并发安全由 {@code ShopRepository.complete} 的
+     * 条件更新（{@code WHERE status='PAID'}）保证，两个并发请求只有一个能命中，
+     * 另一个拿到 0 行后按「已是 COMPLETED」幂等返回。原先的锁只是把不同顾客的
+     * 取餐动作排到同一把锁上，还会被正在下单的请求挡住。
+     */
+    public Order complete(UUID id, String callerId) {
         Order existing = find(id);
         assertOwned(existing, callerId);
         return markCompleted(existing);
@@ -133,8 +154,11 @@ public class OrderService {
      * <p><b>已付款的订单不能由前端直接取消</b>：钱已经到账，再取消等于让门店白做、
      * 顾客白花钱。此类订单必须走退款流程（{@code ShopRepository.markRefunded}），
      * 由店员介入，不给前端开这个口子。
+     *
+     * <p>不加 {@code synchronized}，理由同 {@link #complete}：真正的互斥在
+     * {@code ShopRepository.cancel} 的条件更新上，重复取消会幂等返回当前状态。
      */
-    public synchronized Order cancel(UUID id, String callerId) {
+    public Order cancel(UUID id, String callerId) {
         Order existing = find(id);
         assertOwned(existing, callerId);
 
@@ -208,7 +232,9 @@ public class OrderService {
 
     private PriceSummary calculate(List<OrderItem> items, String owner) {
         BigDecimal subtotal = items.stream().map(OrderItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal discount = findAll(owner).isEmpty() ? FIRST_ORDER_DISCOUNT.min(subtotal) : BigDecimal.ZERO;
+        // 首单判定只需一个布尔值；`LIMIT 1` 探测与历史订单量无关，
+        // 而原先的 findAll(owner).isEmpty() 会把历史订单与明细全量读回再丢掉。
+        BigDecimal discount = repository.hasOrders(owner) ? BigDecimal.ZERO : FIRST_ORDER_DISCOUNT.min(subtotal);
         return new PriceSummary(subtotal, discount, PACKAGING_FEE,
                 subtotal.subtract(discount).add(PACKAGING_FEE),
                 items.stream().mapToInt(OrderItem::quantity).sum());

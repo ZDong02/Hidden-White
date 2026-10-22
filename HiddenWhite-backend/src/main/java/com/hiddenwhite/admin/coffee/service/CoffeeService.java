@@ -13,6 +13,9 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -126,8 +129,29 @@ public class CoffeeService {
         long offset = (long) (query.normalizedPageNum() - 1) * query.normalizedPageSize();
         List<Map<String, Object>> rows = total == 0 ? List.of()
                 : mapper.pageOrders(blankToNull(keyword), statusValue, offset, query.normalizedPageSize());
-        rows.forEach(row -> row.put("items", mapper.orderItems(String.valueOf(row.get("id")))));
+        attachItems(rows);
         return PageResult.of(rows, total, query.normalizedPageNum(), query.normalizedPageSize());
+    }
+
+    /**
+     * 给本页订单批量补齐明细。
+     *
+     * <p>改成一次 {@code IN} 查询后，翻页的 SQL 往返从 {@code 1 + 页大小} 降到 2 次。
+     * 明细里的 {@code orderId} 只用于归位，下发前摘掉，保持前端拿到的结构不变。
+     */
+    private void attachItems(List<Map<String, Object>> orders) {
+        if (orders.isEmpty()) {
+            return;
+        }
+        List<String> orderIds = orders.stream().map(row -> String.valueOf(row.get("id"))).toList();
+        Map<String, List<Map<String, Object>>> itemsByOrder = new HashMap<>();
+        for (Map<String, Object> item : mapper.orderItemsByOrderIds(orderIds)) {
+            Map<String, Object> payload = new LinkedHashMap<>(item);
+            String orderId = String.valueOf(payload.remove("orderId"));
+            itemsByOrder.computeIfAbsent(orderId, key -> new ArrayList<>()).add(payload);
+        }
+        orders.forEach(row -> row.put("items",
+                itemsByOrder.getOrDefault(String.valueOf(row.get("id")), List.of())));
     }
 
     public void completeOrder(String id) {

@@ -29,8 +29,14 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.hiddenwhite.common.domain.Constants.ZONE;
 
@@ -38,6 +44,33 @@ import static com.hiddenwhite.common.domain.Constants.ZONE;
 @Repository
 public class ShopRepository {
     private static final DateTimeFormatter NUMBER_DATE = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    /**
+     * 占用「同一会员仅一张进行中订单」名额的状态集合。
+     *
+     * <p>由 {@link OrderStatus#isBlocking()} 反推生成，不在 SQL 里另抄一份状态列表 ——
+     * 否则新增状态时两处必然走偏（漏掉 SQL 这侧就会多占名额或提前放行）。
+     */
+    private static final String BLOCKING_STATUS_SQL = Arrays.stream(OrderStatus.values())
+            .filter(OrderStatus::isBlocking)
+            .map(status -> "'" + status.name() + "'")
+            .collect(Collectors.joining(","));
+
+    /**
+     * 订单全列清单。
+     *
+     * <p>刻意不用 {@code SELECT *}：{@code ORDER_MAPPER} 依赖的列一旦增删，
+     * 显式清单能让编译期之外的差异在 code review 里一眼可见；
+     * 同时避免后续给表加宽列（大文本 / JSON）时被无谓地全量读回。
+     */
+    private static final String ORDER_COLUMNS =
+            "id,member_id,subtotal,discount,packaging_fee,total,item_count,pickup,order_number," +
+                    "created_at,ready_at,status,note,completed_at,pay_channel,transaction_id,prepay_id," +
+                    "prepay_expire_at,paid_at,refund_id,refunded_at,cancelled_at,cancel_reason";
+
+    /** 明细列清单，供单查与批量查共用，保证两条路径映射结果一致。 */
+    private static final String ORDER_ITEM_COLUMNS =
+            "order_id,product_id,product_name,size_label,temperature,milk,quantity,unit_price,line_total";
 
     private final JdbcTemplate jdbc;
 
@@ -71,9 +104,11 @@ public class ShopRepository {
                         "FROM stores ORDER BY id LIMIT 1", (rs, row) -> {
                     var opening = rs.getTime("opening_time").toLocalTime();
                     var closing = rs.getTime("closing_time").toLocalTime();
+                    // 取一次当前时刻：两次 now() 跨过打烊整点时会算出自相矛盾的结果
+                    var now = LocalTime.now();
                     // 人工开启营业：强制开放，覆盖时间窗口自动判定；其余按人工打烊 + 时段判断
                     boolean open = rs.getBoolean("manual_open") || (!rs.getBoolean("manual_closed")
-                            && !java.time.LocalTime.now().isBefore(opening) && java.time.LocalTime.now().isBefore(closing));
+                            && !now.isBefore(opening) && now.isBefore(closing));
                     return new StoreInfo(rs.getString("name"), rs.getString("address"), rs.getString("short_address"),
                             rs.getBigDecimal("latitude"), rs.getBigDecimal("longitude"), rs.getString("distance_label"),
                             opening.toString().substring(0, 5) + "–" + closing.toString().substring(0, 5), open,
@@ -82,18 +117,22 @@ public class ShopRepository {
     }
 
     /** stores 表单行快照，供打烊判定使用（RowMapper 必须返回非 null 对象）。 */
-    private record StoreStatus(boolean manualClosed, boolean manualOpen, String note,
+    private record StoreStatus(long id, boolean manualClosed, boolean manualOpen, String note,
                                LocalTime opening, LocalTime closing) {}
 
     /**
      * 下单前的营业状态校验：可下单返回 null，否则返回打烊提示语。
      * 优先级与店铺运营模块一致：人工打烊 > 人工开启（强制营业）> 当日休息 > 未到营业时间 > 已过打烊时间。
      * 判定逻辑在 mapper 之外执行，避免营业中返回 null 元素导致 findFirst() 抛 NPE。
+     *
+     * <p>门店 id 取自本次读到的行，而不是写死 {@code store_id=1}：
+     * {@link #store()} 用的是 {@code ORDER BY id LIMIT 1}，两处若对「哪家门店」的假设不同，
+     * 一旦出现第二家门店，就会出现「按 A 店的营业时间判断、读 B 店的排班」这种错位。
      */
     public String closedReason() {
         List<StoreStatus> rows = jdbc.query(
-                "SELECT manual_closed,manual_open,status_note,opening_time,closing_time FROM stores ORDER BY id LIMIT 1",
-                (rs, row) -> new StoreStatus(rs.getBoolean("manual_closed"), rs.getBoolean("manual_open"),
+                "SELECT id,manual_closed,manual_open,status_note,opening_time,closing_time FROM stores ORDER BY id LIMIT 1",
+                (rs, row) -> new StoreStatus(rs.getLong("id"), rs.getBoolean("manual_closed"), rs.getBoolean("manual_open"),
                         rs.getString("status_note"),
                         rs.getTime("opening_time").toLocalTime(), rs.getTime("closing_time").toLocalTime()));
         if (rows.isEmpty()) {
@@ -109,8 +148,8 @@ public class ShopRepository {
         }
         var today = LocalDate.now(ZONE).getDayOfWeek().getValue();
         List<Boolean> dayOff = jdbc.query(
-                "SELECT closed FROM store_hours WHERE store_id=1 AND day_of_week=?",
-                (rs2, r2) -> rs2.getBoolean("closed"), today);
+                "SELECT closed FROM store_hours WHERE store_id=? AND day_of_week=?",
+                (rs2, r2) -> rs2.getBoolean("closed"), store.id(), today);
         if (!dayOff.isEmpty() && dayOff.get(0)) {
             return "今日例休，期待与您再会";
         }
@@ -171,14 +210,66 @@ public class ShopRepository {
 
     // ---- 订单 ----
 
+    /**
+     * 会员订单列表（含明细）。
+     *
+     * <p><b>为什么明细要批量取</b>：早期实现是「先查订单、再对每张订单查一次 order_items」，
+     * 历史有 N 张就是 N+1 次往返。改造前 {@code OrderService.create} 也拿本方法做
+     * 「是否有订单 / 是否有进行中订单」的判断，于是单次下单的查询数高达 {@code 2(1+N)}。
+     * 现在下单改走 {@code LIMIT 1} 探测，本方法只剩「列表查询」一个用途；
+     * 明细改为一次 {@code IN} 批量取后，整次列表查询恒定为 2 次。
+     */
     public List<Order> orders(String memberId) {
-        return jdbc.query("SELECT * FROM orders WHERE member_id=? ORDER BY created_at DESC", ORDER_MAPPER, memberId)
-                .stream().map(this::withItems).toList();
+        List<Order> rows = jdbc.query(
+                "SELECT " + ORDER_COLUMNS + " FROM orders WHERE member_id=? ORDER BY created_at DESC",
+                ORDER_MAPPER, memberId);
+        return attachItems(rows);
     }
 
     public Order order(UUID id) {
-        return jdbc.query("SELECT * FROM orders WHERE id=?", ORDER_MAPPER, id.toString()).stream()
-                .findFirst().map(this::withItems).orElseThrow(() -> new NotFoundException("订单不存在: " + id));
+        return jdbc.query("SELECT " + ORDER_COLUMNS + " FROM orders WHERE id=?", ORDER_MAPPER, id.toString())
+                .stream().findFirst().map(this::withItems)
+                .orElseThrow(() -> new NotFoundException("订单不存在: " + id));
+    }
+
+    /**
+     * 该会员当前占名额的那张订单（没有则 null）。
+     *
+     * <p>与 {@link #orders} 的区别：状态条件直接下推到 SQL 并 {@code LIMIT 1}，
+     * 不必把全部历史订单（含明细）读回内存再筛。老顾客历史越长，差异越明显。
+     */
+    public Order activeOrder(String memberId) {
+        return jdbc.query("SELECT " + ORDER_COLUMNS + " FROM orders WHERE member_id=? AND status IN ("
+                                + BLOCKING_STATUS_SQL + ") ORDER BY created_at DESC LIMIT 1",
+                        ORDER_MAPPER, memberId)
+                .stream().findFirst().map(this::withItems).orElse(null);
+    }
+
+    /**
+     * 该会员是否下过单（首单减免判定）。
+     *
+     * <p>只需要一个布尔值，却去把整段订单历史连同明细读回来，是把「存在性判断」
+     * 当成了「列表查询」；{@code LIMIT 1} 的探测走 {@code member_id} 索引，
+     * 与订单量无关。
+     */
+    public boolean hasOrders(String memberId) {
+        return exists("SELECT 1 FROM orders WHERE member_id=? LIMIT 1", memberId);
+    }
+
+    /**
+     * 该会员是否有进行中订单（占名额的那几个状态）。
+     *
+     * <p>状态集合来自 {@link OrderStatus#isBlocking()}，与
+     * {@code OrderService} 的判定同源，避免 SQL 与 Java 各写一份。
+     */
+    public boolean hasActiveOrder(String memberId) {
+        return exists("SELECT 1 FROM orders WHERE member_id=? AND status IN (" + BLOCKING_STATUS_SQL + ") LIMIT 1",
+                memberId);
+    }
+
+    private boolean exists(String sql, Object... args) {
+        List<Integer> rows = jdbc.query(sql, (rs, row) -> 1, args);
+        return !rows.isEmpty();
     }
 
     /**
@@ -225,9 +316,15 @@ public class ShopRepository {
     public String nextPickupNumber(LocalDate date) {
         // 声明为 Integer 而非 int：当日无任何订单时 MAX(...) 返回 NULL，
         // 用原始类型会导致 jdbc 取值时抛类型转换异常而非返回 null。
+        //
+        // 这里用「左闭右开区间」而不是 DATE(created_at)=?：后者对列套函数，
+        // created_at 上的索引会直接失效，退化为全表扫描——订单表越跑越慢。
+        LocalDateTime dayStart = date.atStartOfDay();
+        LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
         Integer max = jdbc.queryForObject(
-                "SELECT MAX(CAST(pickup AS UNSIGNED)) FROM orders WHERE DATE(created_at)=? AND pickup REGEXP '^[0-9]+$'",
-                Integer.class, date);
+                "SELECT MAX(CAST(pickup AS UNSIGNED)) FROM orders "
+                        + "WHERE created_at >= ? AND created_at < ? AND pickup REGEXP '^[0-9]+$'",
+                Integer.class, dayStart, dayEnd);
         int lastUsed = max == null ? 0 : max;
         return PickupNumber.format(PickupNumber.nextAfter(lastUsed));
     }
@@ -254,6 +351,17 @@ public class ShopRepository {
      * 成长值 = 积分 × 10（1 元 = 10 成长值）。金额为 0 时不发放。
      * 等级取「现有等级阶位」与「累计成长值对应阶位」中较高者。</p>
      * <p>调用时机：仅在 {@link #saveOrder} 事务内调用，下单失败时发放一并回滚。</p>
+     *
+     * <p><b>为什么成长值必须写成自增而不是直接赋值</b>：早期实现先 {@code SELECT growth_value}
+     * 再把 {@code 旧值 + 增量} 整体写回，同一会员并发下两单（连点、双端同时下单）时，
+     * 后提交的那笔会用自己的计算结果覆盖掉另一笔的增量 —— 典型丢失更新，
+     * 顾客会少拿成长值且无从对账。改成 {@code growth_value = growth_value + ?} 后，
+     * 累加由数据库保证原子性。
+     *
+     * <p>等级是「读—算—写」，仍存在极窄的并发窗口。这里用 {@code growth_value=?} 作为
+     * 写入条件：若期间被别的订单改过，本次写入自然不生效，而那个把成长值推高的订单
+     * 会按更高的成长值算出不低于本次的等级，因此等级只会「最多滞后一单」，
+     * 不会算错或降级，下一单即刻追平。
      */
     private void awardOrderPoints(Order order) {
         // 向下取整取实付金额整数部分，如 26.00 → 26 积分
@@ -261,18 +369,28 @@ public class ShopRepository {
         if (points <= 0) {
             return;
         }
-        List<Member> rows = jdbc.query(
-                "SELECT id,display_name,phone,member_level,card_number,points,coupons,growth_value FROM members WHERE id=?",
-                MEMBER_MAPPER, order.memberId());
+        int growthGain = points * 10;
+        int updated = jdbc.update(
+                "UPDATE members SET points=points+?,growth_value=growth_value+? WHERE id=?",
+                points, growthGain, order.memberId());
+        if (updated == 0) {
+            return;
+        }
+        List<MemberGrowth> rows = jdbc.query(
+                "SELECT member_level,growth_value FROM members WHERE id=?",
+                (rs, row) -> new MemberGrowth(rs.getString("member_level"), rs.getInt("growth_value")),
+                order.memberId());
         if (rows.isEmpty()) {
             return;
         }
-        Member current = rows.get(0);
-        int growthValue = current.growthValue() + points * 10;
-        String level = MemberLevels.maxLevel(current.level(), MemberLevels.levelFor(growthValue));
-        jdbc.update("UPDATE members SET points=points+?,growth_value=?,member_level=? WHERE id=?",
-                points, growthValue, level, order.memberId());
+        MemberGrowth current = rows.get(0);
+        String level = MemberLevels.maxLevel(current.level(), MemberLevels.levelFor(current.growthValue()));
+        jdbc.update("UPDATE members SET member_level=? WHERE id=? AND growth_value=?",
+                level, order.memberId(), current.growthValue());
     }
+
+    /** 晋升判定只需要等级与成长值两列，不为它去构造一个字段残缺的 {@link Member}。 */
+    private record MemberGrowth(String level, int growthValue) {}
 
     /**
      * 完成取餐。
@@ -390,12 +508,9 @@ public class ShopRepository {
                 .toList();
     }
 
-    /** 未进入终态的订单扫描语句。显式列字段，既保证行映射读到支付列，也避免索引回表开销。 */
+    /** 未进入终态的订单扫描语句。列清单与 {@link #orders} 同源，避免两处投影漂移。 */
     private static final String SELECT_ACTIVE_ORDERS =
-            "SELECT id,member_id,subtotal,discount,packaging_fee,total,item_count,pickup,order_number," +
-                    "created_at,ready_at,status,note,completed_at,pay_channel,transaction_id,prepay_id," +
-                    "prepay_expire_at,paid_at,refund_id,refunded_at,cancelled_at,cancel_reason " +
-                    "FROM orders WHERE status IN ('CREATED','PENDING_PAYMENT','PAID')";
+            "SELECT " + ORDER_COLUMNS + " FROM orders WHERE status IN (" + BLOCKING_STATUS_SQL + ")";
 
     private void ensureMember(String memberId) {
         if (jdbc.queryForObject("SELECT COUNT(*) FROM members WHERE id=?", Integer.class, memberId) == 0) {
@@ -404,13 +519,45 @@ public class ShopRepository {
         }
     }
 
+    /** 单张订单补明细。 */
     private Order withItems(Order order) {
-        List<OrderItem> items = jdbc.query("SELECT product_id,product_name,size_label,temperature,milk,quantity,unit_price,line_total " +
-                        "FROM order_items WHERE order_id=? ORDER BY id", (rs, row) -> new OrderItem(rs.getString("product_id"),
-                        rs.getString("product_name"), rs.getString("size_label"), rs.getString("temperature"), rs.getString("milk"),
-                        rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total")), order.id().toString());
-        return new Order(order.id(), order.memberId(), items, order.subtotal(), order.discount(), order.packagingFee(), order.total(),
-                order.count(), order.pickup(), order.number(), order.createdAt(), order.readyAt(), order.status(), order.note(), order.completedAt(),
+        List<OrderItem> items = jdbc.query(
+                "SELECT " + ORDER_ITEM_COLUMNS + " FROM order_items WHERE order_id=? ORDER BY id",
+                ORDER_ITEM_MAPPER, order.id().toString());
+        return copyWithItems(order, items);
+    }
+
+    /**
+     * 批量补明细：一次 {@code IN} 查询取回整批订单的明细，再按 order_id 归位。
+     *
+     * <p>返回顺序与入参一致（订单列表按 created_at DESC，不能因为 Map 的遍历顺序被打乱）。
+     */
+    private List<Order> attachItems(List<Order> orders) {
+        if (orders.isEmpty()) {
+            return List.of();
+        }
+        List<String> orderIds = orders.stream().map(order -> order.id().toString()).toList();
+        String placeholders = orderIds.stream().map(id -> "?").collect(Collectors.joining(","));
+        Map<String, List<OrderItem>> itemsByOrder = new LinkedHashMap<>();
+        jdbc.query("SELECT " + ORDER_ITEM_COLUMNS + " FROM order_items WHERE order_id IN (" + placeholders + ") ORDER BY id",
+                rs -> {
+                    itemsByOrder
+                            .computeIfAbsent(rs.getString("order_id"), key -> new ArrayList<>())
+                            .add(ORDER_ITEM_MAPPER.mapRow(rs, 0));
+                }, orderIds.toArray());
+
+        List<Order> result = new ArrayList<>(orders.size());
+        for (Order order : orders) {
+            result.add(copyWithItems(order, itemsByOrder.getOrDefault(order.id().toString(), List.of())));
+        }
+        return List.copyOf(result);
+    }
+
+    /** 订单是不可变记录：补明细只能整条重建，这里是唯一的重建点，避免字段漏拷。 */
+    private static Order copyWithItems(Order order, Collection<OrderItem> items) {
+        return new Order(order.id(), order.memberId(), List.copyOf(items), order.subtotal(), order.discount(),
+                order.packagingFee(), order.total(), order.count(), order.pickup(), order.number(),
+                order.createdAt(), order.readyAt(), order.status(), order.note(), order.completedAt(),
                 order.payChannel(), order.transactionId(), order.prepayId(), order.prepayExpireAt(), order.paidAt(),
                 order.refundId(), order.refundedAt(), order.cancelledAt(), order.cancelReason());
     }
@@ -429,6 +576,11 @@ public class ShopRepository {
     private static final RowMapper<Member> MEMBER_MAPPER = (rs, row) -> new Member(rs.getString("id"), rs.getString("display_name"),
             rs.getString("phone"), rs.getString("member_level"), rs.getString("card_number"), rs.getInt("points"),
             rs.getInt("coupons"), rs.getInt("growth_value"));
+
+    /** 订单明细映射：单查与批量查共用，保证两条路径读出的明细完全一致。 */
+    private static final RowMapper<OrderItem> ORDER_ITEM_MAPPER = (rs, row) -> new OrderItem(rs.getString("product_id"),
+            rs.getString("product_name"), rs.getString("size_label"), rs.getString("temperature"), rs.getString("milk"),
+            rs.getInt("quantity"), rs.getBigDecimal("unit_price"), rs.getBigDecimal("line_total"));
     private static final RowMapper<Order> ORDER_MAPPER = (rs, row) -> new Order(UUID.fromString(rs.getString("id")),
             rs.getString("member_id"), List.of(), rs.getBigDecimal("subtotal"), rs.getBigDecimal("discount"),
             rs.getBigDecimal("packaging_fee"), rs.getBigDecimal("total"), rs.getInt("item_count"), rs.getString("pickup"),

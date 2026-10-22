@@ -153,7 +153,6 @@ class OrderServiceTest {
 
     @Test
     void creatingOrderIgnoresMemberIdInRequestBody() {
-        when(repository.orders(anyString())).thenReturn(List.of());
         when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // 客户端声称自己是 BOB，服务端以 token（ALICE）为准落库
@@ -165,8 +164,8 @@ class OrderServiceTest {
     @Test
     void quoteIgnoresMemberIdInRequestBody() {
         // 恶意用户用已下单的 BOB 身份报价，试图冒领首单减免
-        when(repository.orders(BOB)).thenReturn(List.of(orderOf(BOB, OrderStatus.COMPLETED)));
-        when(repository.orders(ALICE)).thenReturn(List.of());
+        when(repository.hasOrders(BOB)).thenReturn(true);
+        when(repository.hasOrders(ALICE)).thenReturn(false);
 
         PriceSummary asBob = service.quote(request(null), BOB);
         PriceSummary asAlice = service.quote(request(BOB), ALICE);
@@ -180,7 +179,7 @@ class OrderServiceTest {
 
     @Test
     void firstOrderGetsSixYuanDiscount() {
-        when(repository.orders(ALICE)).thenReturn(List.of());
+        when(repository.hasOrders(ALICE)).thenReturn(false);
 
         PriceSummary summary = service.quote(request(null), ALICE);
 
@@ -192,7 +191,7 @@ class OrderServiceTest {
 
     @Test
     void returningMemberGetsNoDiscount() {
-        when(repository.orders(ALICE)).thenReturn(List.of(orderOf(ALICE, OrderStatus.COMPLETED)));
+        when(repository.hasOrders(ALICE)).thenReturn(true);
 
         PriceSummary summary = service.quote(request(null), ALICE);
 
@@ -212,7 +211,7 @@ class OrderServiceTest {
 
     @Test
     void onlyOneInProgressOrderAllowedPerMember() {
-        when(repository.orders(ALICE)).thenReturn(List.of(orderOf(ALICE, OrderStatus.PAID)));
+        when(repository.hasActiveOrder(ALICE)).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(request(null), ALICE))
                 .isInstanceOf(BusinessException.class)
@@ -221,16 +220,15 @@ class OrderServiceTest {
 
     @Test
     void currentReturnsOnlyInProgressOrder() {
-        Order completed = orderOf(ALICE, OrderStatus.COMPLETED);
         Order running = orderOf(ALICE, OrderStatus.PAID);
-        when(repository.orders(ALICE)).thenReturn(List.of(completed, running));
+        // 状态过滤已下推到 SQL，仓储层直接给出占名额的那一张
+        when(repository.activeOrder(ALICE)).thenReturn(running);
 
         assertThat(service.current(ALICE).id()).isEqualTo(running.id());
     }
 
     @Test
     void pickupNumberIsAllocatedIndependentlyFromOrderNumber() {
-        when(repository.orders(ALICE)).thenReturn(List.of());
         when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
         // 取餐号与订单号来自两个独立的取号器，刻意给不同的值以证明二者解耦
         when(repository.nextOrderNumber(any(LocalDate.class))).thenReturn("20261017001");
@@ -272,7 +270,7 @@ class OrderServiceTest {
     @Test
     void pendingPaymentStillBlocksMemberFromOrderingAgain() {
         // 已发起支付但未完成的订单必须占用名额，否则顾客可能重复下单
-        when(repository.orders(ALICE)).thenReturn(List.of(orderOf(ALICE, OrderStatus.PENDING_PAYMENT)));
+        when(repository.hasActiveOrder(ALICE)).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(request(null), ALICE))
                 .isInstanceOf(BusinessException.class)
@@ -281,10 +279,10 @@ class OrderServiceTest {
 
     @Test
     void terminalOrdersDoNotBlockNewOrdering() {
-        // 终态订单不再占用名额：超时取消后顾客可以重新下单（这正是修复的核心价值）
-        when(repository.orders(ALICE)).thenReturn(List.of(
-                orderOf(ALICE, OrderStatus.COMPLETED),
-                orderOf(ALICE, OrderStatus.CANCELLED)));
+        // 终态订单不再占用名额：超时取消后顾客可以重新下单（这正是修复的核心价值）。
+        // 状态过滤已下推到仓储层的 activeOrder / hasActiveOrder，这里显式声明
+        // 「没有占名额的订单」，证明服务层不会因为历史上有终态订单就拦下单。
+        when(repository.hasActiveOrder(ALICE)).thenReturn(false);
         when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         assertThat(service.create(request(null), ALICE).status()).isEqualTo(OrderStatus.CREATED);
@@ -365,7 +363,6 @@ class OrderServiceTest {
     @Test
     void devModeMarksOrderPaidImmediately() {
         enableDevMode();
-        when(repository.orders(ALICE)).thenReturn(List.of());
         when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
         // markPaid 会拿 saveOrder 返回的订单 id 回查并置为 PAID
         when(repository.markPaid(any(), anyString(), anyString(), any()))
@@ -381,7 +378,6 @@ class OrderServiceTest {
     @Test
     void devModeIsOffByDefaultSoOrdersStayCreated() {
         // 反向防线：不开开发模式时绝不能偷偷置 PAID，否则会在未收钱的情况下放行取餐
-        when(repository.orders(ALICE)).thenReturn(List.of());
         when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         Order created = service.create(request(null), ALICE);
