@@ -27,8 +27,8 @@ function createRecordingApi() {
         message: 'success',
         data: {
           maxBytes: 10485760,
-          list: { width: 600, height: 400, mode: 'cover' },
-          detail: { width: 1200, height: 800, mode: 'cover' },
+          list: { width: 284, height: 240, mode: 'cover' },
+          detail: { width: 1200, height: 636, mode: 'cover' },
         },
         traceId: 't',
       }),
@@ -45,7 +45,7 @@ test('coffee api reads image target spec from backend', async () => {
 
   assert.deepEqual(calls.map(c => `${c.method} ${c.url}`), ['GET /api/coffee/images/spec'])
   // 列表图与详情图目标宽高独立配置，前端按用途取用
-  assert.equal(spec.list.width, 600)
+  assert.equal(spec.list.width, 284)
   assert.equal(spec.detail.width, 1200)
 })
 

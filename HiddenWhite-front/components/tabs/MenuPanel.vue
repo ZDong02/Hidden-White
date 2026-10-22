@@ -475,6 +475,10 @@ defineExpose({ activate })
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* 副标题为空时仍保留一行高度，使同排卡片的名称/价格基线对齐。
+     空文本元素会塌陷成 0 高，导致价格行整体上移。
+     取值 = 字号 × 全局行高($lh-body)，与有副标题时实际占位一致。 */
+  min-height: $fs-caption * $lh-body;
 }
 
 .product-bottom {

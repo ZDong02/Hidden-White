@@ -2,6 +2,7 @@ package com.hiddenwhite.common.image;
 
 import com.hiddenwhite.common.exception.BusinessException;
 import org.junit.jupiter.api.Test;
+import org.yaml.snakeyaml.Yaml;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
@@ -10,6 +11,10 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -138,5 +143,65 @@ class ImageProcessorTest {
 
         // 原图 4:3 → 目标 1:1，比例被改变过
         assertThat(result.ratioChanged()).isTrue();
+    }
+
+    /**
+     * 锁定「上传目标比例 = 点单端容器比例」。
+     *
+     * <p>点单端用 {@code <image mode="aspectFill">} 渲染，会按容器比例再裁一次。
+     * 若服务端目标比例与容器比例不一致，等于裁两次，主体更容易被切掉，
+     * 且服务端那次裁剪纯属白做。
+     *
+     * <p>此处直接读 {@code application.yml} 的实际配置来断言（而非读默认值），
+     * 这样改动配置导致比例偏离时测试会失败。
+     *
+     * <p>容器实测（HiddenWhite-front，750rpx 设计稿）：
+     * <ul>
+     *   <li>列表图 .product-media：宽 271rpx × 高 230rpx → 1.1783</li>
+     *   <li>详情图 .detail-hero：宽 750rpx × 高 398rpx → 1.8844</li>
+     * </ul>
+     */
+    @Test
+    void configuredTargetsMatchPointOrderContainerRatio() throws Exception {
+        Yaml yaml = new Yaml();
+        Map<String, Object> root;
+        try (InputStream input = Files.newInputStream(Path.of("src", "main", "resources", "application.yml"))) {
+            root = yaml.load(input);
+        }
+        Map<String, Object> image = section(root, "hiddenwhite", "image");
+        // 列表图容器 271×230rpx
+        assertThat(ratioOfSlot(image, "list"))
+                .as("列表图目标比例须贴合 .product-media 容器(271×230rpx)")
+                .isCloseTo(271.0 / 230.0, withinPercent(2));
+        // 详情图容器 750×398rpx
+        assertThat(ratioOfSlot(image, "detail"))
+                .as("详情图目标比例须贴合 .detail-hero 容器(750×398rpx)")
+                .isCloseTo(750.0 / 398.0, withinPercent(2));
+    }
+
+    /** 逐层取出 YAML 节点。 */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> section(Map<String, Object> root, String... path) {
+        Object current = root;
+        for (String key : path) {
+            current = ((Map<String, Object>) current).get(key);
+        }
+        return (Map<String, Object>) current;
+    }
+
+    /** 取某个用途槽位的宽高比。 */
+    @SuppressWarnings("unchecked")
+    private static double ratioOfSlot(Map<String, Object> image, String slot) {
+        Map<String, Object> target = (Map<String, Object>) image.get(slot);
+        return (double) ((Number) target.get("width")).intValue() / ((Number) target.get("height")).intValue();
+    }
+
+    /** 比例偏差容差：2%，覆盖 rpx 取整带来的误差。 */
+    private static org.assertj.core.data.Percentage withinPercent(double percent) {
+        return org.assertj.core.data.Percentage.withPercentage(percent);
+    }
+
+    private static double ratioOf(int width, int height) {
+        return (double) width / height;
     }
 }

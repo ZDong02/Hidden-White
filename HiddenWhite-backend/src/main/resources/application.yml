@@ -9,7 +9,11 @@ spring:
     # 小程序端与管理端共用 hidden_white 单库；可用环境变量覆盖
     url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:hidden_white}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:123456}
+    # 口令不给默认值：base 配置对所有 profile 生效，若在这里留一个 123456，
+    # 生产环境忘记注入 DB_PASSWORD 时会「静默地用开发口令连上生产库」——
+    # 那是最难发现的一类事故。留空则连接直接失败，问题在启动时就暴露。
+    # 本地开发的默认口令见 application-dev.yml。
+    password: ${DB_PASSWORD:}
     hikari:
       maximum-pool-size: ${DB_POOL_SIZE:10}
       data-source-properties:
@@ -56,24 +60,30 @@ hiddenwhite:
   # -------------------------------------------------------------------
   # 列表图与详情图各自独立配置目标宽高与缩放方式：
   #   mode = cover   居中裁剪，铺满目标框（不留白边）
-  #   mode = contain 等比缩放，完整保留原图（空白处填 background 色）
+  #   mode = contain 等比缩放，完整保留原图
   #
-  # ⚠️ 目标宽高应与点单端的展示容器比例接近：
-  #    列表图出现在商品卡片（两列栅格），详情图出现在详情页大图区。
-  #    比例偏差过大时 cover 模式会裁掉较多内容。
+  # ⚠️ 目标比例必须对齐点单端的展示容器，否则前端 aspectFill 会再裁一次，
+  #    服务端这次裁剪就白做了（等于二次裁剪，主体更容易被切掉）。
+  #    容器实测比例（HiddenWhite-front）：
+  #      列表图 .product-media  宽 271rpx × 高 230rpx → 约 1.18:1
+  #      详情图 .detail-hero    宽 750rpx × 高 398rpx → 约 1.88:1
+  #    预置静态图（static/coffee/*.png）也是按这两个比例做的，
+  #    下面的取值与之对齐，上传图与预置图在页面上观感一致。
   # ===================================================================
   image:
     # 上传文件落盘目录（相对路径以进程工作目录为基准）
     upload-dir: ${IMAGE_UPLOAD_DIR:./data/uploads}
     # 单张图片大小上限（字节），默认 10MB
     max-bytes: 10485760
+    # 列表图：与 .product-media 容器比例一致（284:240 ≈ 1.183:1）
     list:
-      width: 600
-      height: 400
+      width: 284
+      height: 240
       mode: cover
+    # 详情图：与 .detail-hero 容器比例一致（1200:636 ≈ 1.887:1）
     detail:
       width: 1200
-      height: 800
+      height: 636
       mode: cover
 
   pay:

@@ -2,6 +2,12 @@
 # 开发环境：开启 MyBatis-Plus SQL 日志，排查隐藏 bug
 # 激活方式：默认即生效（application.yml 中 spring.profiles.active 默认 dev）
 # ============================================
+spring:
+  datasource:
+    # 本地 MySQL 默认口令只放在 dev profile 里。
+    # 生产（prod）不继承此值，必须显式注入 DB_PASSWORD。
+    password: ${DB_PASSWORD:123456}
+
 hiddenwhite:
   cors:
     # dev 放行本地前端开发服务器；管理端 vite 默认 5173，后端 8080 自调无需跨域。

@@ -36,11 +36,22 @@ public class ImageProperties {
     /** 单张图片允许的最大字节数，默认 10MB。 */
     private long maxBytes = 10L * 1024 * 1024;
 
-    /** 列表图规格。 */
-    private Slot list = new Slot(600, 400, ScaleMode.COVER);
+    /**
+     * 列表图规格。
+     *
+     * <p>默认值与 {@code application.yml} 的 {@code hiddenwhite.image.list} 保持一致，
+     * 比例对齐点单端 {@code .product-media} 容器（271×230rpx ≈ 1.18:1），
+     * 避免前端 aspectFill 二次裁剪。
+     */
+    private Slot list = new Slot(284, 240, ScaleMode.COVER);
 
-    /** 详情图规格。 */
-    private Slot detail = new Slot(1200, 900, ScaleMode.COVER);
+    /**
+     * 详情图规格。
+     *
+     * <p>默认值与 {@code application.yml} 的 {@code hiddenwhite.image.detail} 保持一致，
+     * 比例对齐点单端 {@code .detail-hero} 容器（750×398rpx ≈ 1.88:1）。
+     */
+    private Slot detail = new Slot(1200, 636, ScaleMode.COVER);
 
     public String getUploadDir() {
         return uploadDir;
@@ -83,8 +94,8 @@ public class ImageProperties {
      */
     public static class Slot {
 
-        private int width = 600;
-        private int height = 400;
+        private int width = 284;
+        private int height = 240;
         private ScaleMode mode = ScaleMode.COVER;
 
         public Slot() {

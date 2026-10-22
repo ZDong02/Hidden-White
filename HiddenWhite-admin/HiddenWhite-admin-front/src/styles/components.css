@@ -695,10 +695,11 @@
 .perm-chip.is-on { color: var(--blue); border-color: transparent; background: var(--blue-soft); }
 
 /* ── 图片上传 ───────────────────────────────────────────────── */
+/* 纵向间距与 .field 对齐（7px），使上传控件在表单栅格中与相邻字段等距 */
 .image-upload {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
   width: 100%;
 }
 .image-drop {
@@ -735,13 +736,15 @@
   display: block;
   width: 100%;
   max-height: 168px;
-  object-fit: contain;
+  /* 与点单端 <image mode="aspectFill"> 保持一致：裁剪填充而非留白，
+     否则同一张图在管理端与点单端观感不同。 */
+  object-fit: cover;
 }
 .image-placeholder {
   display: inline-flex;
   color: var(--ink-faint);
 }
-.image-hint { font-size: 12px; }
+.image-hint { font-size: 11.5px; }
 .image-file {
   /* 视觉隐藏但保留在无障碍树与 label 关联中：
      用 clip 而非 display:none，避免部分浏览器对 display:none 的表单控件不再响应 label 点击。 */
@@ -761,7 +764,12 @@
   justify-content: space-between;
   gap: 10px;
 }
-.image-target { font-size: 11.5px; color: var(--ink-soft); }
+.image-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
 .image-clear {
   padding: 0 8px;
   height: 22px;
@@ -773,8 +781,6 @@
   transition: color .2s ease, border-color .2s ease;
 }
 .image-clear:hover { color: var(--red-text); border-color: var(--red); }
-.image-error { font-size: 11.5px; color: var(--red-text); }
-.image-info { font-size: 11.5px; color: var(--ink-soft); }
 
 /* ── 窄屏 ───────────────────────────────────────────────────── */
 @media (max-width: 720px) {
@@ -783,4 +789,8 @@
   .modal-body, .drawer-body { padding: 12px 18px 18px; }
   .modal-foot, .drawer-foot { padding: 12px 18px; }
   .overlay { padding: 12px; }
+  /* 窄屏下单列排布，缩小上传区高度并让目标说明与清除按钮分行，避免挤在一行 */
+  .image-drop { min-height: 108px; }
+  .image-preview { max-height: 132px; }
+  .image-meta { flex-direction: column; align-items: flex-start; gap: 6px; }
 }

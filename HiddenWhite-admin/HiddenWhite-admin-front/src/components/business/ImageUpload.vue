@@ -42,16 +42,14 @@ const infoText = ref('')
  *  否则点击其中一个的 label 会打开另一个的文件选择框。 */
 const fileInputId = `image-file-${Math.random().toString(36).slice(2, 9)}`
 
-/** 当前目标规格：优先用外部传入，否则按用途取一个保守默认值 */
+/** 当前目标规格：优先用外部传入（来自服务端 /coffee/images/spec），
+ *  否则退回与服务端配置一致的默认值——规格拉取失败时也能给出正确提示。 */
 const effectiveTarget = computed<CoffeeImageTarget>(() => {
   if (props.target) return props.target
   return props.slot === 'detail'
-    ? { width: 1200, height: 800, mode: 'cover' }
-    : { width: 600, height: 400, mode: 'cover' }
+    ? { width: 1200, height: 636, mode: 'cover' }
+    : { width: 284, height: 240, mode: 'cover' }
 })
-
-/** 目标比例 */
-const targetRatio = computed(() => effectiveTarget.value.width / effectiveTarget.value.height)
 
 /** 展示用的图片地址：后端返回的是 /uploads/... 相对路径，管理端同源可直接用 */
 const previewUrl = computed(() => props.modelValue || '')
@@ -197,7 +195,7 @@ function clear() {
     />
 
     <div class="image-meta">
-      <span class="image-target">
+      <span class="field-hint">
         目标 {{ effectiveTarget.width }} × {{ effectiveTarget.height }}
         <span class="muted">（{{ effectiveTarget.mode === 'cover' ? '居中裁剪' : '等比缩放' }}）</span>
       </span>
@@ -208,7 +206,7 @@ function clear() {
       </div>
     </div>
 
-    <p v-if="errorText" class="image-error" role="alert">{{ errorText }}</p>
-    <p v-else-if="infoText" class="image-info">{{ infoText }}</p>
+    <p v-if="errorText" class="field-error" role="alert">{{ errorText }}</p>
+    <p v-else-if="infoText" class="field-hint">{{ infoText }}</p>
   </div>
 </template>
