@@ -66,6 +66,20 @@ public class GlobalExceptionHandler {
         return response(HttpStatus.FORBIDDEN, "没有访问权限", request, List.of());
     }
 
+    /**
+     * 订单状态机拒绝的流转。
+     *
+     * <p>{@code OrderStatus.assertCanTransitionTo} 抛的是 {@link IllegalStateException}。
+     * 不单独兜住它就会掉进通用兜底分支，变成一个 500「服务器内部错误」——
+     * 而这类失败的真实含义是「你操作时订单已经被别人推进了」，
+     * 属于<b>可以理解并重试</b>的冲突（409），不是服务端故障。
+     * 典型触发场景：顾客点「确认取餐」的同一秒，超时任务正好把订单取消。
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Object> illegalState(IllegalStateException exception, HttpServletRequest request) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), request, List.of());
+    }
+
     // ---- 请求异常 ----
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -81,7 +95,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Object> unreadable(HttpMessageNotReadableException exception, HttpServletRequest request) {
-        return badRequest(isAdmin(request) ? "请求体格式错误" : "请求体格式错误", request);
+        return badRequest("请求体格式错误", request);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
