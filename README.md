@@ -50,14 +50,14 @@ Hidden White/
 │   ├── components/                     # 共享组件 + components/ui/ 统一 UI 组件库
 │   ├── store/                          # 状态管理（购物车 / 订单 / 登录态）
 │   ├── config/                         # backend.js（统一请求）+ backend-hosts.js（候选地址）
-│   ├── utils/                          # 8 个工具模块
+│   ├── utils/                          # 7 个工具模块
 │   └── static/                         # 图片资源
 │
 ├── HiddenWhite-admin/                  # 管理端
 │   └── HiddenWhite-admin-front/        #   管理端前端：Vue 3 + TS
 │       ├── src/views/                  #   23 个页面
-│       ├── src/components/             #   ui(26) + business(20) + charts(6) + layout(6)
-│       ├── src/composables/            #   16 个组合式函数
+│       ├── src/components/             #   ui(27) + business(20) + charts(6) + layout(6)
+│       ├── src/composables/            #   15 个组合式函数
 │       ├── src/api/                    #   统一 HTTP 客户端 + 业务接口模块
 │       └── src/styles/                 #   七层样式体系（珍珠玻璃设计语言）
 │
@@ -150,7 +150,7 @@ npm run dev:mp-weixin
 |------|------|--------|
 | `DB_HOST` / `DB_PORT` | MySQL 地址 / 端口 | `localhost` / `3306` |
 | `DB_NAME` | 数据库名 | `hidden_white` |
-| `DB_USERNAME` / `DB_PASSWORD` | 数据库账号 / 密码 | `root` / `123456` |
+| `DB_USERNAME` / `DB_PASSWORD` | 数据库账号 / 密码 | `root` / dev 下默认 `123456`；**prod 无默认值，未注入即启动失败** |
 | `DB_POOL_SIZE` | HikariCP 连接池大小 | `10` |
 | `SERVER_PORT` | 服务端口 | `8080` |
 | `JWT_SECRET` | JWT 签名密钥（生产必配，至少 32 字节） | 开发默认值 |
@@ -167,8 +167,8 @@ npm run dev:mp-weixin
 | 端 | 前缀 | 鉴权 | 说明 |
 |----|------|------|------|
 | 小程序 / H5 | `/api/auth/login`、`/api/auth/register` | 无需登录 | 登录 / 注册，**返回 `{ member, token }`** |
-| 小程序 / H5 | `/api/products`、`/api/products/options`、`/api/store`、`/api/cart/quote`、`/api/members/benefits` | 无需登录 | 浏览类公开接口 |
-| 小程序 / H5 | `/api/orders/**`、`/api/members/{id}` | **需登录** | 会员归属以 token 判定，不接受客户端传入 memberId |
+| 小程序 / H5 | `/api/products`、`/api/products/options`、`/api/store`、`/api/members/benefits` | 无需登录 | 浏览类公开接口 |
+| 小程序 / H5 | `/api/orders/**`、`/api/members/{id}`、`/api/cart/quote`、`/api/auth/logout` | **需登录** | 会员归属以 token 判定，不接受客户端传入 memberId；报价要按本人历史订单判首单，故也需登录 |
 | 管理端 | `/api/admin/**` | JWT 登录 + 权限码 | auth、coffee、operation、system、dashboard、monitor、tool/generator |
 | 健康检查 | `/api/health` | 放行 | 点单端用于后端地址自动探测 |
 
@@ -180,14 +180,14 @@ npm run dev:mp-weixin
 - 会员 token 的 subject 为 `member:<会员ID>`，管理端 token 的 subject 是 `sys_user.username`。两者靠前缀天然隔离：点单端 token 打不进管理端接口，管理端 token 也进不了点单端接口。
 - **订单归属一律以 token 判定**：`GET /api/orders`、`GET /api/orders/{id}`、`POST /api/orders`、`POST /api/orders/{id}/complete`、`GET /api/members/{id}` 均不接受客户端传入 memberId，传入也会被忽略。
 - `SecurityConfig` 兜底为 `denyAll()`：新增路径若忘记配置，默认拒绝而非默认放行。
-- token 与验证码存内存（`ConcurrentHashMap`），**应用重启后需重新登录**；单实例部署，不支持多副本。
+- token 与验证码存内存（`ExpiringStore`：带 TTL + 定时清理 + 容量上界），**应用重启后需重新登录**；单实例部署，不支持多副本。
 
 ---
 
 ## 设计要点
 
 - **单库策略**：管理端系统表与点单业务表共用 `hidden_white` 库，管理端修改商品后点单端切页即见（`onShow` 自动重新拉取）
-- **无 Redis**：登录 token 与图形验证码存内存（`ConcurrentHashMap`），应用重启后需重新登录
+- **无 Redis**：登录 token 与图形验证码存内存（`ExpiringStore`，带过期清理与容量上界），应用重启后需重新登录
 - **价格后端计算**：点单端价格、取餐号、首单减免等一律由后端计算，不信任客户端传入的价格字段
 - **双异常结构**：小程序端返回 `ApiError`，管理端返回 `R`，按请求路径前缀自动区分
 - **双数据访问风格**：小程序端用 `JdbcTemplate`，管理端用 MyBatis-Plus Mapper，共用一个数据源

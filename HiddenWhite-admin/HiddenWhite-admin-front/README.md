@@ -19,7 +19,7 @@ npm run build
 
 | 路径 | 中文职责 |
 | --- | --- |
-| `src/api` | 统一 HTTP、会话存储、认证、系统管理与生成器接口 |
+| `src/api` | 统一 HTTP、会话存储、认证、系统管理与生成器接口（请求统一 15s 超时，网关 HTML 错误页与非 JSON 响应均转成 `ApiError`） |
 | `src/router/index.ts` | 静态入口、动态菜单路由、登录守卫与会话失效跳转 |
 | `src/composables/auth.ts` | 当前用户、权限、动态菜单与会话版本 |
 | `src/components/ui` | 27 个基础控件：按钮、输入、下拉、表格、弹窗、抽屉、提示、步进器、头像、开关等 |
@@ -28,7 +28,7 @@ npm run build
 | `src/components/layout` | 外壳、侧栏、顶栏、命令搜索、外观与密码弹窗 |
 | `src/composables` | 15 个组合式函数：登录态与动态菜单、GSAP 动效编排、列表状态机、字典 / 部门缓存、外观、视图记忆、焦点陷阱、画布视口、神经网络画布、问答坞、自动轮询等 |
 | `src/styles` | 令牌、基础、材质、控件、仪器、外壳、页面**七层**样式（详见 [DESIGN.md](../DESIGN.md)） |
-| `src/views` | 登录、工作台、**20 个业务管理页**（system 7 / coffee 6 / operation 3 / monitor 2 / tool 1 + 工作台），另有无权限与未匹配兜底页 |
+| `src/views` | 登录、工作台、**19 个业务管理页**（system 7 / coffee 6 / operation 3 / monitor 2 / tool 1），外加无权限与未匹配兜底页，共 23 个页面 |
 | `scripts/session-regression.py` | 真实浏览器会话、路由竞态与低权限回归 |
 
 ## 扩展约定

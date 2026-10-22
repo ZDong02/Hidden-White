@@ -14,7 +14,7 @@
 
 - 缩进 2 空格；字符串统一单引号；语句末尾不加分号；行宽 100。
 - 使用 ESLint flat config（`eslint.config.mjs`）检查，规则集 `js/recommended` + `eslint-plugin-vue`。
-  - 旧版 `.eslintrc.js` 已归档至根目录 `_archive/`（ESLint 10 仅支持 flat config，旧文件已失效）。
+  - 旧版 `.eslintrc.js` 已删除（ESLint 10 仅支持 flat config，旧文件已失效），历史实现见 Git 记录。
 - uni-app / 微信全局变量（`uni`、`wx`、`getCurrentPages` 等）已在 ESLint 配置中声明，页面文件（`pages/**/*.vue`）关闭 `multi-word-component-names`。
 - 组件命名：`pages/` 下页面按 `pages.json` 约定可用单词命名；`components/` 下共享组件必须多单词大驼峰（如 `MainTabBar.vue`）。
 - 状态管理放 `store/`，请求统一走 `config/backend.js` 的 `requestApi`，禁止在组件里直接裸调 `uni.request`。

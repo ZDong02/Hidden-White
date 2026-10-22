@@ -1,7 +1,7 @@
 # HiddenWhite 统一后端
 
 隐白咖啡唯一后端：一个 Spring Boot 应用同时提供 **小程序 / H5 接口** 与 **管理端接口**。
-（2026-10-13 由原 `HiddenWhite-backend` 与 `HiddenWhite-admin-backend` 合并而成，合并前代码备份于 `_archive/merge-backup-2026-10-13/`。）
+（2026-10-13 由原 `HiddenWhite-backend` 与 `HiddenWhite-admin-backend` 合并而成。）
 
 ## 快速开始
 
@@ -19,6 +19,9 @@ java -jar target\hiddenwhite-server-0.2.0-SNAPSHOT.jar
 
 环境变量：`DB_HOST` / `DB_PORT` / `DB_NAME`（默认 hidden_white）/ `DB_USERNAME` / `DB_PASSWORD` / `SERVER_PORT` / `JWT_SECRET`（生产必配，至少 32 字节）。
 
+> `DB_PASSWORD` 只在 `dev` profile 下带默认值 `123456`；`prod` 不提供默认值，未注入时连接会直接失败——
+> 这是刻意设计：宁可起不来，也不要「静默地用开发口令连上生产库」。
+
 - 种子管理员：`admin` / `admin123`（仅本地开发）
 - API 文档（knife4j）：http://localhost:8080/doc.html
 
@@ -26,10 +29,14 @@ java -jar target\hiddenwhite-server-0.2.0-SNAPSHOT.jar
 
 | 端 | 前缀 | 鉴权 | 代码位置 |
 |---|---|---|---|
-| 小程序 / H5 | `/api/**`（auth、products、store、cart、orders、members） | 无需登录 | `com.hiddenwhite.shop` |
-| 管理端 | `/api/admin/**`（auth、coffee、system、dashboard、monitor、tool/generator） | JWT 登录 | `com.hiddenwhite.admin` |
+| 小程序 / H5 | `/api/auth/login`、`/api/auth/register`、`/api/products/**`、`/api/store`、`/api/members/benefits` | 无需登录 | `com.hiddenwhite.shop` |
+| 小程序 / H5 | `/api/orders/**`、`/api/cart/quote`、`/api/members/{id}`、`/api/auth/logout` | JWT（会员 token） | `com.hiddenwhite.shop` |
+| 管理端 | `/api/admin/**`（auth、coffee、system、dashboard、monitor、tool/generator） | JWT 登录 + 权限码 | `com.hiddenwhite.admin` |
 | 健康检查 | `/api/health` | 放行 | `com.hiddenwhite.admin.controller` |
 | 上传图片 | `/uploads/**` | 放行 | 静态资源（供点单端加载商品图） |
+
+> 点单端并非整体免登录：会员归属与首单减免都要按 token 判定，因此订单、报价、会员资料属于受保护路径。
+> 兜底规则是 `denyAll()`——新增路径若忘记在 `SecurityConfig` 中配置，默认拒绝。
 
 注意：管理端登录为 `/api/admin/auth/login`（原独立管理端后端为 `/api/auth/login`），管理端前端 `HiddenWhite-admin-front` 的 baseURL 已同步改为 `/api/admin`。
 
@@ -53,14 +60,18 @@ java -jar target\hiddenwhite-server-0.2.0-SNAPSHOT.jar
       upload-dir: ./data/uploads   # 上传目录（生产建议指向独立数据盘）
       max-bytes: 10485760          # 单张上限 10MB
       list:                        # 列表图
-        width: 600
-        height: 400
+        width: 284
+        height: 240
         mode: cover                # cover 居中裁剪 / contain 等比缩放
       detail:                      # 详情图
         width: 1200
-        height: 800
+        height: 636
         mode: cover
   ```
+
+  > **目标比例必须对齐点单端展示容器**，否则前端 `aspectFill` 会再裁一次，等于裁两次。
+  > 容器实测：列表图 `.product-media` 271×230rpx（≈1.18:1）、详情图 `.detail-hero` 750×398rpx（≈1.88:1），
+  > 预置静态图也按这两个比例制作。该约束由 `ImageProcessorTest` 锁定，配置改偏会直接测试失败。
 
 - 支持 JPG / PNG / WebP，输出：无透明通道转 JPEG（含透明则保留 PNG）。
 - 落盘路径按 `yyyy/MM/dd` 分目录，文件名为内容哈希前 16 位，同图重复上传不产生冗余文件。
