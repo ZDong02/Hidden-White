@@ -11,8 +11,6 @@ import { clearToken, getToken } from '../store/token'
 // 3. H5 开发态：相对路径 /api，由 vite 代理转发，不依赖 IP
 // 4. 候选地址探测：按 config/backend-hosts.js 顺序做健康检查，第一个连通的即生效
 // 5.兜底：localhost（H5 / 微信开发者工具本机调试）
-export const BACKEND_ENABLED = true
-
 const API_BASE_STORAGE_KEY = 'hw-api-base'
 // 健康检查路径。注意：base 已统一以 /api 结尾，这里只能用相对路径，
 // 否则拼出来会是 /api/api/health 而返回 404。

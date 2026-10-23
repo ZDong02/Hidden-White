@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: HiddenWhite-admin/HiddenWhite-admin-front
+        working-directory: HiddenWhite-admin
     steps:
       - uses: actions/checkout@v4
 
@@ -55,7 +55,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: HiddenWhite-admin/HiddenWhite-admin-front/package-lock.json
+          cache-dependency-path: HiddenWhite-admin/package-lock.json
 
       - run: npm ci
 

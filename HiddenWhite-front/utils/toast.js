@@ -41,12 +41,17 @@ export function showNotice(title, content) {
 }
 
 // 确认对话框
+//
+// showCancel: false 用于「只是告知 + 一个确认按钮」的场景。
+// 不要用 cancelText: '' 来表达同一件事——小程序会把空字符串当成有效文案，
+// 渲染出一个空白按钮，用户不知道该点哪个。
 export function showConfirm(options) {
   const {
     title = '提示',
     content = '',
     confirmText = '确定',
     cancelText = '取消',
+    showCancel = true,
     onConfirm,
     onCancel
   } = options
@@ -57,6 +62,7 @@ export function showConfirm(options) {
       content,
       confirmText,
       cancelText,
+      showCancel,
       success: (res) => {
         if (res.confirm) {
           if (onConfirm) onConfirm()

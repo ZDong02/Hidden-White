@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -159,16 +160,27 @@ public class OperationService {
         List<DayHoursItem> days = request.getDays();
         if (days == null || days.size() != 7) throw new BusinessException("请完整配置周一至周日共 7 天的时段");
         boolean[] seen = new boolean[8];
+        // 先校验并规整成新的列表：校验用 trim 后的值，写库也必须用同一个值。
+        // 原实现校验 trim 后的结果、写库却用原始字符串，形如 " 08:00 " 的入参
+        // 能通过校验但落库带空格，MySQL 严格模式下直接报错。
+        List<DayHoursItem> normalized = new ArrayList<>(days.size());
         for (DayHoursItem item : days) {
             Integer day = item.getDayOfWeek();
             if (day == null || day < 1 || day > 7 || seen[day]) throw new BusinessException("星期配置必须是周一至周日且不重复");
             seen[day] = true;
             String openTime = requireTime(item.getOpenTime(), "星期" + day + "开门时间");
             String closeTime = requireTime(item.getCloseTime(), "星期" + day + "打烊时间");
-            if (!truthy(item.getClosed())) requireOpenBeforeClose(openTime, closeTime, "星期" + day + "时段");
+            boolean closed = truthy(item.getClosed());
+            if (!closed) requireOpenBeforeClose(openTime, closeTime, "星期" + day + "时段");
+            DayHoursItem row = new DayHoursItem();
+            row.setDayOfWeek(day);
+            row.setOpenTime(openTime);
+            row.setCloseTime(closeTime);
+            row.setClosed(closed);
+            normalized.add(row);
         }
         mapper.updateDefaultHours(defaultOpen, defaultClose);
-        for (DayHoursItem item : days) {
+        for (DayHoursItem item : normalized) {
             mapper.upsertHour(item.getDayOfWeek(), item.getOpenTime(), item.getCloseTime(), truthy(item.getClosed()));
         }
     }
@@ -232,6 +244,12 @@ public class OperationService {
                 (int) longValue(summary.get("orderCount")),
                 (BigDecimal) summary.get("revenue"),
                 (int) longValue(summary.get("visitorEstimate")));
+    }
+
+    /** 某日是否已结算；补结算任务据此跳过已冻结的日期。 */
+    public boolean isSettled(LocalDate date) {
+        Map<String, Object> row = mapper.findTraffic(DAY.format(date));
+        return row != null && truthy(row.get("settled"));
     }
 
     // ---- 私有辅助 ----

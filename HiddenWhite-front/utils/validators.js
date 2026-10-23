@@ -75,39 +75,3 @@ export function validateCart(cart) {
 
   return { valid: true }
 }
-
-// 验证商品数量
-export function validateQuantity(quantity, min = 1, max = 999) {
-  const num = Number(quantity)
-  if (!Number.isInteger(num)) {
-    return { valid: false, message: '数量必须是整数' }
-  }
-  if (num < min) {
-    return { valid: false, message: `数量不能小于 ${min}` }
-  }
-  if (num > max) {
-    return { valid: false, message: `数量不能大于 ${max}` }
-  }
-  return { valid: true, value: num }
-}
-
-// 通用的非空验证
-export function validateRequired(value, fieldName = '此项') {
-  const trimmed = String(value || '').trim()
-  if (!trimmed) {
-    return { valid: false, message: `${fieldName}不能为空` }
-  }
-  return { valid: true, value: trimmed }
-}
-
-// 验证长度范围
-export function validateLength(value, min, max, fieldName = '此项') {
-  const str = String(value || '')
-  if (str.length < min) {
-    return { valid: false, message: `${fieldName}至少需要 ${min} 个字符` }
-  }
-  if (str.length > max) {
-    return { valid: false, message: `${fieldName}不能超过 ${max} 个字符` }
-  }
-  return { valid: true, value: str }
-}

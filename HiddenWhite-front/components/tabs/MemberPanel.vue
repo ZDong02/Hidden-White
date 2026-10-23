@@ -75,7 +75,7 @@
 <script setup>
 import { ref } from 'vue'
 import { currentUser, isLoggedIn } from '../../store/auth'
-import { BACKEND_ENABLED, requestApi } from '../../config/backend'
+import { requestApi } from '../../config/backend'
 import { showNotice } from '../../utils/toast'
 
 const defaultBenefits = [
@@ -94,10 +94,6 @@ async function activate() {
     return
   }
 
-  if (!BACKEND_ENABLED) {
-    member.value = { displayName: currentUser.value.displayName, memberLevel: currentUser.value.level, cardNumber: '本地体验卡' }
-    return
-  }
   try {
     const [profile, rows] = await Promise.all([
       requestApi(`/members/${encodeURIComponent(currentUser.value.id)}`),

@@ -90,7 +90,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { shop, refreshOrders, invalidateCatalog } from '../../store/index'
+import { shop, refreshOrders, invalidateCatalog, clearOrderState } from '../../store/index'
 import { currentUser, isLoggedIn, logout } from '../../store/auth'
 import { openPage, showStoreInfo } from '../../utils/navigation'
 import { showNotice } from '../../utils/toast'
@@ -185,8 +185,9 @@ function handleAuth() {
     success: async (res) => {
       if (!res.confirm) return
       await logout()
-      shop.order = null
-      shop.orderHistory = []
+      // 只清内存不够：上一账号的订单还留在 storage 里，
+      // 下次冷启动会被读回来，连带把新会员的首单减免判掉
+      clearOrderState()
       uni.showToast({ title: '已退出登录', icon: 'none' })
     }
   })

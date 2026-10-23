@@ -1,9 +1,8 @@
 import { reactive, computed } from 'vue'
-import { productData } from '../data/products'
 import { BUSINESS } from '../config/constants'
-import { formatDateTime, formatTime, calculateReadyTime } from '../utils/datetime'
+import { formatDateTime, formatTime } from '../utils/datetime'
 import { validateCart } from '../utils/validators'
-import { BACKEND_ENABLED, requestApi } from '../config/backend'
+import { requestApi } from '../config/backend'
 import { resolveImageUrl } from '../utils/image'
 import { currentUser, isLoggedIn } from './auth'
 import { getStorage, setStorageDebounced, setStorageImmediate } from '../utils/storage'
@@ -19,7 +18,10 @@ const storedCart = getStorage(CART_KEY, [])
 const cart = Array.isArray(storedCart) ? storedCart : []
 const order = getStorage(ORDER_KEY, null)
 const orderHistory = getStorage(ORDER_HISTORY_KEY, [])
-const apiProducts = reactive([...productData])
+// 商品目录一律以 /api/products 为准：初始为空，首屏由 loadProducts 填充。
+// 早期这里用本地 mock 商品打底，后果是后端连不上时界面照样能「下单」，
+// 而门店端根本收不到这笔单——比空列表更糟，故不再保留本地兜底数据。
+const apiProducts = reactive([])
 
 export const shop = reactive({
   cart: Array.isArray(cart) ? cart : [],
@@ -75,8 +77,6 @@ export function invalidateCatalog() {
 }
 
 export async function loadProducts(options = {}) {
-  if (!BACKEND_ENABLED) return apiProducts
-
   const now = Date.now()
   if (!options.force && catalogLoadedAt && now - catalogLoadedAt < CATALOG_TTL) {
     return apiProducts
@@ -112,7 +112,6 @@ let storeLoadedAt = 0
 let storePending = null
 
 export async function loadStoreInfo(options = {}) {
-  if (!BACKEND_ENABLED) return storeInfo
   const now = Date.now()
   if (!options.force && storeInfo.loaded && now - storeLoadedAt < STORE_TTL) {
     return storeInfo
@@ -201,7 +200,7 @@ function mapBackendOrder(order) {
 
   return {
     ...order,
-    items: order.items.map((item) => {
+    items: (order.items || []).map((item) => {
       const product = productIndex.get(item.productId)
       return {
         ...item,
@@ -231,11 +230,9 @@ function mapBackendOrder(order) {
 
 export async function refreshOrders() {
   if (!isLoggedIn.value) {
-    shop.order = null
-    shop.orderHistory = []
+    clearOrderState()
     return { current: null, history: [] }
   }
-  if (!BACKEND_ENABLED) return { current: shop.order, history: shop.orderHistory }
 
   const rows = await requestApi('/orders')
   const mapped = rows.map(mapBackendOrder)
@@ -257,6 +254,21 @@ function assertCart() {
   if (!result.valid) throw new Error(result.message)
 }
 
+/**
+ * 清空当前订单与历史，并同步清掉本地缓存。
+ *
+ * <p><b>为什么必须清缓存</b>：订单状态是「谁登录就属于谁」的数据，
+ * 只清内存会让上一账号的订单留在 storage 里，下次冷启动又被读回来。
+ * 后果不只是看到别人的取餐号：首单减免判定用的是 orderHistory 是否为空，
+ * 于是新注册会员也会被判成「已下过单」，白丢 6 元优惠。
+ */
+export function clearOrderState() {
+  shop.order = null
+  shop.orderHistory = []
+  setStorageImmediate(ORDER_KEY, null)
+  setStorageImmediate(ORDER_HISTORY_KEY, [])
+}
+
 export async function quoteCart() {
   if (!isLoggedIn.value) throw new Error('请先登录后再下单')
   assertCart()
@@ -264,73 +276,34 @@ export async function quoteCart() {
 }
 
 export async function createOrder() {
-  try {
-    if (!isLoggedIn.value) {
-      throw new Error('请先登录后再下单')
-    }
-    if (shop.order) {
-      throw new Error('当前有订单待支付或待取餐，请先处理或等待订单超时')
-    }
-
-    assertCart()
-
-    if (BACKEND_ENABLED) {
-      const backendOrder = await requestApi('/orders', {
-        method: 'POST',
-        data: toBackendPayload()
-      })
-      shop.order = mapBackendOrder(backendOrder)
-      setStorageImmediate(ORDER_KEY, shop.order)
-      setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
-      shop.cart = []
-      shop.note = ''
-      saveCartNow()
-      return shop.order
-    }
-
-    // 本地模式（后端不可用时的降级路径）
-    const now = new Date()
-    const formatted = formatDateTime(now)
-    const readyTime = calculateReadyTime(BUSINESS.preparationTime)
-    // 与后端 PickupNumber 规则保持一致：当日 1~999 循环、固定 3 位。
-    // 原实现是Math.random()，随机数必然可能重复——顾客报同一个号取到两杯咖啡，
-    // 是门店真实会出事故的缺陷。改为从当日历史订单里推出的最大号继续递增。
-    const todayKey = formatted.orderNumber
-    const usedToday = shop.orderHistory.filter((row) => String(row.number || '').startsWith(todayKey))
-    const lastUsed = usedToday.reduce((max, row) => {
-      const raw = String(row.pickup || '').replace(/^0+/, '')
-      const value = Number(raw || 0)
-      return Number.isFinite(value) && value > max ? value : max
-    }, 0)
-    const nextPickup = lastUsed >= 999 ? 1 : lastUsed + 1
-    const pickupNumber = String(nextPickup).padStart(3, '0')
-
-    shop.order = {
-      items: JSON.parse(JSON.stringify(shop.cart)),
-      subtotal: subtotal.value,
-      total: total.value,
-      count: count.value,
-      pickup: pickupNumber,
-      number: `${formatted.orderNumber}${pickupNumber}`,
-      created: formatted.datetime,
-      ready: readyTime,
-      preparationTime: BUSINESS.preparationTime,
-      status: 'in-progress',
-      note: shop.note
-    }
-
-    setStorageImmediate(ORDER_KEY, shop.order)
-    setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
-    shop.cart = []
-    shop.note = ''
-    saveCartNow()
-    return shop.order
-  } catch (error) {
-    console.error('创建订单失败:', error)
-    throw error
+  if (!isLoggedIn.value) {
+    throw new Error('请先登录后再下单')
   }
+  if (shop.order) {
+    throw new Error('当前有订单待支付或待取餐，请先处理或等待订单超时')
+  }
+
+  assertCart()
+
+  const backendOrder = await requestApi('/orders', {
+    method: 'POST',
+    data: toBackendPayload()
+  })
+  shop.order = mapBackendOrder(backendOrder)
+  setStorageImmediate(ORDER_KEY, shop.order)
+  setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
+  shop.cart = []
+  shop.note = ''
+  saveCartNow()
+  return shop.order
 }
 
+/**
+ * 完成取餐。
+ *
+ * <p>状态由服务端条件更新（PAID → COMPLETED）决定，前端不再自行「假装完成」：
+ * 订单以哪一端为准，取餐记录就必须来自同一端，否则门店账面与顾客看到的不一致。
+ */
 export async function completeOrder() {
   if (!shop.order) return
 
@@ -339,25 +312,10 @@ export async function completeOrder() {
     throw new Error('订单尚未支付完成，无法标记取餐')
   }
 
-  if (BACKEND_ENABLED && shop.order.id) {
-    const backendOrder = await requestApi(`/orders/${shop.order.id}/complete`, {
-      method: 'POST'
-    })
-    const completedOrder = mapBackendOrder(backendOrder)
-    shop.orderHistory.unshift(completedOrder)
-    shop.orderHistory.splice(MAX_ORDER_HISTORY)
-    shop.order = null
-    setStorageImmediate(ORDER_KEY, null)
-    setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
-    return
-  }
-
-  const completedAt = formatDateTime(new Date())
-  const completedOrder = {
-    ...JSON.parse(JSON.stringify(shop.order)),
-    status: 'completed',
-    completedAt: completedAt.datetime
-  }
+  const backendOrder = await requestApi(`/orders/${shop.order.id}/complete`, { method: 'POST' })
+  const completedOrder = mapBackendOrder(backendOrder)
+  // 服务端返回已完成态时，先按 id 去重再入历史，避免切 Tab 重复确认push 出两条
+  shop.orderHistory = shop.orderHistory.filter((row) => row.id !== completedOrder.id)
   shop.orderHistory.unshift(completedOrder)
   shop.orderHistory.splice(MAX_ORDER_HISTORY)
   shop.order = null
@@ -380,23 +338,9 @@ export async function cancelOrder() {
     throw new Error('订单已支付，请联系门店协助取消与退款')
   }
 
-  if (BACKEND_ENABLED && shop.order.id) {
-    const backendOrder = await requestApi(`/orders/${shop.order.id}/cancel`, {
-      method: 'POST'
-    })
-    const cancelledOrder = mapBackendOrder(backendOrder)
-    shop.orderHistory.unshift(cancelledOrder)
-    shop.orderHistory.splice(MAX_ORDER_HISTORY)
-    shop.order = null
-    setStorageImmediate(ORDER_KEY, null)
-    setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
-    return
-  }
-
-  const cancelledOrder = {
-    ...JSON.parse(JSON.stringify(shop.order)),
-    status: 'cancelled'
-  }
+  const backendOrder = await requestApi(`/orders/${shop.order.id}/cancel`, { method: 'POST' })
+  const cancelledOrder = mapBackendOrder(backendOrder)
+  shop.orderHistory = shop.orderHistory.filter((row) => row.id !== cancelledOrder.id)
   shop.orderHistory.unshift(cancelledOrder)
   shop.orderHistory.splice(MAX_ORDER_HISTORY)
   shop.order = null

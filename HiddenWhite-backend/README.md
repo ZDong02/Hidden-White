@@ -38,7 +38,7 @@ java -jar target\hiddenwhite-server-0.2.0-SNAPSHOT.jar
 > 点单端并非整体免登录：会员归属与首单减免都要按 token 判定，因此订单、报价、会员资料属于受保护路径。
 > 兜底规则是 `denyAll()`——新增路径若忘记在 `SecurityConfig` 中配置，默认拒绝。
 
-注意：管理端登录为 `/api/admin/auth/login`（原独立管理端后端为 `/api/auth/login`），管理端前端 `HiddenWhite-admin-front` 的 baseURL 已同步改为 `/api/admin`。
+注意：管理端登录为 `/api/admin/auth/login`（原独立管理端后端为 `/api/auth/login`），管理端前端 `HiddenWhite-admin` 的 baseURL 已同步指向 `/api/admin`。
 
 ## 商品图片上传
 

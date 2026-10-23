@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { BACKEND_ENABLED, requestApi } from '../config/backend'
+import { requestApi } from '../config/backend'
 import { getStorage, setStorageImmediate } from '../utils/storage'
 import { validatePhone, validatePassword, validateDisplayName } from '../utils/validators'
 import { clearToken, setToken } from './token'
@@ -34,8 +34,6 @@ export async function registerAccount({ displayName, phone, password }) {
   const passwordResult = validatePassword(password)
   if (!passwordResult.valid) throw new Error(passwordResult.message)
 
-  if (!BACKEND_ENABLED) throw new Error('后端服务未启用，暂时无法注册')
-
   const auth = await requestApi('/auth/register', {
     method: 'POST',
     auth: false,
@@ -56,8 +54,6 @@ export async function loginAccount({ phone, password }) {
 
   const passwordResult = validatePassword(password)
   if (!passwordResult.valid) throw new Error(passwordResult.message)
-
-  if (!BACKEND_ENABLED) throw new Error('后端服务未启用，暂时无法登录')
 
   const auth = await requestApi('/auth/login', {
     method: 'POST',

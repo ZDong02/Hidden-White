@@ -30,6 +30,13 @@ export const OPTIONS = {
   ]
 }
 
+// 商品分类名（后端 products.category 只存数字，名称由前端维护）
+// 未登记的数字分类会以「分类 N」的形式出现，管理端新增分类不会因此被隐藏。
+export const CATEGORY_NAMES = {
+  0: '招牌精选',
+  1: '意式咖啡'
+}
+
 // 图片路径
 export const IMAGES = {
   coffee: {

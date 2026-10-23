@@ -23,7 +23,8 @@ import java.util.Optional;
  *   <li>反之 admin 的 username 不会命中 {@code member:} 前缀 → 管理端 token 打不进点单端接口。</li>
  * </ul>
  * 因此不要移除这个前缀，它是两端鉴权隔离的关键。
- */@Service
+ */
+@Service
 public class MemberSessionService {
 
     /** 会员 subject 前缀，隔离管理端账号。 */

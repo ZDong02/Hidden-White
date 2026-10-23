@@ -20,7 +20,7 @@
 - 状态管理放 `store/`，请求统一走 `config/backend.js` 的 `requestApi`，禁止在组件里直接裸调 `uni.request`。
 - 生产构建中 `console` / `debugger` 视为警告。
 
-## 3. 管理端前端（HiddenWhite-admin/HiddenWhite-admin-front · Vue 3 + TypeScript）
+## 3. 管理端前端（HiddenWhite-admin · Vue 3 + TypeScript）
 
 - 缩进 2 空格；字符串单引号；语句末尾不加分号（与点单端保持一致）。
 - **页面组件模板必须单根节点**（根元素统一 `<div class="page">`）：`AppShell` 用 `<Transition out-in>` 驱动页面切换，多根/fragment 根会导致过渡卡死、内容区空白（2026-10-13 会员权益页事故）。
@@ -45,4 +45,4 @@
 
 ## 6. 文档同步
 
-新增页面、接口或模块时，同步更新对应 README 与管理端 `PROJECT_MAP.md`，保持文档与代码一致。
+新增页面、接口或模块时，同步更新对应 README 与 `docs/PROJECT_MAP.md`，保持文档与代码一致。

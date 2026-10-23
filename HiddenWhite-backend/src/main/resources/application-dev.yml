@@ -24,9 +24,12 @@ hiddenwhite:
     # ⚠️ 本文件只在 dev profile 生效，且非 dev profile 下开启会直接
     #    阻断应用启动（PayDevModeGuard），杜绝「免费出杯」上生产。
     #
-    # 关闭方式：改为 false，或设环境变量 HW_PAY_DEV_MODE=false
+    # 关闭方式：设环境变量 HW_PAY_DEV_MODE=false。
+    # 这里必须写成「环境变量优先、缺省 true」，不能像改造前那样硬写 true ——
+    # 否则在 dev profile 的演示机 / 预发机上无法通过环境变量关掉，
+    # 一次「忘配 profile」就会变成免费出杯。
     # ==============================================================
-    dev-mode: true
+    dev-mode: ${HW_PAY_DEV_MODE:true}
 
 mybatis-plus:
   configuration:

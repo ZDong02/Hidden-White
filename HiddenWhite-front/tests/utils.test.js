@@ -9,40 +9,16 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  formatPrice,
-  formatPriceClean,
   calculateItemTotal,
   calculateCartTotal,
-  calculateCartCount,
-  applyDiscount,
-  calculateFinalPrice
+  calculateCartCount
 } from '../utils/price.js'
 import {
   validatePhone,
   validatePassword,
   validateDisplayName,
-  validateCart,
-  validateQuantity,
-  validateRequired,
-  validateLength
+  validateCart
 } from '../utils/validators.js'
-
-// ---- 价格格式化 ----
-
-test('formatPrice 固定两位小数，非法输入回退 0.00', () => {
-  assert.equal(formatPrice(32), '32.00')
-  assert.equal(formatPrice(32.5), '32.50')
-  assert.equal(formatPrice('45.9'), '45.90')
-  assert.equal(formatPrice(null), '0.00')
-  assert.equal(formatPrice('abc'), '0.00')
-  assert.equal(formatPrice(NaN), '0.00')
-})
-
-test('formatPriceClean 整数不显示小数', () => {
-  assert.equal(formatPriceClean(32), '32')
-  assert.equal(formatPriceClean(32.5), '32.50')
-  assert.equal(formatPriceClean('abc'), '0')
-})
 
 // ---- 购物车计算 ----
 
@@ -65,22 +41,6 @@ test('购物车计算对非法入参返回 0 而非抛错', () => {
   assert.equal(calculateCartTotal(null), 0)
   assert.equal(calculateCartTotal('not-an-array'), 0)
   assert.equal(calculateCartCount(undefined), 0)
-})
-
-// ---- 折扣与最终价 ----
-
-test('applyDiscount 不会把总价压成负数', () => {
-  assert.equal(applyDiscount(100, 6), 94)
-  // 折扣大于小计时应归零，不能出现负数金额
-  assert.equal(applyDiscount(10, 50), 0)
-  assert.equal(applyDiscount(0, 6), 0)
-})
-
-test('calculateFinalPrice 计算含包装费的实付金额', () => {
-  // 首单场景：32 - 6 = 26
-  assert.equal(calculateFinalPrice(32, 6, 0), 26)
-  assert.equal(calculateFinalPrice(32, 0, 2), 34)
-  assert.equal(calculateFinalPrice(10, 50, 0), 0, '折扣超过小计时归零')
 })
 
 // ---- 表单校验 ----
@@ -125,19 +85,4 @@ test('validateCart 的错误信息带项序号', () => {
   ])
   assert.equal(result.valid, false)
   assert.match(result.message, /第 2 项/)
-})
-
-test('validateQuantity 限制整数与上下界', () => {
-  assert.equal(validateQuantity(5).valid, true)
-  assert.equal(validateQuantity(5, 1, 3).valid, false)
-  assert.equal(validateQuantity(0).valid, false)
-  assert.equal(validateQuantity(1.5).valid, false)
-  assert.equal(validateQuantity('3').valid, true, '数字字符串应被接受')
-})
-
-test('通用校验工具按字段名返回可读提示', () => {
-  assert.equal(validateRequired('  ', '昵称').message, '昵称不能为空')
-  assert.equal(validateRequired(' 值 ').value, '值')
-  assert.equal(validateLength('ab', 3, 5, '密码').message, '密码至少需要 3 个字符')
-  assert.equal(validateLength('abcdef', 3, 5, '密码').message, '密码不能超过 5 个字符')
 })

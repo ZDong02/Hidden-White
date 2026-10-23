@@ -49,34 +49,47 @@ Hidden White/
 │   ├── pages/                          # 4 个业务页面（订单/会员/我的为壳页内 Tab 面板）
 │   ├── components/                     # 共享组件 + components/ui/ 统一 UI 组件库
 │   ├── store/                          # 状态管理（购物车 / 订单 / 登录态）
-│   ├── config/                         # backend.js（统一请求）+ backend-hosts.js（候选地址）
-│   ├── utils/                          # 7 个工具模块
+│   ├── config/                         # backend.js（统一请求）+ backend-hosts.js（候选地址）+ constants.js
+│   ├── utils/                          # 工具模块（价格 / 校验 / 时间 / 图片 / 导航 / 存储 / 提示）
 │   └── static/                         # 图片资源
 │
-├── HiddenWhite-admin/                  # 管理端
-│   └── HiddenWhite-admin-front/        #   管理端前端：Vue 3 + TS
-│       ├── src/views/                  #   23 个页面
-│       ├── src/components/             #   ui(27) + business(20) + charts(6) + layout(6)
-│       ├── src/composables/            #   15 个组合式函数
-│       ├── src/api/                    #   统一 HTTP 客户端 + 业务接口模块
-│       └── src/styles/                 #   七层样式体系（珍珠玻璃设计语言）
+├── HiddenWhite-admin/                  # 管理端：Vue 3 + TS + Vite（端即项目根，无额外嵌套）
+│   ├── src/views/                      # 23 个页面
+│   ├── src/components/                 # ui(27) + business(19) + charts(6) + layout(6)
+│   ├── src/composables/                # 15 个组合式函数
+│   ├── src/api/                        # 统一 HTTP 客户端 + 业务接口模块
+│   └── src/styles/                     # 七层样式体系（珍珠玻璃设计语言）
 │
 ├── HiddenWhite-backend/                # 统一后端：Spring Boot 单应用（端口 8080）
 │   ├── src/main/java/com/hiddenwhite/
-│   │   ├── shop/                       #   小程序端接口 /api/**（免登录）
+│   │   ├── shop/                       #   小程序端接口 /api/**（浏览类免登录，订单需登录）
 │   │   ├── admin/                      #   管理端接口 /api/admin/**（JWT）
 │   │   │   ├── system/                 #     用户、角色、菜单、部门、岗位、字典、参数
 │   │   │   ├── coffee/                 #     咖啡运营业务
 │   │   │   ├── operation/              #     门店运营（营业状态/时间/客流）
 │   │   │   └── generator/              #     代码生成器
 │   │   ├── framework/                  #   安全、日志、数据权限、TraceId
-│   │   └── common/                     #   统一返回、分页、异常
-│   └── database/                       # SQL 迁移脚本（业务表 + 系统表 + 种子数据）
+│   │   ├── common/                     #   统一返回、分页、异常、图片处理
+│   │   └── tools/                      #   DbInit：本地库初始化命令行工具
+│   ├── database/init.sql               # 单库全量脚本（业务表 + 系统表 + 种子数据，幂等）
+│   └── src/test/                       # 单元测试
 │
+├── docs/                               # 全部文档（入口见下表）
+├── .github/workflows/ci.yml            # 三端质量闸门
 ├── CODESTYLE.md                        # 全工作区统一代码规范
 ├── .editorconfig                       # 编辑器层统一约束
 └── .gitignore
 ```
+
+### 文档索引
+
+| 文档 | 内容 |
+|---|---|
+| [`docs/项目介绍.md`](docs/项目介绍.md) | 系统全貌：业务、架构、接口、数据表 |
+| [`docs/开发进程规划.md`](docs/开发进程规划.md) | 分阶段计划与进度基线 |
+| [`docs/PROJECT_MAP.md`](docs/PROJECT_MAP.md) | 项目地图：页面 ↔ 接口 ↔ 表 ↔ 权限码 |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | 管理端设计规范（七层样式体系） |
+| [`docs/项目健康检查报告-2026-10-22.md`](docs/项目健康检查报告-2026-10-22.md) | 历史体检报告（阶段性快照，不代表当前状态） |
 
 ---
 
@@ -116,7 +129,7 @@ java -jar target/hiddenwhite-server-0.2.0-SNAPSHOT.jar
 ### 3. 启动管理端前端
 
 ```bash
-cd HiddenWhite-admin/HiddenWhite-admin-front
+cd HiddenWhite-admin
 npm ci
 npm run dev
 ```

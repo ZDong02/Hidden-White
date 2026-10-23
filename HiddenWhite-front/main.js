@@ -1,24 +1,12 @@
+import { createSSRApp } from 'vue'
 import App from './App'
 
-// #ifndef VUE3
-import Vue from 'vue'
-import './uni.promisify.adaptor'
-Vue.config.productionTip = false
-App.mpType = 'app'
-const app = new Vue({
-	...App
-})
-app.$mount()
-// #endif
-
-// #ifdef VUE3
-import {
-	createSSRApp
-} from 'vue'
+// 本工程固定 Vue 3（manifest.json → vueVersion: "3"），
+// 因此不再保留 uni-app 模板自带的 Vue 2 分支与其 polyfill 适配器
+// （`uni.promisify.adaptor` 只在 Vue 2 分支里被引用，已一并移除）。
 export function createApp() {
-	const app = createSSRApp(App)
-	return {
-		app
-	}
+  const app = createSSRApp(App)
+  return {
+    app
+  }
 }
-// #endif

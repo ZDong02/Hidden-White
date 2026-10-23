@@ -11,7 +11,7 @@ npm run test:unit
 npm run build
 ```
 
-默认地址为 `http://localhost:5173`，`/api` 代理到 `http://localhost:8080`（统一后端默认端口，管理端接口前缀 `/api/admin`），可通过 `VITE_API_PROXY_TARGET` 指定其他本地后端。后端与数据库准备见 [根目录 HiddenWhite-backend README](../../HiddenWhite-backend/README.md)。
+默认地址为 `http://localhost:5173`，`/api` 代理到 `http://localhost:8080`（统一后端默认端口，管理端接口前缀 `/api/admin`），可通过 `VITE_API_PROXY_TARGET` 指定其他本地后端。后端与数据库准备见 [统一后端 README](../HiddenWhite-backend/README.md)。
 
 种子管理员 `admin` 的开发密码为 `admin123`，验证码必须使用当前页面显示的字符。非管理员菜单来自角色授权；无菜单账号显示明确的权限分配提示。
 
@@ -27,7 +27,7 @@ npm run build
 | `src/components/charts` | 6 个自绘图表：柱状、趋势、热力网格、关系图、泳道、刻度环 |
 | `src/components/layout` | 外壳、侧栏、顶栏、命令搜索、外观与密码弹窗 |
 | `src/composables` | 15 个组合式函数：登录态与动态菜单、GSAP 动效编排、列表状态机、字典 / 部门缓存、外观、视图记忆、焦点陷阱、画布视口、神经网络画布、问答坞、自动轮询等 |
-| `src/styles` | 令牌、基础、材质、控件、仪器、外壳、页面**七层**样式（详见 [DESIGN.md](../DESIGN.md)） |
+| `src/styles` | 令牌、基础、材质、控件、仪器、外壳、页面**七层**样式（详见 [DESIGN.md](../docs/DESIGN.md)） |
 | `src/views` | 登录、工作台、**19 个业务管理页**（system 7 / coffee 6 / operation 3 / monitor 2 / tool 1），外加无权限与未匹配兜底页，共 23 个页面 |
 | `scripts/session-regression.py` | 真实浏览器会话、路由竞态与低权限回归 |
 
@@ -37,7 +37,7 @@ npm run build
 
 退出和 401 均通过统一会话清理撤销动态路由与缓存；不得在页面直接修改认证存储或路由就绪标记。旧请求只能更新发起时仍有效的会话。
 
-主题、密度和减少动效规则见 [DESIGN.md](../DESIGN.md)，前后端链路见 [PROJECT_MAP.md](../PROJECT_MAP.md)。
+主题、密度和减少动效规则见 [DESIGN.md](../docs/DESIGN.md)，前后端链路见 [PROJECT_MAP.md](../docs/PROJECT_MAP.md)。
 
 ## 浏览器回归
 

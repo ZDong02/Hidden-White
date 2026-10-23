@@ -57,7 +57,7 @@ class MemberSessionServiceTest {
         String token = sessionService.issue("member-42");
 
         // 会员 subject 必须带前缀：管理端权限切面拿它反查 sys_user 时必然查不到
-        assertThat(jwtService.parseSubjectOfToken(token)).isEqualTo("member:member-42");
+        assertThat(jwtService.parseUsername(token)).isEqualTo("member:member-42");
     }
 
     @Test
@@ -83,7 +83,7 @@ class MemberSessionServiceTest {
     // ---- 内部工具 ----
 
     private void authenticate(String token) {
-        String principal = jwtService.parseSubjectOfToken(token);
+        String principal = jwtService.parseUsername(token);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(principal, token, List.of()));
     }

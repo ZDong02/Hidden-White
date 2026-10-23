@@ -1,5 +1,7 @@
 <template>
-  <view class="screen detail-screen">
+  <!-- 商品由接口异步填入；未加载/已下架时不渲染任何可交互内容 -->
+  <view v-if="!product" class="screen detail-screen" />
+  <view v-else class="screen detail-screen">
     <PhoneHeader title="咖啡详情" />
 
     <image class="detail-hero" :src="heroImage" mode="aspectFill" />
@@ -96,14 +98,15 @@ import HomeIndicator from '../../components/HomeIndicator.vue'
 import Stepper from '../../components/ui/Stepper.vue'
 import UiButton from '../../components/ui/Button.vue'
 import { products, shop, addItem } from '../../store/index'
-import { productData } from '../../data/products'
-import { OPTIONS } from '../../config/constants'
-import { BACKEND_ENABLED, requestApi } from '../../config/backend'
+import { OPTIONS, IMAGES } from '../../config/constants'
+import { requestApi } from '../../config/backend'
 import { navigateBack } from '../../utils/navigation'
 import { showInfo, showError } from '../../utils/toast'
 import { getProductDetailImage } from '../../utils/image'
 
-const product = ref(productData[0])
+// 商品一律来自 /api/products：没有 id 或 id 不存在时直接退回菜单页，
+// 不再用本地 mock 商品顶替——那会让顾客对着一个门店并不存在的商品下单。
+const product = ref(null)
 const sizeIndex = ref(0)
 const temperature = ref('热')
 const milkIndex = ref(0)
@@ -113,13 +116,18 @@ const sizeOptions = ref(OPTIONS.sizes)
 const temperatureOptions = ref(OPTIONS.temperatures)
 const milkOptions = ref(OPTIONS.milks)
 
-const heroImage = computed(() => getProductDetailImage(product.value))
+const heroImage = computed(() => (product.value ? getProductDetailImage(product.value) : IMAGES.coffee.latte))
 
+// 规格可能为空（管理端把某类选项全部下架）：此时只算商品基础价，
+// 不做 `sizeOptions[i].price` 这类必然抛错的下标访问。
 const unitPrice = computed(() => {
-  let price = product.value.price
-  price += sizeOptions.value[sizeIndex.value].price
+  if (!product.value) return 0
+  let price = Number(product.value.price) || 0
+  const size = sizeOptions.value[sizeIndex.value]
+  if (size) price += Number(size.price) || 0
   if (product.value.hasMilk) {
-    price += milkOptions.value[milkIndex.value].price
+    const milk = milkOptions.value[milkIndex.value]
+    if (milk) price += Number(milk.price) || 0
   }
   return price
 })
@@ -128,35 +136,30 @@ const unitPrice = computed(() => {
 let optionsCache = null
 
 onLoad(async (query) => {
-  if (BACKEND_ENABLED) {
-    try {
-      const options = optionsCache || await requestApi('/products/options')
-      optionsCache = options
+  try {
+    const options = optionsCache || await requestApi('/products/options')
+    optionsCache = options
 
-      sizeOptions.value = options.sizes.map((item) => ({
-        label: item.label,
-        price: Number(item.price ?? item.extraPrice ?? 0)
-      }))
-      temperatureOptions.value = options.temperatures
-      milkOptions.value = options.milks.map((item) => ({
-        label: item.label,
-        price: Number(item.price ?? item.extraPrice ?? 0)
-      }))
-    } catch (error) {
-      showError(error.message || '加载商品规格失败')
-    }
+    sizeOptions.value = (options.sizes || []).map((item) => ({
+      label: item.label,
+      price: Number(item.price ?? item.extraPrice ?? 0)
+    }))
+    temperatureOptions.value = options.temperatures || []
+    milkOptions.value = (options.milks || []).map((item) => ({
+      label: item.label,
+      price: Number(item.price ?? item.extraPrice ?? 0)
+    }))
+  } catch (error) {
+    showError(error.message || '加载商品规格失败')
   }
 
-  if (query.id) {
-    const foundProduct = products.find((p) => p.id === query.id)
-    if (foundProduct) {
-      product.value = foundProduct
-    } else {
-      showError('商品不存在或已下架')
-      navigateBack()
-      return
-    }
+  const foundProduct = query.id ? products.find((p) => p.id === query.id) : null
+  if (!foundProduct) {
+    showError(query.id ? '商品不存在或已下架' : '请从菜单选择商品')
+    navigateBack()
+    return
   }
+  product.value = foundProduct
 
   // 恢复已选规格
   const existingItem = shop.cart.find((item) => item.id === product.value.id)
@@ -176,11 +179,12 @@ onLoad(async (query) => {
 })
 
 function addToBag() {
+  if (!product.value) return
   const item = {
     ...product.value,
-    size: sizeOptions.value[sizeIndex.value].label,
+    size: sizeOptions.value[sizeIndex.value]?.label || '',
     temperature: temperature.value,
-    milk: product.value.hasMilk ? milkOptions.value[milkIndex.value].label : '无奶',
+    milk: product.value.hasMilk ? milkOptions.value[milkIndex.value]?.label || '全脂奶' : '无奶',
     quantity: quantity.value,
     unitPrice: unitPrice.value
   }

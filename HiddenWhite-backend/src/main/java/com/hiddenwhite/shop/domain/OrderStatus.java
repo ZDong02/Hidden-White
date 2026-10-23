@@ -96,6 +96,15 @@ public enum OrderStatus {
     }
 
     /**
+     * 有效期缓冲：制作完成后顾客仍有 30 分钟取餐时间。
+     *
+     * <p>同时充当「任何订单的最短有效期」——制作时长不可能为负，
+     * 因此创建不足 30 分钟的订单一定没有过期。超时扫描据此把时间下界
+     * 下推到 SQL，避免每分钟把全部进行中订单读进内存。
+     */
+    public static final Duration TIMEOUT_BUFFER = Duration.ofMinutes(30);
+
+    /**
      * 订单从创建时刻起的默认有效期。
      *
      * <p>取「预计制作完成时间 + 30 分钟缓冲」：制作超时后顾客可能仍在门店等待，
@@ -105,6 +114,6 @@ public enum OrderStatus {
      */
     public static Duration timeoutAfter(OffsetDateTime createdAt, OffsetDateTime readyAt) {
         Duration preparation = Duration.between(createdAt, readyAt);
-        return preparation.plusMinutes(30);
+        return preparation.plus(TIMEOUT_BUFFER);
     }
 }

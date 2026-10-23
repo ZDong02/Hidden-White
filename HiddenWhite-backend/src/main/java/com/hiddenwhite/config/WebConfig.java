@@ -1,6 +1,6 @@
 package com.hiddenwhite.config;
 
-import com.hiddenwhite.common.image.ImageProperties;
+import com.hiddenwhite.common.image.ImageStorageService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -30,15 +30,16 @@ public class WebConfig implements WebMvcConfigurer {
     /** 上传图片的静态资源映射路径。 */
     private static final String UPLOAD_PATTERN = "/uploads/**";
 
-    private final ImageProperties imageProperties;
+    /** 上传目录的唯一解析入口：读写两侧共用，避免各算一套路径。 */
+    private final ImageStorageService imageStorageService;
 
     public WebConfig(@Value("${hiddenwhite.cors.allowed-origins:}") String allowedOrigins,
-                      ImageProperties imageProperties) {
+                      ImageStorageService imageStorageService) {
         this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
                 .toArray(String[]::new);
-        this.imageProperties = imageProperties;
+        this.imageStorageService = imageStorageService;
     }
 
     @Override
@@ -66,11 +67,14 @@ public class WebConfig implements WebMvcConfigurer {
      *
      * <p>点单端（小程序 / H5）需要直接以 HTTP 地址读取商品图，
      * 因此图片走静态资源而非需要鉴权的业务接口。
+     *
+     * <p>目录取 {@link ImageStorageService#root()}（已是绝对路径且已规范化），
+     * 不再自行拼接配置值：拼接相对路径时 {@code file:./data/uploads/} 会以进程工作目录为基准，
+     * 与落盘侧解析出的目录不一定相同，表现为「同一进程里能上传、却读不到」。
      */
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        String location = imageProperties.getUploadDir();
         registry.addResourceHandler(UPLOAD_PATTERN)
-                .addResourceLocations("file:" + location + "/");
+                .addResourceLocations(imageStorageService.root().toUri().toString());
     }
 }

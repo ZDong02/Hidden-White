@@ -120,14 +120,22 @@ onShow(async () => {
 
   try {
     const quote = await quoteCart()
-    displaySubtotal.value = Number(quote.subtotal)
-    displayDiscount.value = Number(quote.discount)
-    displayPackagingFee.value = Number(quote.packagingFee)
-    displayTotal.value = Number(quote.total)
+    // 报价接口的字段一律以数字展示；任一字段缺失时退回 0，
+    // 否则模板会渲染出「¥NaN」，顾客无从判断该付多少
+    displaySubtotal.value = toAmount(quote.subtotal)
+    displayDiscount.value = toAmount(quote.discount)
+    displayPackagingFee.value = toAmount(quote.packagingFee)
+    displayTotal.value = toAmount(quote.total)
   } catch (error) {
     showError(error.message || '获取订单报价失败')
   }
 })
+
+/** 金额兜底：非数字（含 undefined / null）一律按 0 处理 */
+function toAmount(value) {
+  const num = Number(value)
+  return Number.isFinite(num) ? num : 0
+}
 
 async function showOffer() {
   await showConfirm({
@@ -135,7 +143,7 @@ async function showOffer() {
     content: displayDiscount.value
       ? `首单享 ¥${displayDiscount.value} 立减，已自动计入本次订单。`
       : '首单优惠已使用，感谢继续支持隐白。',
-    cancelText: ''
+    showCancel: false
   })
 }
 

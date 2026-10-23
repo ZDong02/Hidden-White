@@ -38,23 +38,13 @@
             "sdkConfigs" : {}
         }
     },
-    /* 快应用特有相关 */
-    "quickapp" : {},
-    /* 小程序特有相关 */
+    /* 小程序特有相关（本工程只构建微信小程序与 H5，
+       mp-alipay / mp-baidu / mp-toutiao / quickapp 等未使用的平台配置已移除） */
     "mp-weixin" : {
         "appid" : "wx90d8af9ad4e52689",
         "setting" : {
             "urlCheck" : false
         },
-        "usingComponents" : true
-    },
-    "mp-alipay" : {
-        "usingComponents" : true
-    },
-    "mp-baidu" : {
-        "usingComponents" : true
-    },
-    "mp-toutiao" : {
         "usingComponents" : true
     },
     "h5": {

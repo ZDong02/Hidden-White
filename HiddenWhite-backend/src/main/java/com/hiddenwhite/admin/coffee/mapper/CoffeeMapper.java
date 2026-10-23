@@ -173,7 +173,13 @@ public interface CoffeeMapper {
                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
                    DATE_FORMAT(ready_at, '%Y-%m-%d %H:%i:%s') AS readyAt,
                    status, note,
-                   DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completedAt
+                   DATE_FORMAT(completed_at, '%Y-%m-%d %H:%i:%s') AS completedAt,
+                   pay_channel AS payChannel, transaction_id AS transactionId,
+                   DATE_FORMAT(paid_at, '%Y-%m-%d %H:%i:%s') AS paidAt,
+                   refund_id AS refundId,
+                   DATE_FORMAT(refunded_at, '%Y-%m-%d %H:%i:%s') AS refundedAt,
+                   DATE_FORMAT(cancelled_at, '%Y-%m-%d %H:%i:%s') AS cancelledAt,
+                   cancel_reason AS cancelReason
             FROM ${coffeeDb}.orders
             WHERE (#{keyword} IS NULL OR #{keyword} = ''
                    OR order_number LIKE CONCAT('%', #{keyword}, '%')

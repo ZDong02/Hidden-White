@@ -47,10 +47,15 @@ public class DailyTrafficSettleJob {
     public void settleBacklog() {
         LocalDate today = LocalDate.now(ZONE);
         int settled = 0;
-        // 从昨天往前回溯：昨天通常因忘记打烊而未结算，更早的日期属于异常积压
+        // 从昨天往前回溯：昨天通常因忘记打烊而未结算，更早的日期属于异常积压。
+        // 已结算的日期直接跳过 —— settle 虽然幂等，但每晚把 7 天全量重算一遍
+        // 会持续改写已冻结的历史数据，也让「本次补结算了几天」的日志失去意义。
         for (int back = 1; back <= BACKFILL_DAYS; back++) {
             LocalDate target = today.minusDays(back);
             try {
+                if (operationService.isSettled(target)) {
+                    continue;
+                }
                 operationService.settle(target);
                 settled++;
             } catch (RuntimeException e) {
@@ -59,8 +64,7 @@ public class DailyTrafficSettleJob {
             }
         }
         if (settled > 0) {
-            log.info("日客流补结算完成：共处理 {} 天（{} 至 {}）",
-                    settled, today.minusDays(1), today.minusDays(BACKFILL_DAYS));
+            log.info("日客流补结算完成：共处理 {} 天（回溯上限 {} 天）", settled, BACKFILL_DAYS);
         }
     }
 }

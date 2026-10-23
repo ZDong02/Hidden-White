@@ -96,8 +96,7 @@
 import { ref, computed } from 'vue'
 import StoreLine from '../StoreLine.vue'
 import { products, loadProducts, refreshOrders, loadStoreInfo, storeInfo } from '../../store/index'
-import { categories as baseCategories } from '../../data/products'
-import { STORE, IMAGES } from '../../config/constants'
+import { STORE, IMAGES, CATEGORY_NAMES } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
 
 defineEmits(['switch-tab'])
@@ -112,21 +111,20 @@ const storeHours = computed(() => storeInfo.hours || STORE.hours)
 const storeOpen = computed(() => (storeInfo.loaded ? storeInfo.open : true))
 const bannerImage = IMAGES.coffee.banner
 
-// 分类由实际商品动态派生：管理端新增的分类能立即出现在筛选栏，
-// 不会被本地硬编码的分类表挡住（原实现只认 data/products.js 里的 0/1）。
+// 分类由实际商品动态派生：只给「商品里真实出现过的分类」出标签，
+// 名称从 CATEGORY_NAMES 取，未登记的数字分类显示为「分类 N」。
+// 这样管理端新增商品分类后筛选栏自动跟上，不需要前端再改一份分类表。
 const categoryTabs = computed(() => {
-  const known = new Map(baseCategories.filter((item) => item.id !== 'all').map((item) => [Number(item.id), item.name]))
   const used = []
   products.forEach((product) => {
     const id = Number(product.category) || 0
     if (!used.includes(id)) used.push(id)
   })
-  const extra = used
-    .filter((id) => !known.has(id))
-    .map((id) => ({ id, name: `分类 ${id}` }))
-  return [{ id: 'all', name: '全部' }, ...[...known.entries()]
-    .filter(([id]) => used.includes(id))
-    .map(([id, name]) => ({ id, name })), ...extra]
+  used.sort((a, b) => a - b)
+  return [
+    { id: 'all', name: '全部' },
+    ...used.map((id) => ({ id, name: CATEGORY_NAMES[id] || `分类 ${id}` }))
+  ]
 })
 
 // 三个请求相互独立：用 allSettled 隔离失败，避免门店信息报错时

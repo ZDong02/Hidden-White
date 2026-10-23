@@ -104,8 +104,10 @@ public class ShopRepository {
                         "FROM stores ORDER BY id LIMIT 1", (rs, row) -> {
                     var opening = rs.getTime("opening_time").toLocalTime();
                     var closing = rs.getTime("closing_time").toLocalTime();
-                    // 取一次当前时刻：两次 now() 跨过打烊整点时会算出自相矛盾的结果
-                    var now = LocalTime.now();
+                    // 取一次当前时刻：两次 now() 跨过打烊整点时会算出自相矛盾的结果。
+                    // 必须带上门店时区：LocalTime.now() 取的是 JVM 默认时区，
+                    // 服务器跑在 UTC 时「现在」会比门店时间早 8 小时，营业中会被判成未开门。
+                    var now = LocalTime.now(ZONE);
                     // 人工开启营业：强制开放，覆盖时间窗口自动判定；其余按人工打烊 + 时段判断
                     boolean open = rs.getBoolean("manual_open") || (!rs.getBoolean("manual_closed")
                             && !now.isBefore(opening) && now.isBefore(closing));
@@ -153,7 +155,7 @@ public class ShopRepository {
         if (!dayOff.isEmpty() && dayOff.get(0)) {
             return "今日例休，期待与您再会";
         }
-        var now = LocalTime.now();
+        var now = LocalTime.now(ZONE);
         if (now.isBefore(store.opening())) {
             return "未到营业时间，营业时间 " + store.opening().toString().substring(0, 5) + "–" + store.closing().toString().substring(0, 5);
         }
@@ -341,7 +343,6 @@ public class ShopRepository {
                             "VALUES(?,?,?,?,?,?,?,?,?)", order.id().toString(), item.productId(), item.name(), item.size(), item.temperature(),
                     item.milk(), item.quantity(), item.unitPrice(), item.lineTotal());
         }
-        awardOrderPoints(order);
         return order;
     }
 
@@ -350,7 +351,8 @@ public class ShopRepository {
      * <p>规则：积分 = 订单实付金额整数部分（1 元 = 1 积分，向下取整）；
      * 成长值 = 积分 × 10（1 元 = 10 成长值）。金额为 0 时不发放。
      * 等级取「现有等级阶位」与「累计成长值对应阶位」中较高者。</p>
-     * <p>调用时机：仅在 {@link #saveOrder} 事务内调用，下单失败时发放一并回滚。</p>
+     * <p>调用时机：仅在 {@link #markPaid} 的事务内调用——收款成功才发放，
+     * 未支付即取消的订单不会产生积分。</p>
      *
      * <p><b>为什么成长值必须写成自增而不是直接赋值</b>：早期实现先 {@code SELECT growth_value}
      * 再把 {@code 旧值 + 增量} 整体写回，同一会员并发下两单（连点、双端同时下单）时，
@@ -437,9 +439,16 @@ public class ShopRepository {
      * 且 {@code transaction_id} 上有唯一索引。微信支付的通知可能重复投递，
      * 第二次调用会因条件不命中而返回 0，不会重复入账。
      *
+     * <p><b>为什么积分发放挂在这里而不是 {@link #saveOrder}</b>：下单不等于收款。
+     * 改造前下单事务里就发放积分与成长值，于是「下单后未支付、超时取消」的订单
+     * 也会让会员白拿积分，且取消链路没有回收动作——是实打实的资损。
+     * 改为状态真正推进到 {@code PAID} 之后发放，条件更新保证只发一次：
+     * 重复回调走上面的幂等分支直接返回，不会二次累加。
+     *
      * @param channel 支付渠道，如 WECHAT_JSAPI
      * @param transactionId 微信支付交易号
      */
+    @Transactional
     public Order markPaid(UUID id, String channel, String transactionId, OffsetDateTime paidAt) {
         int updated = jdbc.update(
                 "UPDATE orders SET status='PAID',pay_channel=?,transaction_id=?,paid_at=?,prepay_id=NULL "
@@ -452,7 +461,9 @@ public class ShopRepository {
             }
             existing.status().assertCanTransitionTo(OrderStatus.PAID);
         }
-        return order(id);
+        Order paid = order(id);
+        awardOrderPoints(paid);
+        return paid;
     }
 
     /** 取消订单。{@code reason} 见 init.sql 注释。 */
@@ -486,7 +497,7 @@ public class ShopRepository {
      * <p><b>保留说明</b>：同 {@link #markRefunded}，为支付回调预留，当前零调用方。
      */
     public Order findByNumber(String orderNumber) {
-        return jdbc.query("SELECT * FROM orders WHERE order_number=?", ORDER_MAPPER, orderNumber).stream()
+        return jdbc.query("SELECT " + ORDER_COLUMNS + " FROM orders WHERE order_number=?", ORDER_MAPPER, orderNumber).stream()
                 .findFirst().orElseThrow(() -> new NotFoundException("订单不存在: " + orderNumber));
     }
 
@@ -496,9 +507,16 @@ public class ShopRepository {
      * <p>逐条判断有效期而非在 SQL 里比较 {@code prepay_expire_at}，是为了让
      * 「制作时长 + 30 分钟缓冲」这条业务规则只存在于
      * {@link OrderStatus#timeoutAfter} 一处，避免 SQL 与 Java 各写一套阈值而不一致。
+     *
+     * <p><b>为什么 SQL 里仍要带一个时间下界</b>：判定规则留在 Java，但候选集不能无界——
+     * 改造前这条语句把<b>全部</b>进行中订单（含刚下的单）读进内存再逐条过滤，
+     * 活跃订单越多，每分钟一次的扫描就越重，而真正可能过期的永远只有最早那一批。
+     * 这里用「最短有效期」（{@link OrderStatus#TIMEOUT_BUFFER}）回推一个绝对下界：
+     * 比它更年轻的订单不可能过期，交给下一分钟的扫描即可。
      */
     public List<Order> findExpired(LocalDateTime now) {
-        List<Order> candidates = jdbc.query(SELECT_ACTIVE_ORDERS, ORDER_MAPPER);
+        LocalDateTime lowerBound = now.minus(OrderStatus.TIMEOUT_BUFFER);
+        List<Order> candidates = jdbc.query(SELECT_ACTIVE_ORDERS_SINCE, ORDER_MAPPER, lowerBound);
         OffsetDateTime moment = now.atZone(ZONE).toOffsetDateTime();
         return candidates.stream()
                 .filter(order -> order.createdAt()
@@ -508,9 +526,9 @@ public class ShopRepository {
                 .toList();
     }
 
-    /** 未进入终态的订单扫描语句。列清单与 {@link #orders} 同源，避免两处投影漂移。 */
-    private static final String SELECT_ACTIVE_ORDERS =
-            "SELECT " + ORDER_COLUMNS + " FROM orders WHERE status IN (" + BLOCKING_STATUS_SQL + ")";
+    /** 未进入终态、且创建时间早于下界的订单扫描语句。列清单与 {@link #orders} 同源，避免两处投影漂移。 */
+    private static final String SELECT_ACTIVE_ORDERS_SINCE =
+            "SELECT " + ORDER_COLUMNS + " FROM orders WHERE status IN (" + BLOCKING_STATUS_SQL + ") AND created_at < ?";
 
     private void ensureMember(String memberId) {
         if (jdbc.queryForObject("SELECT COUNT(*) FROM members WHERE id=?", Integer.class, memberId) == 0) {
