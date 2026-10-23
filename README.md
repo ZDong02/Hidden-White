@@ -15,6 +15,7 @@
 - 取餐订单：取餐号、制作进度、预计完成时间
 - 会员体系：会员等级、积分、权益卡
 - 后端地址自动探测：换网络无需改代码，候选地址 + 健康检查自动匹配
+- 视觉与动效：设计令牌驱动的黑金纸感界面、统一图标集、入场序列与状态微动效（详见[点单端视觉规范](#点单端视觉规范)）
 
 ### 管理端（运营）
 - 咖啡运营：商品、规格选项、订单、会员、权益、门店管理
@@ -31,7 +32,7 @@
 
 | 层 | 技术 |
 |----|------|
-| 点单端 | uni-app 3.0 + Vue 3.4 + Vite 5 + SCSS |
+| 点单端 | uni-app 3.0 + Vue 3.4 + Vite 5 + SCSS（设计令牌 + 自有组件/图标体系） |
 | 管理端前端 | Vue 3.5 + TypeScript 5.7 + Vite 6 + Vue Router 4 + GSAP |
 | 后端 | Spring Boot 3.5.14 + Java 17 + Spring Security + JJWT |
 | 数据访问 | MyBatis-Plus 3.5.16（管理端）+ Spring JDBC / JdbcTemplate（点单端） |
@@ -47,11 +48,16 @@
 Hidden White/
 ├── HiddenWhite-front/                  # 点单端：uni-app（微信小程序 / H5）
 │   ├── pages/                          # 4 个业务页面（订单/会员/我的为壳页内 Tab 面板）
-│   ├── components/                     # 共享组件 + components/ui/ 统一 UI 组件库
+│   ├── components/                     # 共享组件 + components/ui/ 统一组件库
+│   │                                   #   Button / Card / Icon / Input / Modal / SlideConfirm / Stepper
+│   ├── styles/                         # 设计令牌 tokens.scss + 通用元件与动效 common.scss
+│   ├── config/                         # backend.js（统一请求）+ backend-hosts.js（候选地址）
+│   │                                   #   + constants.js + icon-set.json（图标清单）
+│   ├── scripts/                        # 构建辅助：icons/*.svg 母版 + generate-icons.cjs
 │   ├── store/                          # 状态管理（购物车 / 订单 / 登录态）
-│   ├── config/                         # backend.js（统一请求）+ backend-hosts.js（候选地址）+ constants.js
 │   ├── utils/                          # 工具模块（价格 / 校验 / 时间 / 图片 / 导航 / 存储 / 提示）
-│   └── static/                         # 图片资源
+│   ├── tests/                          # 单元测试 + 设计一致性守卫
+│   └── static/                         # 图片资源；icons/*.png 由 npm run assets:icons 生成
 │
 ├── HiddenWhite-admin/                  # 管理端：Vue 3 + TS + Vite（端即项目根，无额外嵌套）
 │   ├── src/views/                      # 23 个页面
@@ -205,9 +211,58 @@ npm run dev:mp-weixin
 - **价格后端计算**：点单端价格、取餐号、首单减免等一律由后端计算，不信任客户端传入的价格字段
 - **双异常结构**：小程序端返回 `ApiError`，管理端返回 `R`，按请求路径前缀自动区分
 - **双数据访问风格**：小程序端用 `JdbcTemplate`，管理端用 MyBatis-Plus Mapper，共用一个数据源
-- **珍珠玻璃设计语言**：管理端自有组件库，不依赖 Element Plus 等第三方 UI 框架
+- **两套设计语言，两种场景**：管理端是「珍珠玻璃」（信息密度优先），点单端是「暖白纸 + 黑金」（品牌体验优先），各自独立演进
+- **点单端零第三方 UI 库**：视觉全部由设计令牌 + 自有组件库承载，不引入 Vant / uView 等框架
 - **JWT 双主体**：管理端与点单端共用一套密钥，靠 subject 前缀（`member:`）隔离权限域
 
+---
+
+## 点单端视觉规范
+
+品类型产品的界面靠一致性而不是装饰取胜。点单端的规则收敛在三个文件里（`styles/tokens.scss`、`styles/common.scss`、`config/icon-set.json`），**改样式先改这三个，不要在页面里就地写值**。
+
+### 定调
+
+编辑式奢感：暖白纸画布 + 暖调近黑 + 单一金强调色，宋体做大标题、无衬线做正文。
+金只在两处出现——深色面上的 `$c-gold-on-dark`、浅色面上的 `$c-gold-text`；同屏不允许第二个强调色。
+
+### 令牌（`styles/tokens.scss`）
+
+| 类别 | 关键值 |
+|---|---|
+| 画布 / 表面 | `#fbfaf7` 暖白纸 · `#f2efe7` 下沉底 · `#ffffff` 卡片 |
+| 文字 | `#191710` 标题 · `#26231b` 正文 · `#5b564a` 次要 · `#8a8477` 仅装饰 |
+| 深色面 | `#171713` 主按钮 / 会员卡 · `#0b0a07` Banner / 取餐卡 · `#f5f0e3` 深底正文 |
+| 金 | `#d4ad2f` 深底亮金 · `#8a6a14` 浅底金字（≥4.5:1） · `#b99737` 描边 · `#d9cba6` 纯装饰 |
+| 字阶 | 22 / 24 / 26 / 28 / 30 / 32 / 36 / 44 / 56 / 62 / 64 / 132 rpx（750 设计宽） |
+| 字体 | 展示字 Songti SC / Noto Serif SC；正文 PingFang SC 优先栈 |
+| 间距 | 8 级梯度 8–80rpx，页面横向留白 `$gutter: 44rpx` |
+| 圆角 | 内容卡 `22rpx` · 内部块/输入 `18rpx` · 小标签 `14rpx` · 胶囊 `999rpx` |
+| 阴影 | 3 级（Y 偏移 2 / 10 / 24rpx）+ 深色卡专用 |
+| 动效 | 按压 120ms · 状态色 180ms · 位移 300ms · 场景 600ms；缓动 `cubic-bezier(.16,1,.3,1)` |
+
+通用元件（`.card` / `.card-dark` / `.tag` / `.stat-grid` / `.row-item` / `.skeleton` / `.is-press`）与入场序列（`reveal-1..8`）在 `styles/common.scss`，四个 Tab 面板与四个页面共用同一套。
+
+### 图标（`components/ui/Icon.vue`）
+
+不用 emoji，也不用 `<text>` 里的字形符号（U+2615 咖啡杯、U+2726 星标、U+203A 单右角引号、U+2197 右上箭头这类）——它们在 iOS / 安卓 / H5 上是三种粗细与比例，且无法统一着色。
+
+图标走「SVG 母版 → 按色版预生成 PNG」管线：微信 `<image>` 不支持 `currentColor`，`filter` 在部分安卓 webview 无效，预生成是最稳的做法。
+
+```bash
+cd HiddenWhite-front
+npm run assets:icons          # scripts/icons/*.svg + config/icon-set.json → static/icons/*.png
+```
+
+- 20 个 24 网格 / 1.6 线宽母版，6 种色版（`ink` `muted` `faint` `gold` `gold-on-dark` `decor`），共 37 张产物
+- 新增图标：放母版 → 在 `icon-set.json` 登记色版 → 跑上面的命令（脚本会自动清理已下线的孤儿产物）
+- `tests/design-system.test.js` 会拦住未登记的图标名、缺失的色版产物与残留的 emoji
+
+### 动效红线
+
+- 只动 `opacity` 与 `transform`；不要给含 `position: fixed` 后代的祖先加 `transform`（会成为包含块，底部固定栏跟着漂）
+- 按压反馈统一用 `hover-class="is-press"`（小程序 `:active` 真机不可靠）；悬停与 `prefers-reduced-motion` 用 `#ifdef H5` 隔离
+- 组件 `scoped` 样式里禁用标签名选择器与属性选择器（`[disabled]`）；需要给自定义组件做定位/动效时，包一层 `<view>` 而不要把 class 挂在组件标签上
 
 ---
 
@@ -216,7 +271,9 @@ npm run dev:mp-weixin
 | 项目 | 命令 | 说明 |
 |------|------|------|
 | 点单端 | `npm run build:h5` / `build:mp-weixin` | 正式产物在 `dist/build/`，调试产物在 `dist/dev/` |
-| 点单端 | `npx eslint .` | ESLint 检查 |
+| 点单端 | `npm test` | Node 内置测试运行器：工具函数 + 设计一致性守卫 |
+| 点单端 | `npm run lint` | ESLint 检查 |
+| 点单端 | `npm run assets:icons` | 由 SVG 母版重生成全部图标色版（改图标后必跑） |
 | 管理端前端 | `npm run test:unit` | Node 内置测试运行器（API + utils） |
 | 管理端前端 | `npm run build` | vue-tsc 类型检查 + vite build |
 | 统一后端 | `./mvnw test` | 单元测试 |
