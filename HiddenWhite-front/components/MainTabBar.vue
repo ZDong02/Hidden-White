@@ -7,9 +7,18 @@
         v-for="tab in tabs"
         :key="tab.id"
         :class="['seg-item', { active: active === tab.id }]"
+        :aria-label="tab.label"
+        hover-class="seg-item--press"
+        :hover-stay-time="60"
         @tap="$emit('select', tab.id)"
       >
-        <text :class="['seg-glyph', `${tab.id}-icon`]">{{ tab.glyph }}</text>
+        <view class="seg-icon">
+          <Icon
+            :name="tab.icon"
+            :tone="active === tab.id ? 'gold-on-dark' : 'muted'"
+            :size="38"
+          />
+        </view>
         <text class="seg-label">{{ tab.label }}</text>
       </view>
     </view>
@@ -18,6 +27,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import Icon from './ui/Icon.vue'
 
 const props = defineProps({
   active: {
@@ -28,13 +38,13 @@ const props = defineProps({
 
 defineEmits(['select'])
 
-// 统一使用文字符号而非位图图标：滑块是近黑色，位图无法随激活态变成金色，
-// 文字符号可以直接继承分段的前景色，激活/默认两态都干净。
+// 图标统一走图标集（scripts/icons）：SVG 母版按色版预生成 PNG，
+// 激活态直接换「深底金」色版，不再靠字形符号冒充图标。
 const tabs = [
-  { id: 'home', label: '首页', glyph: '⌂' },
-  { id: 'orders', label: '订单', glyph: '☰' },
-  { id: 'member', label: '会员', glyph: '✦' },
-  { id: 'profile', label: '我的', glyph: '◉' }
+  { id: 'home', label: '首页', icon: 'home' },
+  { id: 'orders', label: '订单', icon: 'receipt' },
+  { id: 'member', label: '会员', icon: 'sparkle' },
+  { id: 'profile', label: '我的', icon: 'user' }
 ]
 
 const activeIndex = computed(() => Math.max(0, tabs.findIndex((tab) => tab.id === props.active)))
@@ -45,8 +55,8 @@ const thumbStyle = computed(() => ({ transform: `translateX(${activeIndex.value 
 
 <style lang="scss" scoped>
 .seg-bar {
-  /* 左右各留 40rpx：胶囊宽 670rpx，介于满屏与之前过窄之间 */
-  padding: $sp-2 40rpx $sp-2;
+  /* 与面板内容共用同一条横向留白，两栏边缘严格对齐 */
+  padding: $sp-2 $gutter $sp-2;
   /* 透明背景：跟随壳页底部区域的画布色，避免出现白色断层 */
   background: transparent;
 }
@@ -54,7 +64,7 @@ const thumbStyle = computed(() => ({ transform: `translateX(${activeIndex.value 
 .seg-track {
   position: relative;
   display: flex;
-  /* 触控目标：120rpx 轨道 - 12rpx×2 内边距 = 96rpx = 48px，达标 */
+  /* 触控目标：120rpx 轨道 - 16rpx×2 内边距 = 88rpx = 44px，达标 */
   height: 120rpx;
   padding: $sp-2;
   border-radius: $r-pill;
@@ -83,35 +93,47 @@ const thumbStyle = computed(() => ({ transform: `translateX(${activeIndex.value 
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4rpx;
+  gap: $sp-0;
   min-width: 0;
   /* 未选中态用 $c-ink-muted：对轨道底色约 6.2:1，比原先的 #75736a 更清晰 */
   color: $c-ink-muted;
-  transition: color 240ms ease;
+  transition: color $dur-fast ease;
 }
 
 .seg-item.active {
   color: $c-gold-on-dark;
 }
 
-.seg-glyph {
+/* 激活时图标轻微上移并放大：让「选中」有物理反馈，而不只是换个颜色。
+   动效挂在外层 view 上而不是 Icon 组件上——组件标签上的 class 在小程序端
+   会落到组件宿主节点，能否命中最内层 image 依赖基础库版本，不值得赌。 */
+.seg-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40rpx;
-  line-height: 1;
+  transition: transform $dur-base $ease-spring;
 }
 
-.home-icon {
-  font-size: 46rpx;
+.seg-item.active .seg-icon {
+  transform: translateY(-2rpx) scale(1.06);
 }
 
-.member-icon {
-  font-size: 36rpx;
+.seg-item--press {
+  opacity: 0.66;
 }
 
 .seg-label {
-  font-size: 22rpx;
+  font-size: $fs-micro;
   letter-spacing: 1rpx;
 }
+
+/* #ifdef H5 */
+.seg-item:hover .seg-icon {
+  transform: translateY(-2rpx);
+}
+
+.seg-item.active:hover .seg-icon {
+  transform: translateY(-2rpx) scale(1.06);
+}
+/* #endif */
 </style>

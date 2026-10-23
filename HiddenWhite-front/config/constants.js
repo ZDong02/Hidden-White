@@ -38,17 +38,13 @@ export const CATEGORY_NAMES = {
 }
 
 // 图片路径
+// 图标不在这里登记：统一图标由 components/ui/Icon.vue 按 config/icon-set.json 解析，
+// 避免同一张图在两处各写一遍路径。
 export const IMAGES = {
   coffee: {
     latte: '/static/coffee/latte.png',
     latteDetail: '/static/coffee/detail.png',
     americano: '/static/coffee/americano.png',
     banner: '/static/coffee/banner.png'
-  },
-  icons: {
-    pin: '/static/icons/pin.png',
-    back: '/static/icons/back.png',
-    wifi: '/static/icons/wifi.png',
-    wallet: '/static/icons/wallet.png'
   }
 }

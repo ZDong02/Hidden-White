@@ -2,6 +2,8 @@
   <button
     :class="['ui-button', variant, { disabled }]"
     :disabled="disabled"
+    hover-class="ui-button--press"
+    :hover-stay-time="60"
     @tap="handleTap"
   >
     <slot />
@@ -31,6 +33,10 @@ const handleTap = (event) => {
 </script>
 
 <style lang="scss" scoped>
+/* 三档按钮共用同一套高度/圆角/过渡，只在底色与字色上分档：
+   primary  深底金字，一屏只出现一个（主操作）
+   outline  白底描边，用于并列的次级操作
+   text     纯文字，用于弱化到几乎不该抢视线的操作 */
 .ui-button {
   min-height: 96rpx;
   display: flex;
@@ -40,7 +46,8 @@ const handleTap = (event) => {
   font-size: $fs-title-sm;
   font-weight: 600;
   letter-spacing: 0.5rpx;
-  transition: transform $dur-fast ease-out, background-color 200ms ease, color 200ms ease, box-shadow 200ms ease;
+  transition: transform $dur-instant $ease-out, background-color $dur-fast ease,
+    color $dur-fast ease, box-shadow $dur-base $ease-out, opacity $dur-fast ease;
 }
 
 .ui-button.primary {
@@ -64,14 +71,19 @@ const handleTap = (event) => {
   box-shadow: none;
 }
 
-.ui-button:not(.disabled):active {
-  transform: scale(0.97);
-  opacity: 0.82;
+/* 按压：由 hover-class 挂上（小程序 :active 在真机不可靠） */
+.ui-button--press {
+  transform: scale(0.975);
+  opacity: 0.88;
 }
 
 /* #ifdef H5 */
 .ui-button:not(.disabled):hover {
   box-shadow: $sh-2;
+}
+
+.ui-button.primary:hover:not(.disabled) {
+  box-shadow: $sh-3;
 }
 /* #endif */
 </style>

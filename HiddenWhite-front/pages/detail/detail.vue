@@ -8,64 +8,72 @@
 
     <view class="detail-body">
       <!-- 产品标题 -->
-      <view class="detail-title">
+      <view class="detail-title reveal">
         <text class="detail-title-name">{{ product.name }}</text>
-        <text class="gold">¥{{ unitPrice }}</text>
+        <text class="gold detail-price num">¥{{ unitPrice }}</text>
       </view>
 
-      <text class="detail-subtitle muted">{{ product.detailDescription }}</text>
-      <text class="description muted">{{ product.description }}</text>
+      <text class="detail-subtitle muted reveal reveal-1">{{ product.detailDescription }}</text>
+      <text class="description muted reveal reveal-1">{{ product.description }}</text>
 
       <view class="divider" />
 
       <!-- 杯型选择 -->
-      <view class="option-section">
+      <view class="option-section reveal reveal-2">
         <text class="option-label">杯型</text>
         <view class="option-row">
           <button
             v-for="(option, index) in sizeOptions"
             :key="index"
-            :class="['option-button', { selected: sizeIndex === index, premium: index === 1 }]"
+            :class="['option-button', { selected: sizeIndex === index }]"
+            hover-class="option-button--press"
+            :hover-stay-time="60"
             @tap="sizeIndex = index"
           >
-            {{ option.label }}
+            <text class="option-text">{{ option.label }}</text>
+            <text v-if="option.price" class="option-price">+¥{{ option.price }}</text>
           </button>
         </view>
       </view>
 
       <!-- 温度选择 -->
-      <view class="option-section">
+      <view class="option-section reveal reveal-3">
         <text class="option-label">温度</text>
         <view class="option-row">
           <button
             v-for="temp in temperatureOptions"
             :key="temp"
             :class="['option-button', { selected: temperature === temp }]"
+            hover-class="option-button--press"
+            :hover-stay-time="60"
             @tap="temperature = temp"
           >
-            {{ temp }}
+            <text class="option-text">{{ temp }}</text>
           </button>
         </view>
       </view>
 
       <!-- 奶类选择（仅限有奶产品） -->
-      <view v-if="product.hasMilk" class="option-section">
+      <view v-if="product.hasMilk" class="option-section reveal reveal-4">
         <text class="option-label">奶类</text>
-        <view class="option-row milk-row">
+        <view class="option-row">
           <button
             v-for="(option, index) in milkOptions"
             :key="index"
-            :class="['option-button', { selected: milkIndex === index, premium: index === 1 }]"
+            :class="['option-button', { selected: milkIndex === index }]"
+            hover-class="option-button--press"
+            :hover-stay-time="60"
             @tap="milkIndex = index"
           >
-            {{ option.label }}
+            <text class="option-text">{{ option.label }}</text>
+            <text v-if="option.price" class="option-price">+¥{{ option.price }}</text>
           </button>
         </view>
       </view>
 
-      <!-- 数量选择 - 使用新的 Stepper 组件 -->
-      <view class="quantity-row">
-        <view>
+      <!-- 数量选择 -->
+      <view class="quantity-row reveal reveal-5">
+        <view class="quantity-copy">
           <text class="option-label">数量</text>
           <text class="quantity-caption muted">不额外加糖，保留咖啡本味</text>
         </view>
@@ -76,11 +84,10 @@
     <!-- 底部操作栏 -->
     <view class="bottom-fixed detail-footer">
       <view class="detail-cart">
-        <view>
+        <view class="detail-cart-copy">
           <text class="muted footer-caption">{{ quantity }} 杯 · 已选{{ product.name }}</text>
-          <text class="footer-total gold">¥{{ unitPrice * quantity }}</text>
+          <text class="footer-total gold">{{ unitPrice * quantity }}</text>
         </view>
-        <!-- 使用新的 Button 组件 -->
         <UiButton variant="primary" @tap="addToBag" style="width: 336rpx; flex-shrink: 0;">
           加入购物袋
         </UiButton>
@@ -197,14 +204,16 @@ function addToBag() {
 
 <style lang="scss" scoped>
 .detail-screen {
-  padding-bottom: 260rpx;
+  padding-bottom: $pad-page-detail;
 }
 
+/* Hero：底部压一层极淡的暖色渐变，让图片与纸白画布之间有过渡而不是硬边 */
 .detail-hero {
   display: block;
   width: 100%;
   height: 398rpx;
   background: $c-surface-3;
+  animation: screen-enter $dur-slow ease both;
 }
 
 .detail-body {
@@ -218,7 +227,6 @@ function addToBag() {
   gap: $sp-4;
 }
 
-/* 产品名（原 .detail-title > text:first-child） */
 .detail-title-name {
   font-family: $font-display;
   font-size: $fs-h2;
@@ -227,25 +235,24 @@ function addToBag() {
   color: $c-ink-strong;
 }
 
-.detail-title .gold {
+.detail-price {
   flex-shrink: 0;
   font-size: $fs-title-lg;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 .detail-subtitle {
   display: block;
-  font-size: $fs-caption;
   margin-top: $sp-3;
+  font-size: $fs-caption;
 }
 
 .description {
   display: block;
-  font-size: $fs-body-sm;
-  line-height: 1.75;
   margin-top: $sp-2;
   margin-bottom: $sp-4;
+  font-size: $fs-body-sm;
+  line-height: 1.75;
 }
 
 .option-section {
@@ -254,10 +261,10 @@ function addToBag() {
 
 .option-label {
   display: block;
-  font-size: 26rpx;
-  font-weight: 600;
+  margin-bottom: $sp-3;
   color: $c-ink-strong;
-  margin-bottom: $sp-4;
+  font-size: $fs-body-sm;
+  font-weight: 600;
 }
 
 .option-row {
@@ -265,40 +272,47 @@ function addToBag() {
   gap: $sp-3;
 }
 
+/* 规格按钮：选中不靠改 border-width（会挤动文字），用 inset 阴影画第二道金边 */
 .option-button {
-  flex: 1;
-  height: $tap-min;
+  /* flex-basis 必须为 0：否则宽度由文字长短决定，同一行的按钮宽窄不一 */
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
-  justify-content: center;
-  align-items: center;
   min-height: $tap-min;
-  padding: 0 $sp-2;
+  padding: $sp-2 $sp-2;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rpx;
   border: 1rpx solid $c-border;
   border-radius: $r-md;
   background: $c-surface;
   color: $c-ink;
-  font-size: 26rpx;
-  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+  transition: background-color $dur-fast ease, border-color $dur-fast ease,
+    color $dur-fast ease, box-shadow $dur-fast ease, transform $dur-instant $ease-out;
 }
 
-.option-button.premium {
+.option-text {
+  font-size: $fs-caption;
+  line-height: 1.3;
+}
+
+.option-price {
   color: $c-gold-text;
+  font-size: $fs-micro;
+  line-height: 1.2;
 }
 
 .option-button.selected {
+  border-color: $c-gold-line;
   background: $c-gold-soft;
-  border: 2rpx solid $c-gold-line;
   color: $c-ink-strong;
   font-weight: 600;
-  box-shadow: $sh-1;
+  box-shadow: inset 0 0 0 1rpx $c-gold-line;
 }
 
-.milk-row {
-  gap: $sp-3;
-}
-
-.milk-row .option-button {
-  font-size: 24rpx;
+.option-button--press {
+  transform: scale(0.97);
 }
 
 .quantity-row {
@@ -306,47 +320,61 @@ function addToBag() {
   align-items: center;
   justify-content: space-between;
   gap: $sp-4;
-  margin-top: $sp-5;
+  margin-top: $sp-6;
+  padding-top: $sp-5;
+  border-top: 1rpx solid $c-divider;
+}
+
+.quantity-copy {
+  min-width: 0;
+}
+
+.quantity-row .option-label {
+  margin-bottom: $sp-0;
 }
 
 .quantity-caption {
   display: block;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
-.quantity-row .option-label {
-  margin-bottom: 6rpx;
-}
-
-.option-button:active {
-  transform: scale(0.97);
-}
-
+/* ---- 底部操作栏 ---- */
 .detail-footer {
   border-top: 1rpx solid $c-divider;
 }
 
 .detail-cart {
-  padding: $sp-5 $gutter $sp-4;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: $sp-4;
+  padding: $sp-4 $gutter;
+}
+
+.detail-cart-copy {
+  min-width: 0;
 }
 
 .footer-caption {
   display: block;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
+/* 金额前的货币符号降一档字号，数字本身才是重点 */
 .footer-total {
   display: block;
+  margin-top: $sp-0;
   font-size: $fs-h2;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: $ls-tight;
-  font-variant-numeric: tabular-nums;
-  margin-top: $sp-1;
+  @include numeric;
+}
+
+.footer-total::before {
+  content: '¥';
+  margin-right: 2rpx;
+  font-size: $fs-caption;
 }
 
 /* #ifdef H5 */

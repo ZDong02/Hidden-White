@@ -1,82 +1,112 @@
 <template>
   <!-- 我的面板：账号信息、订单概览与常用服务 -->
   <scroll-view class="panel-scroll profile-panel" scroll-y>
-    <view class="profile-hero">
-      <view class="avatar"><text>白</text></view>
+    <view class="profile-hero reveal">
+      <view class="avatar"><text class="avatar-text">白</text></view>
       <view class="profile-identity">
         <text class="profile-name">{{ isLoggedIn ? currentUser.displayName : '隐白客人' }}</text>
         <text class="profile-caption">{{ isLoggedIn ? currentUser.phone : '登录后享受更多会员礼遇' }}</text>
       </view>
-      <text class="guest-badge" @tap="handleAuth">{{ isLoggedIn ? '退出登录' : '登录 / 注册' }}</text>
+      <text
+        class="guest-badge"
+        hover-class="is-press"
+        :hover-stay-time="60"
+        @tap="handleAuth"
+      >{{ isLoggedIn ? '退出登录' : '登录 / 注册' }}</text>
     </view>
 
-    <view class="member-card" @tap="$emit('switch-tab', 'member')">
+    <view
+      class="member-card reveal reveal-1"
+      hover-class="member-card--press"
+      :hover-stay-time="60"
+      @tap="$emit('switch-tab', 'member')"
+    >
       <view class="member-card-copy">
         <text class="member-kicker">HIDDEN WHITE · MEMBER</text>
         <text class="member-title">让每一杯都有礼遇</text>
-        <text class="member-link">查看会员权益 ›</text>
+        <view class="member-link">
+          <text>查看会员权益</text>
+          <Icon name="chevron-right" tone="gold-on-dark" :size="22" />
+        </view>
       </view>
-      <text class="member-mark">✦</text>
+      <view class="member-mark">
+        <Icon name="sparkle" tone="decor" :size="110" />
+      </view>
     </view>
 
-    <view class="orders-card">
-      <view class="section-heading">
-        <text>我的订单</text>
-        <view class="all-orders" @tap="openOrders">全部订单 <text class="all-orders-arrow">›</text></view>
-      </view>
-      <view class="order-summary">
-        <view class="order-stat" @tap="openOrders">
-          <text class="order-stat-value">{{ activeOrderCount }}</text>
-          <text class="order-stat-label">进行中</text>
-        </view>
-        <view class="order-stat-divider" />
-        <view class="order-stat" @tap="openOrders">
-          <text class="order-stat-value">{{ shop.orderHistory.length }}</text>
-          <text class="order-stat-label">历史订单</text>
-        </view>
-        <view class="order-stat-divider" />
-        <view class="order-stat" @tap="openOrders">
-          <text class="order-stat-icon">☕</text>
-          <text class="order-stat-label">到店自提</text>
+    <view class="orders-card reveal reveal-2">
+      <view class="card-head">
+        <text class="card-title">我的订单</text>
+        <view class="all-orders" hover-class="all-orders--press" :hover-stay-time="60" @tap="openOrders">
+          <text>全部订单</text>
+          <Icon name="chevron-right" tone="faint" :size="22" />
         </view>
       </view>
-      <view v-if="shop.order" class="latest-order" @tap="openOrders">
+
+      <view class="stat-grid">
+        <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="openOrders">
+          <text class="stat-value">{{ activeOrderCount }}</text>
+          <text class="stat-label">进行中</text>
+        </view>
+        <view class="stat-sep" />
+        <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="openOrders">
+          <text class="stat-value">{{ shop.orderHistory.length }}</text>
+          <text class="stat-label">历史订单</text>
+        </view>
+        <view class="stat-sep" />
+        <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="openOrders">
+          <Icon name="cup" tone="gold" :size="32" />
+          <text class="stat-label">到店自提</text>
+        </view>
+      </view>
+
+      <view v-if="shop.order" class="latest-order" hover-class="latest-order--press" :hover-stay-time="60" @tap="openOrders">
         <view>
           <text class="latest-order-label">最新取餐号</text>
           <text class="latest-order-number gold">{{ shop.order.pickup }}</text>
         </view>
-        <text class="latest-order-status">制作中 ›</text>
+        <view class="latest-order-status">
+          <text>制作中</text>
+          <Icon name="chevron-right" tone="faint" :size="22" />
+        </view>
       </view>
-      <view v-else class="order-empty" @tap="$emit('switch-tab', 'home')">
+      <view v-else class="latest-order" hover-class="latest-order--press" :hover-stay-time="60" @tap="$emit('switch-tab', 'home')">
         <text>还没有进行中的订单</text>
-        <text class="gold">去点一杯 ›</text>
+        <view class="latest-order-status">
+          <text class="gold">去点一杯</text>
+          <Icon name="chevron-right" tone="gold" :size="22" />
+        </view>
       </view>
     </view>
 
-    <view class="service-card">
-      <text class="section-heading service-heading">常用服务</text>
-      <view class="service-row" @tap="$emit('switch-tab', 'member')">
-        <view class="service-icon gold">✦</view>
-        <text class="service-title">会员中心</text>
-        <text class="service-description">积分与专属礼遇</text>
-        <text class="service-arrow">›</text>
-      </view>
-      <view class="service-row" @tap="showStoreInfo">
-        <view class="service-icon">⌖</view>
-        <text class="service-title">门店信息</text>
-        <text class="service-description">地址与营业时间</text>
-        <text class="service-arrow">›</text>
-      </view>
-      <view class="service-row" @tap="showFeature('帮助与反馈')">
-        <view class="service-icon">?</view>
-        <text class="service-title">帮助与反馈</text>
-        <text class="service-description">我们随时为你提供帮助</text>
-        <text class="service-arrow">›</text>
+    <view class="service-card reveal reveal-3">
+      <text class="card-title service-heading">常用服务</text>
+      <view class="row-list">
+        <view class="row-item" hover-class="row-item--press" :hover-stay-time="60" @tap="$emit('switch-tab', 'member')">
+          <view class="row-icon"><Icon name="sparkle" tone="gold" :size="26" /></view>
+          <text class="row-title">会员中心</text>
+          <text class="row-desc">积分与专属礼遇</text>
+          <Icon name="chevron-right" tone="faint" :size="24" />
+        </view>
+        <view class="row-item" hover-class="row-item--press" :hover-stay-time="60" @tap="showStoreInfo">
+          <view class="row-icon"><Icon name="store" tone="gold" :size="26" /></view>
+          <text class="row-title">门店信息</text>
+          <text class="row-desc">地址与营业时间</text>
+          <Icon name="chevron-right" tone="faint" :size="24" />
+        </view>
+        <view class="row-item" hover-class="row-item--press" :hover-stay-time="60" @tap="showFeature('帮助与反馈')">
+          <view class="row-icon"><Icon name="help" tone="gold" :size="26" /></view>
+          <text class="row-title">帮助与反馈</text>
+          <text class="row-desc">我们随时为你提供帮助</text>
+          <Icon name="chevron-right" tone="faint" :size="24" />
+        </view>
       </view>
     </view>
 
-    <view class="profile-note">{{ isLoggedIn ? '订单与会员信息已绑定当前账号' : '登录后即可点单，订单信息会安全保存' }}</view>
-    <view class="dev-tools" @tap="openBackendSetting" @longpress="onBackendLongPress">
+    <view class="profile-note">
+      {{ isLoggedIn ? '订单与会员信息已绑定当前账号' : '登录后即可点单，订单信息会安全保存' }}
+    </view>
+    <view class="dev-tools" hover-class="dev-tools--press" :hover-stay-time="60" @tap="openBackendSetting" @longpress="onBackendLongPress">
       <view class="dev-row">
         <text class="dev-label">后端服务</text>
         <text class="dev-value" :class="backendOk ? 'ok' : 'bad'">
@@ -90,6 +120,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import Icon from '../ui/Icon.vue'
 import { shop, refreshOrders, invalidateCatalog, clearOrderState } from '../../store/index'
 import { currentUser, isLoggedIn, logout } from '../../store/auth'
 import { openPage, showStoreInfo } from '../../utils/navigation'
@@ -199,24 +230,23 @@ defineExpose({ activate })
 <style lang="scss" scoped>
 /* 与其余三个面板统一横向留白与底部预留 */
 .profile-panel {
-  /* 顶部留白与首页面板一致（$sp-6） */
-  padding: $sp-6 $gutter 218rpx;
+  padding: $pad-panel-top $gutter $pad-panel-plain;
   box-sizing: border-box;
 }
 
 /* 小程序端：与首页一致，整体下移避让右上角胶囊按钮 */
 /* #ifdef MP-WEIXIN */
 .profile-panel {
-  padding-top: 116rpx;
+  padding-top: $pad-capsule;
 }
 /* #endif */
 
+/* ---- 账号行 ---- */
 .profile-hero {
   display: flex;
   min-width: 0;
   align-items: center;
   gap: $sp-4;
-  /* 顶部归零：面板容器已统一 $sp-6 顶部留白，避免双重叠加 */
   padding: 0 0 $sp-4;
 }
 
@@ -229,10 +259,13 @@ defineExpose({ activate })
   justify-content: center;
   border: 2rpx solid $c-gold-line;
   border-radius: 50%;
+  background: linear-gradient(145deg, $c-dark-soft, $c-dark);
+}
+
+.avatar-text {
   color: $c-gold-on-dark;
-  background: linear-gradient(145deg, #29261d, #11110f);
   font-family: $font-display;
-  font-size: 46rpx;
+  font-size: $fs-h2;
 }
 
 .profile-identity {
@@ -240,7 +273,7 @@ defineExpose({ activate })
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: $sp-1;
+  gap: $sp-0;
 }
 
 .profile-name {
@@ -250,14 +283,12 @@ defineExpose({ activate })
 }
 
 .profile-caption {
-  overflow: hidden;
   color: $c-ink-muted;
-  font-size: 22rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: $fs-micro;
+  @include ellipsis;
 }
 
-/* 登录/退出入口：触控高度提到 88rpx（原 ~60rpx，太小） */
+/* 登录/退出入口：触控高度 88rpx（44px） */
 .guest-badge {
   display: flex;
   flex: 0 0 auto;
@@ -267,16 +298,13 @@ defineExpose({ activate })
   padding: 0 $sp-4;
   border: 1rpx solid $c-gold-line;
   border-radius: $r-pill;
-  color: $c-gold-text;
   background: $c-gold-soft;
-  font-size: 22rpx;
-  transition: transform $dur-fast ease, box-shadow 200ms ease;
+  color: $c-gold-text;
+  font-size: $fs-micro;
+  transition: transform $dur-instant $ease-out, box-shadow $dur-fast ease;
 }
 
-.guest-badge:active {
-  transform: scale(0.96);
-}
-
+/* ---- 会员入口卡 ---- */
 .member-card {
   position: relative;
   display: flex;
@@ -285,10 +313,14 @@ defineExpose({ activate })
   overflow: hidden;
   padding: $sp-5 $sp-6;
   border: 1rpx solid $c-gold-line;
-  border-radius: $r-md;
-  color: #f0e6c8;
-  background: radial-gradient(circle at 90% 10%, #3c3421 0, transparent 38%),
-    linear-gradient(120deg, #11110f, #252218);
+  border-radius: $r-lg;
+  background: radial-gradient(circle at 90% 10%, $c-dark-glint 0, transparent 38%),
+    linear-gradient(120deg, $c-dark, $c-dark-2);
+  transition: transform $dur-instant $ease-out, border-color $dur-fast ease;
+}
+
+.member-card--press {
+  transform: scale(0.985);
 }
 
 .member-card-copy {
@@ -301,9 +333,8 @@ defineExpose({ activate })
 }
 
 .member-kicker {
-  color: #cdaa53;
-  font-size: 20rpx;
-  letter-spacing: $ls-wide;
+  @include caps;
+  color: $c-gold-on-dark;
 }
 
 .member-title {
@@ -313,105 +344,57 @@ defineExpose({ activate })
 }
 
 .member-link {
+  display: flex;
+  align-items: center;
+  gap: $sp-0;
   color: $c-gold-on-dark;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
+/* 底纹星标：极低不透明度，纯氛围 */
 .member-mark {
   position: absolute;
-  right: 25rpx;
-  z-index: 1;
-  color: rgba(212, 173, 47, 0.2);
-  font-size: 125rpx;
+  right: 36rpx;
+  opacity: 0.22;
+  pointer-events: none;
 }
 
+/* ---- 订单概览 ---- */
 .orders-card,
 .service-card {
   margin-top: $sp-4;
   padding: $sp-5;
   border: 1rpx solid $c-border;
-  border-radius: $r-md;
+  border-radius: $r-lg;
   background: $c-surface;
   box-shadow: $sh-1;
 }
 
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $sp-3;
-  color: $c-ink-strong;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-/* 「全部订单 ›」是入口，给足可点高度 */
 .all-orders {
   display: flex;
   align-items: center;
+  gap: $sp-0;
   min-height: $tap-min;
   padding-left: $sp-3;
   color: $c-ink-muted;
-  font-size: 22rpx;
+  font-size: $fs-micro;
   font-weight: 400;
 }
 
-/* 箭头「›」字号比文字大一号（原 .all-orders text，组件 wxss 不允许标签名选择器） */
-.all-orders-arrow {
-  margin-left: 4rpx;
-  font-size: 30rpx;
-  line-height: 1;
+/* 卡片内的统计格去掉自身的描边与阴影：外层卡已经有了一层，叠起来是双线 */
+.orders-card .stat-grid {
+  padding: 0;
+  margin-top: $sp-1;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-.order-summary {
-  display: flex;
-  align-items: stretch;
-  margin-top: $sp-3;
+.all-orders--press {
+  opacity: 0.6;
 }
 
-.order-stat {
-  display: flex;
-  min-width: 0;
-  min-height: $tap-min;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: $sp-1;
-  border-radius: $r-sm;
-  transition: background-color $dur-fast ease;
-}
-
-.order-stat-value {
-  color: $c-ink-strong;
-  font-size: $fs-title;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.order-stat-icon {
-  display: flex;
-  height: 45rpx;
-  align-items: center;
-  color: $c-gold-display;
-  font-size: 34rpx;
-  line-height: 1;
-}
-
-.order-stat-label {
-  color: $c-ink-muted;
-  font-size: 22rpx;
-}
-
-.order-stat-divider {
-  width: 1rpx;
-  height: 55rpx;
-  align-self: center;
-  background: $c-divider;
-}
-
-.latest-order,
-.order-empty {
+.latest-order {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -419,93 +402,54 @@ defineExpose({ activate })
   min-height: $tap-min;
   margin-top: $sp-4;
   padding: $sp-2 $sp-4;
-  border-radius: $r-sm;
+  border-radius: $r-md;
   background: $c-surface-2;
+  color: $c-ink-muted;
+  font-size: $fs-micro;
+  transition: background-color $dur-fast ease;
+}
+
+.latest-order--press {
+  background: $c-surface-3;
 }
 
 .latest-order-label {
   display: block;
   color: $c-ink-subtle;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
 .latest-order-number {
   display: block;
   margin-top: 2rpx;
   font-family: $font-display;
-  font-size: 34rpx;
+  font-size: $fs-title;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  @include numeric;
 }
 
 .latest-order-status {
+  display: flex;
+  align-items: center;
+  gap: $sp-0;
   color: $c-ink-muted;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
-.order-empty {
-  color: $c-ink-muted;
-  font-size: 22rpx;
-}
-
+/* ---- 常用服务 ---- */
 .service-heading {
   margin-bottom: $sp-1;
 }
 
-.service-row {
-  display: flex;
-  min-height: $tap-min;
-  align-items: center;
-  gap: $sp-3;
-  border-top: 1rpx solid $c-divider;
-  transition: background-color $dur-fast ease;
-}
-
-.service-icon {
-  display: flex;
-  width: 44rpx;
-  height: 44rpx;
-  flex: 0 0 44rpx;
-  align-items: center;
-  justify-content: center;
-  border-radius: $r-xs;
-  color: $c-ink-muted;
+.row-item--press {
   background: $c-surface-2;
-  font-size: 28rpx;
 }
 
-.service-icon.gold {
-  color: $c-gold-text;
-  background: $c-gold-soft;
-}
-
-.service-title {
-  flex: 0 0 auto;
-  color: $c-ink;
-  font-size: 26rpx;
-}
-
-.service-description {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: $c-ink-muted;
-  font-size: 22rpx;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.service-arrow {
-  flex: 0 0 auto;
-  color: $c-ink-faint;
-  font-size: 30rpx;
-}
-
+/* ---- 脚注与调试入口 ---- */
 .profile-note {
   padding: $sp-5 0 $sp-1;
   color: $c-ink-muted;
-  font-size: 22rpx;
+  font-size: $fs-micro;
   text-align: center;
 }
 
@@ -519,6 +463,11 @@ defineExpose({ activate })
   border: 1rpx dashed $c-border-strong;
   border-radius: $r-md;
   background: $c-surface-2;
+  transition: background-color $dur-fast ease;
+}
+
+.dev-tools--press {
+  background: $c-surface-3;
 }
 
 .dev-row {
@@ -530,11 +479,11 @@ defineExpose({ activate })
 
 .dev-label {
   color: $c-ink-muted;
-  font-size: 24rpx;
+  font-size: $fs-caption;
 }
 
 .dev-value {
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
 .dev-value.ok {
@@ -550,17 +499,16 @@ defineExpose({ activate })
   display: block;
   margin-top: $sp-1;
   color: $c-ink-subtle;
-  font-size: 22rpx;
+  font-size: $fs-micro;
   word-break: break-all;
 }
 
 /* ---- 交互态 ---- */
 /* #ifdef H5 */
-.order-stat:hover,
-.service-row:hover,
+.stat-cell:hover,
+.row-item:hover,
 .all-orders:hover,
-.latest-order:hover,
-.order-empty:hover {
+.latest-order:hover {
   background: $c-surface-2;
 }
 
@@ -568,12 +516,6 @@ defineExpose({ activate })
   border-color: $c-gold;
 }
 /* #endif */
-
-.service-row:active,
-.latest-order:active,
-.order-empty:active {
-  background: $c-surface-3;
-}
 
 @media (max-width: 340px) {
   .profile-panel {
@@ -594,10 +536,9 @@ defineExpose({ activate })
   .guest-badge {
     padding-right: $sp-3;
     padding-left: $sp-3;
-    font-size: 20rpx;
   }
 
-  .service-row {
+  .row-item {
     gap: $sp-2;
   }
 }

@@ -1,17 +1,22 @@
 <template>
   <view class="ui-input-wrapper">
     <text v-if="label" class="ui-input-label">{{ label }}</text>
-    <input
-      v-model="localValue"
-      class="ui-input"
-      :type="masked ? 'text' : type"
-      :password="masked"
-      :maxlength="maxlength"
-      :placeholder="placeholder"
-      @input="handleInput"
-      @blur="handleBlur"
-    />
-    <text v-if="error" class="ui-input-error">{{ error }}</text>
+    <view :class="['ui-input-shell', { 'is-focus': focused, 'is-error': !!error }]">
+      <input
+        v-model="localValue"
+        class="ui-input"
+        :type="masked ? 'text' : type"
+        :password="masked"
+        :maxlength="maxlength"
+        :placeholder="placeholder"
+        placeholder-class="ui-input-placeholder"
+        @input="handleInput"
+        @focus="focused = true"
+        @blur="handleBlur"
+      />
+    </view>
+    <!-- 错误文案占位：无错误时保留高度，避免报错瞬间整页跳动 -->
+    <text class="ui-input-error">{{ error || ' ' }}</text>
   </view>
 </template>
 
@@ -52,6 +57,7 @@ const emit = defineEmits(['update:modelValue', 'blur'])
 const masked = computed(() => props.type === 'password')
 
 const localValue = ref(props.modelValue)
+const focused = ref(false)
 
 watch(() => props.modelValue, (newValue) => {
   localValue.value = newValue
@@ -62,45 +68,63 @@ const handleInput = () => {
 }
 
 const handleBlur = () => {
+  focused.value = false
   emit('blur', localValue.value)
 }
 </script>
 
 <style lang="scss" scoped>
 .ui-input-wrapper {
-  margin-bottom: $sp-5;
+  margin-bottom: $sp-4;
 }
 
 .ui-input-label {
   display: block;
   margin-bottom: $sp-2;
   color: $c-ink-muted;
-  font-size: 24rpx;
+  font-size: $fs-caption;
+  letter-spacing: $ls-normal;
+}
+
+/* 外壳负责描边与光晕，input 自己只负责文字：
+   小程序 input 的 border 在聚焦/失焦切换上不稳定，改由外层 class 控制更可靠。 */
+.ui-input-shell {
+  border: 1rpx solid $c-border-strong;
+  border-radius: $r-md;
+  background: $c-surface;
+  transition: border-color $dur-fast ease, box-shadow $dur-fast ease,
+    background-color $dur-fast ease;
+}
+
+.ui-input-shell.is-focus {
+  border-color: $c-gold-line;
+  box-shadow: 0 0 0 4rpx $c-focus-ring;
+  background: $c-surface;
+}
+
+.ui-input-shell.is-error {
+  border-color: $c-danger;
 }
 
 .ui-input {
   width: 100%;
   height: 96rpx;
   padding: 0 $sp-4;
-  border: 1rpx solid $c-border-strong;
-  border-radius: $r-md;
-  background: $c-surface;
+  background: transparent;
   color: $c-ink-strong;
-  font-size: 26rpx;
-  transition: border-color 200ms ease, box-shadow 200ms ease;
+  font-size: $fs-body-sm;
+}
+
+.ui-input-placeholder {
+  color: $c-ink-faint;
 }
 
 .ui-input-error {
   display: block;
-  margin-top: $sp-2;
+  min-height: $fs-micro * $lh-body;
+  margin-top: $sp-1;
   color: $c-danger;
-  font-size: 22rpx;
+  font-size: $fs-micro;
+  line-height: $lh-body;
 }
-
-/* #ifdef H5 */
-.ui-input:focus {
-  border-color: $c-gold-line !important;
-  box-shadow: 0 0 0 4rpx rgba(185, 151, 55, 0.18);
-}
-/* #endif */
 </style>

@@ -1,0 +1,36 @@
+{
+  "_comment": "统一图标清单：母版在 scripts/icons/*.svg（24 网格 / 1.6 线宽 / 圆头圆角）。tones 声明该图标需要生成哪几种色版，scripts/generate-icons.cjs 依此产出 static/icons/<name>-<tone>.png；components/ui/Icon.vue 按同一份清单解析资源路径。新增图标必须同时补母版、补色版、再跑 npm run assets:icons。",
+  "grid": 24,
+  "strokeWidth": 1.6,
+  "outputWidth": 128,
+  "tones": {
+    "ink": "#26231b",
+    "muted": "#5b564a",
+    "faint": "#8a8477",
+    "gold": "#8a6a14",
+    "gold-on-dark": "#e9d191",
+    "decor": "#d9cba6"
+  },
+  "icons": {
+    "arrow-left": ["ink"],
+    "arrow-up-right": ["gold", "gold-on-dark"],
+    "calendar": ["gold"],
+    "check": ["gold", "gold-on-dark"],
+    "chevron-right": ["faint", "muted", "gold", "gold-on-dark"],
+    "close": ["muted", "ink"],
+    "cup": ["decor", "gold"],
+    "gift": ["gold"],
+    "help": ["gold", "muted"],
+    "home": ["muted", "gold-on-dark"],
+    "minus": ["ink"],
+    "percent": ["gold"],
+    "pin": ["ink", "gold"],
+    "plus": ["ink", "gold-on-dark"],
+    "receipt": ["muted", "gold-on-dark"],
+    "sparkle": ["gold", "gold-on-dark", "decor", "muted"],
+    "store": ["gold", "muted"],
+    "user": ["muted", "gold-on-dark"],
+    "wallet": ["ink"],
+    "wifi": ["ink"]
+  }
+}

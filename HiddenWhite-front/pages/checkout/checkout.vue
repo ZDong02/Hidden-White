@@ -3,11 +3,11 @@
     <PhoneHeader title="确认订单" />
 
     <view class="checkout-body">
-      <!-- 自提信息卡片 - 使用新的 Card 组件 -->
-      <Card variant="default" class="pickup-card">
+      <!-- 自提信息卡片 -->
+      <Card variant="sunken" class="pickup-card reveal">
         <view class="pickup-heading">
-          <text class="muted">到店自提</text>
-          <text>预计 {{ readyTime }} 可取</text>
+          <text class="muted pickup-label">到店自提</text>
+          <text class="pickup-time">预计 {{ readyTime }} 可取</text>
         </view>
         <StoreLine />
         <text class="address muted">{{ storeAddress }}</text>
@@ -18,50 +18,57 @@
       </Card>
 
       <!-- 商品列表 -->
-      <text class="section-title">本次甄选</text>
+      <text class="section-title reveal reveal-1">本次甄选</text>
       <view v-for="(item, index) in shop.cart" :key="index" class="checkout-item">
         <OrderItem :item="item" />
       </view>
 
       <!-- 账单明细 -->
-      <view class="bill">
+      <view class="bill reveal reveal-2">
         <view class="bill-row">
           <text class="muted">商品金额</text>
-          <text class="gold">¥{{ displaySubtotal }}</text>
+          <text class="gold num">¥{{ displaySubtotal }}</text>
         </view>
-        <view class="bill-row gold" @tap="showOffer">
-          <text>会员礼遇</text>
-          <view>
-            {{ displayDiscount ? `首单礼遇 −¥${displayDiscount}` : '暂无可用优惠' }}
-            <text class="bill-arrow">›</text>
+        <view class="bill-row bill-row--action" hover-class="bill-row--press" :hover-stay-time="60" @tap="showOffer">
+          <text class="gold">会员礼遇</text>
+          <view class="bill-value">
+            <text class="gold">
+              {{ displayDiscount ? `首单礼遇 −¥${displayDiscount}` : '暂无可用优惠' }}
+            </text>
+            <Icon name="chevron-right" tone="gold" :size="22" />
           </view>
         </view>
         <view class="bill-row">
           <text class="muted">包装费</text>
-          <text class="gold">¥{{ displayPackagingFee }}</text>
+          <text class="gold num">¥{{ displayPackagingFee }}</text>
         </view>
         <view class="bill-row sum-row">
           <text class="muted">合计</text>
-          <text class="gold">¥{{ displayTotal }}</text>
+          <text class="gold sum-value num">¥{{ displayTotal }}</text>
         </view>
       </view>
 
       <!-- 支付方式 -->
-      <view class="payment">
+      <view class="payment reveal reveal-3">
         <view class="wallet-icon">
-          <image class="wallet-icon-image" :src="walletIcon" />
+          <Icon name="wallet" tone="ink" :size="34" />
         </view>
-        <view>
+        <view class="payment-copy">
           <text class="payment-name">微信支付 · 演示</text>
           <text class="muted payment-caption">当前为体验下单，不会实际扣款</text>
         </view>
-        <text class="checked gold">✓</text>
+        <view class="checked">
+          <Icon name="check" tone="gold" :size="24" />
+        </view>
       </view>
 
       <!-- 订单备注 -->
-      <view class="note-row" @tap="editNote">
+      <view class="note-row" hover-class="note-row--press" :hover-stay-time="60" @tap="editNote">
         <text class="muted">订单备注</text>
-        <view>{{ shop.note || '无需餐具' }} <text class="note-arrow">›</text></view>
+        <view class="note-value">
+          <text>{{ shop.note || '无需餐具' }}</text>
+          <Icon name="chevron-right" tone="faint" :size="22" />
+        </view>
       </view>
     </view>
 
@@ -69,9 +76,8 @@
     <view class="bottom-fixed checkout-footer">
       <view class="checkout-total">
         <text class="muted">共 {{ count }} 杯 · 实付</text>
-        <text class="gold">¥{{ displayTotal }}</text>
+        <text class="gold checkout-amount num">¥{{ displayTotal }}</text>
       </view>
-      <!-- 使用新的 Button 组件 -->
       <UiButton
         variant="primary"
         :disabled="!count || submitting"
@@ -94,8 +100,9 @@ import StoreLine from '../../components/StoreLine.vue'
 import OrderItem from '../../components/OrderItem.vue'
 import Card from '../../components/ui/Card.vue'
 import UiButton from '../../components/ui/Button.vue'
+import Icon from '../../components/ui/Icon.vue'
 import { shop, count, subtotal, total, discount, createOrder, quoteCart } from '../../store/index'
-import { STORE, BUSINESS, IMAGES } from '../../config/constants'
+import { STORE, BUSINESS } from '../../config/constants'
 import { calculateReadyTime } from '../../utils/datetime'
 import { openPage, replacePage } from '../../utils/navigation'
 import { isLoggedIn } from '../../store/auth'
@@ -109,7 +116,6 @@ const displayTotal = ref(total.value)
 
 const storeAddress = STORE.address
 const readyTime = calculateReadyTime(BUSINESS.preparationTime)
-const walletIcon = IMAGES.icons.wallet
 
 onShow(async () => {
   if (!isLoggedIn.value) {
@@ -193,47 +199,58 @@ async function submit() {
 
 <style lang="scss" scoped>
 .checkout-screen {
-  padding-bottom: 330rpx;
+  padding-bottom: $pad-page-checkout;
 }
 
 .checkout-body {
-  padding: $sp-6 $gutter 0;
+  padding: $pad-panel-top $gutter 0;
 }
 
 .pickup-card {
   margin-bottom: $sp-7;
-  background: $c-surface-2;
 }
 
 .pickup-heading {
   display: flex;
   justify-content: space-between;
   gap: $sp-4;
-  font-size: 24rpx;
-  margin-bottom: $sp-6;
+  margin-bottom: $sp-4;
+  font-size: $fs-caption;
+}
+
+.pickup-label {
+  letter-spacing: $ls-normal;
+}
+
+.pickup-time {
+  color: $c-ink-strong;
+  font-weight: 600;
 }
 
 .address {
   display: block;
-  font-size: 24rpx;
-  margin-top: $sp-5;
+  margin-top: $sp-2;
+  font-size: $fs-caption;
 }
 
 .recipient {
   display: flex;
   justify-content: space-between;
   gap: $sp-4;
-  margin-top: $sp-6;
-  font-size: 26rpx;
+  margin-top: $sp-5;
+  padding-top: $sp-4;
+  border-top: 1rpx solid $c-border;
+  font-size: $fs-body-sm;
 }
 
 .checkout-item {
   margin-bottom: $sp-5;
 }
 
+/* ---- 账单 ---- */
 .bill {
   margin-top: $sp-7;
-  padding: $sp-4 0 $sp-5;
+  padding: $sp-2 0 $sp-4;
   border-top: 1rpx solid $c-divider;
   border-bottom: 1rpx solid $c-divider;
 }
@@ -244,26 +261,36 @@ async function submit() {
   align-items: center;
   gap: $sp-4;
   min-height: $tap-min;
-  padding: $sp-4 0;
-  font-size: 26rpx;
+  font-size: $fs-body-sm;
+  transition: background-color $dur-fast ease;
 }
 
-.bill-arrow {
-  font-size: 36rpx;
-  color: $c-ink-faint;
-  margin-left: $sp-4;
+.bill-row--action {
+  margin: 0 (-$sp-3);
+  padding: 0 $sp-3;
+  border-radius: $r-sm;
+}
+
+.bill-row--press {
+  background: $c-surface-2;
+}
+
+.bill-value {
+  display: flex;
+  align-items: center;
+  gap: $sp-0;
 }
 
 .sum-row {
   min-height: 62rpx;
 }
 
-.sum-row .gold {
+.sum-value {
   font-size: $fs-title-lg;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
+/* ---- 支付方式 ---- */
 .payment {
   display: flex;
   align-items: center;
@@ -273,64 +300,70 @@ async function submit() {
 }
 
 .wallet-icon {
+  display: flex;
   width: 64rpx;
   height: 64rpx;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
   border-radius: $r-xs;
   background: $c-surface-2;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-shrink: 0;
 }
 
-/* 支付图标尺寸（原 .wallet-icon image，组件/页面均改用 class） */
-.wallet-icon-image {
-  width: 38rpx;
-  height: 38rpx;
+.payment-copy {
+  min-width: 0;
+  flex: 1;
 }
 
 .payment-name {
   display: block;
-  font-size: 26rpx;
   color: $c-ink-strong;
+  font-size: $fs-body-sm;
 }
 
 .payment-caption {
   display: block;
-  font-size: 22rpx;
-  margin-top: $sp-1;
+  margin-top: $sp-0;
+  font-size: $fs-micro;
 }
 
+/* 已选标记：浅金圆底 + 金色对勾，与选项按钮的选中态同一套语言 */
 .checked {
-  margin-left: auto;
   display: flex;
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 36rpx;
-  height: 36rpx;
-  border: 3rpx solid $c-gold-line;
   border-radius: 50%;
-  color: $c-gold-text;
-  font-size: 26rpx;
-  line-height: 1;
+  background: $c-gold-soft;
+  animation: number-pop 320ms $ease-out both;
 }
 
+/* ---- 备注 ---- */
 .note-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: $sp-4;
-  font-size: 26rpx;
   min-height: $tap-min;
-  padding: $sp-5 0 $sp-6;
+  padding: $sp-4 0 $sp-6;
+  font-size: $fs-body-sm;
+  transition: opacity $dur-fast ease;
 }
 
-/* 备注行右侧的箭头（原 .note-row view text） */
-.note-arrow {
-  font-size: 30rpx;
-  color: $c-ink-faint;
+.note-row--press {
+  opacity: 0.6;
 }
 
+.note-value {
+  display: flex;
+  align-items: center;
+  gap: $sp-1;
+  color: $c-ink;
+}
+
+/* ---- 底栏 ---- */
 .checkout-footer {
   border-top: 1rpx solid $c-divider;
   padding: $sp-4 $gutter 0;
@@ -341,18 +374,17 @@ async function submit() {
   justify-content: space-between;
   align-items: center;
   margin-bottom: $sp-3;
-  font-size: 24rpx;
+  font-size: $fs-caption;
 }
 
-.checkout-total .gold {
+.checkout-amount {
   font-size: $fs-h2;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
 /* #ifdef H5 */
-.note-row:hover .note-arrow {
-  color: $c-ink;
+.bill-row--action:hover {
+  background: $c-surface-2;
 }
 /* #endif */
 </style>

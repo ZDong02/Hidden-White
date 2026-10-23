@@ -6,7 +6,7 @@
     <swiper
       class="tab-swiper"
       :current="activeIndex"
-      :duration="320"
+      :duration="300"
       easing-function="easeOutCubic"
       @change="onSwiperChange"
     >
@@ -27,11 +27,12 @@
     <!-- 底部固定区：随 Tab 变化的业务条 + 分段控件 + Home Indicator -->
     <view class="bottom-fixed shell-footer">
       <view v-if="activeTab === 'home'" class="cart-bar">
-        <view @tap="bagOpen = true">
-          <text class="cart-caption muted">已选 {{ count }} 杯 · 门店自提</text>
-          <text class="cart-total gold">¥{{ subtotal }}</text>
+        <view class="cart-copy" @tap="bagOpen = true">
+          <text class="cart-caption muted">
+            已选 <text :key="count" class="cart-count">{{ count }}</text> 杯 · 门店自提
+          </text>
+          <text class="cart-total gold">{{ subtotal }}</text>
         </view>
-        <!-- 使用新的 Button 组件 -->
         <UiButton
           variant="primary"
           :disabled="!count"
@@ -53,7 +54,7 @@
           已支付订单不给这个选项——钱已到账，取消须走退款流程，前端直接放行会造成资损。
         -->
         <view v-if="order.status !== 'in-progress'" class="order-cancel-row">
-          <text class="order-cancel-link" @tap="confirmCancelOrder">取消订单</text>
+          <text class="order-cancel-link" hover-class="order-cancel-link--press" :hover-stay-time="60" @tap="confirmCancelOrder">取消订单</text>
         </view>
       </template>
 
@@ -61,15 +62,18 @@
       <HomeIndicator />
     </view>
 
-    <!-- 购物袋弹窗 - 使用新的 Modal 组件 -->
+    <!-- 购物袋弹窗 -->
     <Modal v-model:visible="bagOpen" title="购物袋" :mask-closable="true">
-      <view v-for="(item, index) in shop.cart" :key="`${item.id}-${item.size}-${item.temperature}-${item.milk}`" class="bag-item">
-        <view>
+      <view
+        v-for="(item, index) in shop.cart"
+        :key="`${item.id}-${item.size}-${item.temperature}-${item.milk}`"
+        class="bag-item"
+      >
+        <view class="bag-copy">
           <text class="product-name">{{ item.name }}</text>
           <text class="muted specs">{{ item.size }} · {{ item.temperature }} · {{ item.milk }}</text>
-          <text class="gold">¥{{ item.unitPrice * item.quantity }}</text>
+          <text class="gold bag-price num">¥{{ item.unitPrice * item.quantity }}</text>
         </view>
-        <!-- 使用新的 Stepper 组件 -->
         <Stepper
           :value="item.quantity"
           :min="0"
@@ -77,7 +81,10 @@
         />
       </view>
 
-      <text v-if="!count" class="muted empty-hint">购物袋还是空的，选一杯喜欢的咖啡吧。</text>
+      <view v-if="!count" class="bag-empty">
+        <Icon name="cup" tone="decor" :size="52" />
+        <text class="muted bag-empty-text">购物袋还是空的，选一杯喜欢的咖啡吧。</text>
+      </view>
 
       <template #footer>
         <UiButton
@@ -100,16 +107,26 @@
       <view class="voucher" @tap.stop>
         <view class="voucher-heading">
           <text>取餐凭证</text>
-          <text class="sheet-close" hover-class="sheet-close--press" @tap="voucherOpen = false">×</text>
+          <view
+            class="voucher-close"
+            aria-label="关闭"
+            hover-class="voucher-close--press"
+            :hover-stay-time="60"
+            @tap="voucherOpen = false"
+          >
+            <Icon name="close" tone="muted" :size="30" />
+          </view>
         </view>
         <text class="voucher-brand">隐白</text>
-        <text class="muted">{{ storeName }}</text>
+        <text class="muted voucher-store">{{ storeName }}</text>
         <text class="voucher-number gold">{{ order.pickup }}</text>
         <text>共 {{ order.count }} 杯 · 到店自提</text>
         <text class="muted voucher-hint">请向咖啡师出示此取餐号</text>
-        <UiButton variant="primary" @tap="voucherOpen = false" style="width: 100%; margin-top: 24rpx;">
-          收好凭证
-        </UiButton>
+        <view class="voucher-action">
+          <UiButton variant="primary" @tap="voucherOpen = false" style="width: 100%;">
+            收好凭证
+          </UiButton>
+        </view>
       </view>
     </view>
   </view>
@@ -129,6 +146,7 @@ import Modal from '../../components/ui/Modal.vue'
 import Stepper from '../../components/ui/Stepper.vue'
 import UiButton from '../../components/ui/Button.vue'
 import SlideConfirm from '../../components/ui/SlideConfirm.vue'
+import Icon from '../../components/ui/Icon.vue'
 import { shop, count, subtotal, saveCart, completeOrder, cancelOrder, storeInfo } from '../../store/index'
 import { STORE } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
@@ -240,7 +258,8 @@ function confirmCancelOrder() {
     content: '确定要取消这笔订单吗？取消后可以重新下单。',
     confirmText: '确定取消',
     cancelText: '再想想',
-    confirmColor: '#8a6a4a',
+    // 原生 modal 只接受字符串色值，这里等于设计令牌 $c-gold-text
+    confirmColor: '#8a6a14',
     success: async ({ confirm }) => {
       if (!confirm) return
       try {
@@ -282,60 +301,94 @@ function confirmCancelOrder() {
   box-shadow: none;
 }
 
+/* ---- 购物车条 ---- */
+/* 切到首页时轻微上浮入场：底栏是固定层，直接出现会有「闪一块」的跳变感 */
 .cart-bar {
-  /* 水平 40rpx 与底部分段胶囊对齐，两栏边缘一致；垂直放大增加呼吸感 */
-  padding: $sp-3 40rpx $sp-3;
+  padding: $sp-3 $gutter $sp-3;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: $sp-4;
+  animation: bar-in $dur-base $ease-out both;
+}
+
+@keyframes bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(16rpx);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cart-copy {
+  display: block;
+  min-width: 0;
 }
 
 .cart-caption {
   display: block;
-  font-size: 22rpx;
+  font-size: $fs-micro;
+}
+
+/* 数量变化时跳一下：让「加了/减了」在底栏也有反馈 */
+.cart-count {
+  display: inline-block;
+  color: $c-ink;
+  font-weight: 600;
+  animation: number-pop $dur-fast $ease-out both;
 }
 
 .cart-total {
   display: block;
+  margin-top: $sp-0;
   font-size: $fs-h2;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: $ls-tight;
-  font-variant-numeric: tabular-nums;
-  margin-top: 6rpx;
+  @include numeric;
 }
 
+.cart-total::before {
+  content: '¥';
+  margin-right: 2rpx;
+  font-size: $fs-caption;
+}
+
+/* ---- 订单 Tab 的底栏 ---- */
 .order-hint {
   display: block;
   text-align: center;
-  font-size: 22rpx;
-  margin: $sp-2 40rpx 0;
+  font-size: $fs-micro;
+  margin: $sp-2 $gutter 0;
 }
 
-/* 滑动确认胶囊独占整行 */
 .order-footer-actions {
-  margin: $sp-3 40rpx $sp-3;
+  margin: $sp-3 $gutter $sp-3;
 }
 
 /* 取消订单入口：弱化为文字链，避免与滑动确认的主操作争夺视觉权重 */
 .order-cancel-row {
   display: flex;
   justify-content: center;
-  margin: 0 40rpx $sp-3;
+  margin: 0 $gutter $sp-3;
 }
 
 .order-cancel-link {
-  font-size: 26rpx;
-  color: #9a9a9a;
   padding: $sp-2 $sp-4;
+  color: $c-ink-faint;
+  font-size: $fs-body-sm;
+  transition: color $dur-fast ease;
 }
 
-.order-cancel-link:active {
-  color: #6b6b6b;
+.order-cancel-link--press {
+  color: $c-ink-muted;
 }
 
-/* 购物袋内容 */
+/* ---- 购物袋 ---- */
 .bag-item {
   display: flex;
   align-items: center;
@@ -345,45 +398,54 @@ function confirmCancelOrder() {
   border-top: 1rpx solid $c-divider;
 }
 
-.bag-item .gold {
-  display: block;
-  margin-top: $sp-2;
-  font-size: 26rpx;
-  font-variant-numeric: tabular-nums;
+.bag-copy {
+  min-width: 0;
+  flex: 1;
 }
 
-.empty-hint {
+.bag-price {
   display: block;
+  margin-top: $sp-1;
+  font-size: $fs-body-sm;
+}
+
+.bag-empty {
+  display: flex;
+  padding: $sp-6 0;
+  flex-direction: column;
+  align-items: center;
+  gap: $sp-3;
+}
+
+.bag-empty-text {
+  font-size: $fs-caption;
   text-align: center;
-  padding: $sp-5 0;
 }
 
 /* ---- 取餐凭证弹窗（入口在订单面板，弹窗本体在页面层） ---- */
-
 .voucher-mask {
   position: fixed;
   left: 0;
   right: 0;
   top: 0;
   bottom: 0;
-  background: rgba(18, 14, 7, 0.6);
-  z-index: 30;
+  z-index: $z-mask;
   display: flex;
   justify-content: center;
   align-items: center;
   padding: $sp-7;
+  background: $c-scrim;
   animation: modal-enter 200ms ease both;
 }
 
 .voucher {
-  padding: $sp-7 $sp-6 $sp-6;
   width: 100%;
-  background: $c-surface;
+  padding: $sp-7 $sp-6 $sp-6;
   border: 2rpx solid $c-gold-line;
   border-radius: $r-lg;
-  text-align: center;
+  background: $c-surface;
   box-shadow: $sh-3;
-  animation: sheet-enter 240ms $ease-out both;
+  text-align: center;
 }
 
 .voucher-heading {
@@ -391,57 +453,70 @@ function confirmCancelOrder() {
   align-items: center;
   justify-content: space-between;
   gap: $sp-4;
-  font-size: 26rpx;
-  color: $c-ink-muted;
   margin-bottom: $sp-4;
+  color: $c-ink-muted;
+  font-size: $fs-body-sm;
 }
 
-.sheet-close {
+.voucher-close {
   display: flex;
   width: $tap-min;
   height: $tap-min;
   flex: 0 0 $tap-min;
+  margin-right: -$sp-4;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: $c-ink-muted;
-  font-size: 48rpx;
-  line-height: 1;
+  transition: background-color $dur-fast ease, transform $dur-instant $ease-out;
 }
 
-.sheet-close--press {
+.voucher-close--press {
   background: $c-surface-2;
-  color: $c-ink-strong;
+  transform: scale(0.94);
 }
 
 .voucher-brand {
   display: block;
+  margin-top: $sp-3;
+  color: $c-ink-strong;
   font-family: $font-display;
-  font-size: 60rpx;
+  font-size: $fs-h1;
   line-height: $lh-display;
   letter-spacing: $ls-wider;
-  color: $c-ink-strong;
-  margin-top: $sp-3;
+}
+
+.voucher-store {
+  display: block;
+  font-size: $fs-micro;
 }
 
 .voucher-number {
   display: block;
+  margin: $sp-6 0;
   font-family: $font-display;
   font-size: $fs-ticket;
   line-height: 1.1;
   letter-spacing: $ls-tight;
-  font-variant-numeric: tabular-nums;
-  margin: $sp-6 0;
+  @include numeric;
 }
 
 .voucher-hint {
   display: block;
-  font-size: 22rpx;
   margin: $sp-5 0;
+  font-size: $fs-micro;
+}
+
+.voucher-action {
+  display: block;
+  margin-top: $sp-4;
 }
 
 /* #ifdef H5 */
-.sheet-close:hover {
+.cart-copy {
+  cursor: pointer;
+}
+
+.voucher-close:hover {
   background: $c-surface-2;
 }
 

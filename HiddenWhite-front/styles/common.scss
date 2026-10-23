@@ -2,8 +2,17 @@
 
 /* ===========================================================================
  * 隐白咖啡 · 全局基础样式（移动优先）
- * 分层：重置 → 排版 → 通用元件 → 状态与动效 → 平台适配
+ * 分层：重置 → 动效语汇 → 排版工具 → 通用元件 → 页面骨架 → 交互状态 → 平台适配
  * 所有色值/尺寸均来自 tokens.scss，此文件内不再出现魔法数字。
+ *
+ * 使用约定（新增页面/组件前先读）：
+ *   1. 卡片、标签、统计格、列表行一律复用本文件的通用元件类，
+ *      不要在各自 scoped 样式里重写一份同值的 border-radius / box-shadow。
+ *   2. 图标只用 components/ui/Icon.vue，不要往 <text> 里塞字形符号。
+ *   3. 可点区域的按压反馈用 hover-class="is-press"（小程序 :active 真机不可靠），
+ *      悬停反馈用 #ifdef H5 隔离。
+ *   4. 入场动效只动 opacity 与 translateY；不要给含 fixed 后代的祖先加 transform，
+ *      否则 fixed 会以该祖先为包含块而错位。
  * ======================================================================== */
 
 /* --------------------------------------------------------------- 1. 重置 */
@@ -36,7 +45,8 @@ button {
   font-weight: inherit;
   line-height: 1.4;
   border-radius: $r-sm;
-  transition: transform $dur-fast ease-out, background-color 200ms ease, color 200ms ease, box-shadow 200ms ease, opacity 200ms ease;
+  transition: transform $dur-instant $ease-out, background-color $dur-fast ease,
+    color $dur-fast ease, box-shadow $dur-fast ease, opacity $dur-fast ease;
 }
 
 button::after {
@@ -51,14 +61,8 @@ button[disabled] {
   opacity: 1;
 }
 
-/* --------------------------------------------------------------- 2. 页面骨架 */
-.screen {
-  min-height: 100vh;
-  background: $c-bg;
-  animation: screen-enter $dur-base ease both;
-}
-
-/* 页面过渡只用透明度：一旦给祖先加 transform，它就会成为 fixed 后代的包含块，
+/* --------------------------------------------------------------- 2. 动效语汇 */
+/* 页面级入场只用透明度：一旦给祖先加 transform，它就会成为 fixed 后代的包含块，
    底部固定栏会跟着内容一起位移。 */
 @keyframes screen-enter {
   from {
@@ -67,6 +71,19 @@ button[disabled] {
 
   to {
     opacity: 1;
+  }
+}
+
+/* 内容块入场：位移幅度控制在 24rpx 内，超过会有「弹出来」的廉价感 */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(24rpx);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -80,10 +97,11 @@ button[disabled] {
   }
 }
 
+/* 自下而上的弹层：起点带一点过冲余量，落定用 $ease-out 收住 */
 @keyframes sheet-enter {
   from {
-    opacity: 0.7;
-    transform: translateY(48rpx);
+    opacity: 0.6;
+    transform: translateY(56rpx);
   }
 
   to {
@@ -95,12 +113,36 @@ button[disabled] {
 @keyframes card-enter {
   from {
     opacity: 0;
-    transform: translateY(14rpx);
+    transform: translateY(16rpx);
   }
 
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* 数字跳变：仅用于「值被替换」的瞬间（步进器、计数变化） */
+@keyframes number-pop {
+  0% {
+    opacity: 0.4;
+    transform: translateY(-6rpx) scale(0.94);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 加载呼吸：只改不透明度，避免在小图标上做 scale 造成边缘抖动 */
+@keyframes breathe {
+  from {
+    opacity: 0.45;
+  }
+
+  to {
+    opacity: 1;
   }
 }
 
@@ -112,6 +154,72 @@ button[disabled] {
   to {
     opacity: 1;
   }
+}
+
+/* 横向掠光：骨架屏专用，靠 transform 位移而不是背景定位，小程序更稳 */
+@keyframes sweep {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+
+  70% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+/* 入场序列工具类：模板里按顺序挂 reveal-1 … reveal-8
+   不用 CSS 变量做延迟——小程序自定义属性继承有版本差异，显式类最稳。 */
+.reveal {
+  animation: reveal-up $dur-slow $ease-out both;
+}
+
+.reveal-1 {
+  animation-delay: 45ms;
+}
+
+.reveal-2 {
+  animation-delay: 90ms;
+}
+
+.reveal-3 {
+  animation-delay: 135ms;
+}
+
+.reveal-4 {
+  animation-delay: 180ms;
+}
+
+.reveal-5 {
+  animation-delay: 225ms;
+}
+
+.reveal-6 {
+  animation-delay: 270ms;
+}
+
+.reveal-7 {
+  animation-delay: 315ms;
+}
+
+.reveal-8 {
+  animation-delay: 360ms;
 }
 
 /* --------------------------------------------------------------- 3. 排版工具类 */
@@ -126,13 +234,22 @@ button[disabled] {
   color: $c-gold-text;
 }
 
+.num {
+  @include numeric;
+}
+
+.caps {
+  @include caps;
+}
+
+/* 区块标题：四个面板与三个页面共用同一套字号/字重/字距 */
 .section-title {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-title;
   font-weight: 600;
   line-height: $lh-tight;
-  letter-spacing: 0.4rpx;
+  letter-spacing: $ls-normal;
   margin-bottom: $sp-5;
 }
 
@@ -141,7 +258,233 @@ button[disabled] {
   background: $c-divider;
 }
 
-/* --------------------------------------------------------------- 4. 手机状态栏 / 底部指示条（H5 预览用视觉外壳） */
+/* --------------------------------------------------------------- 4. 通用元件 */
+/* ---- 4.1 卡片 ---- */
+/* 内容卡统一 $r-lg + $sh-1；同屏相邻卡片不要再混用 $r-md / $r-lg */
+.card {
+  padding: $sp-5;
+  border: 1rpx solid $c-border;
+  border-radius: $r-lg;
+  background: $c-surface;
+  box-shadow: $sh-1;
+}
+
+.card-sunken {
+  padding: $sp-5;
+  border: 1rpx solid $c-border;
+  border-radius: $r-lg;
+  background: $c-surface-2;
+}
+
+/* 深色卡：Banner / 会员卡 / 取餐进度卡同一套底与描边 */
+.card-dark {
+  position: relative;
+  overflow: hidden;
+  border: 2rpx solid $c-gold-line;
+  border-radius: $r-lg;
+  background: linear-gradient(150deg, $c-dark 0%, $c-dark-deep 100%);
+  color: $c-on-dark;
+  box-shadow: $sh-dark;
+}
+
+/* 深色卡右下的金色细环：三张深色卡共用的品牌笔触 */
+.card-dark::after {
+  content: '';
+  position: absolute;
+  right: -70rpx;
+  bottom: -130rpx;
+  width: 300rpx;
+  height: 300rpx;
+  border: 1rpx solid $c-hairline-gold;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.card-dark .gold {
+  color: $c-gold-on-dark;
+}
+
+.card-title {
+  display: block;
+  color: $c-ink-strong;
+  font-size: $fs-title-sm;
+  font-weight: 600;
+  letter-spacing: $ls-normal;
+}
+
+.card-note {
+  display: block;
+  color: $c-ink-muted;
+  font-size: $fs-caption;
+}
+
+/* 卡片内的分区标题行（标题 + 右侧入口） */
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $sp-3;
+  min-height: $tap-min;
+  color: $c-ink-strong;
+  font-size: $fs-body;
+  font-weight: 600;
+}
+
+/* ---- 4.2 标签 / 角标 ---- */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $sp-0;
+  flex-shrink: 0;
+  padding: $sp-0 $sp-2;
+  border: 1rpx solid $c-gold-line;
+  border-radius: $r-pill;
+  background: $c-gold-soft;
+  color: $c-gold-text;
+  font-size: $fs-micro;
+  letter-spacing: 0.5rpx;
+  line-height: 1.5;
+}
+
+.tag-muted {
+  border-color: $c-border-strong;
+  background: $c-surface-2;
+  color: $c-ink-muted;
+}
+
+/* ---- 4.3 统计格（会员概览 / 订单概览共用） ---- */
+.stat-grid {
+  display: flex;
+  align-items: stretch;
+  padding: $sp-1;
+  border: 1rpx solid $c-border;
+  border-radius: $r-lg;
+  background: $c-surface;
+  box-shadow: $sh-1;
+}
+
+.stat-cell {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: $tap-min;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $sp-0;
+  border-radius: $r-md;
+  transition: background-color $dur-fast ease;
+}
+
+.stat-value {
+  color: $c-ink-strong;
+  font-size: $fs-title;
+  font-weight: 600;
+  line-height: 1.2;
+  @include numeric;
+}
+
+.stat-label {
+  max-width: 100%;
+  color: $c-ink-muted;
+  font-size: $fs-micro;
+  @include ellipsis;
+}
+
+.stat-sep {
+  width: 1rpx;
+  height: 56rpx;
+  align-self: center;
+  background: $c-divider;
+}
+
+/* ---- 4.4 列表行（常用服务 / 账单明细共用） ---- */
+.row-list {
+  display: block;
+}
+
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: $sp-3;
+  min-height: $tap-min;
+  border-top: 1rpx solid $c-divider;
+  transition: background-color $dur-fast ease;
+}
+
+.row-icon {
+  display: flex;
+  width: 44rpx;
+  height: 44rpx;
+  flex: 0 0 44rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: $r-xs;
+  background: $c-gold-soft;
+}
+
+.row-icon--muted {
+  background: $c-surface-2;
+}
+
+.row-title {
+  flex: 0 0 auto;
+  color: $c-ink;
+  font-size: $fs-body-sm;
+}
+
+.row-desc {
+  min-width: 0;
+  flex: 1;
+  color: $c-ink-muted;
+  font-size: $fs-micro;
+  text-align: right;
+  @include ellipsis;
+}
+
+.row-arrow {
+  flex: 0 0 auto;
+  margin-right: -$sp-1;
+}
+
+/* ---- 4.5 文本入口（带箭头的次级操作） ---- */
+.entry-link {
+  display: inline-flex;
+  align-items: center;
+  gap: $sp-0;
+  color: $c-gold-text;
+  font-size: $fs-micro;
+  transition: opacity $dur-fast ease;
+}
+
+/* ---- 4.6 骨架屏 ---- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: $r-md;
+  background: $c-surface-3;
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: sweep 1.4s $ease-in-out infinite;
+}
+
+/* --------------------------------------------------------------- 5. 页面骨架 */
+.screen {
+  min-height: 100vh;
+  background: $c-bg;
+  animation: screen-enter $dur-base ease both;
+}
+
+/* 手机状态栏 / 底部指示条（H5 预览用视觉外壳） */
 .status-bar {
   position: relative;
   height: 100rpx;
@@ -168,13 +511,8 @@ button[disabled] {
 .status-right {
   display: flex;
   align-items: center;
-  gap: 10rpx;
+  gap: $sp-1;
   margin-right: -19rpx;
-}
-
-.status-right image {
-  width: 32rpx;
-  height: 28rpx;
 }
 
 .signal {
@@ -254,7 +592,7 @@ button[disabled] {
   background: transparent;
 }
 
-/* --------------------------------------------------------------- 5. 顶部导航（自定义导航栏） */
+/* 顶部导航（自定义导航栏） */
 .page-header {
   position: relative;
   height: 112rpx;
@@ -268,7 +606,7 @@ button[disabled] {
   color: $c-ink-strong;
 }
 
-/* 触控目标从 76rpx 提升到 $tap-min（88rpx = 44px） */
+/* 触控目标 88rpx（44px） */
 .back-button {
   position: absolute;
   left: 20rpx;
@@ -279,40 +617,27 @@ button[disabled] {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: background-color $dur-fast ease, transform $dur-fast ease;
+  transition: background-color $dur-fast ease, transform $dur-instant $ease-out;
 }
 
-.back-button image {
-  width: 40rpx;
-  height: 40rpx;
-}
-
-/* --------------------------------------------------------------- 6. 门店信息行 */
+/* 门店信息行：整行即地图入口 */
 .store-line {
   display: flex;
   align-items: center;
-  gap: $sp-3;
+  gap: $sp-2;
   min-height: $tap-min;
   font-size: $fs-body-sm;
   font-weight: 600;
   color: $c-ink-strong;
+  transition: opacity $dur-fast ease;
 }
 
-.store-line image {
-  width: 38rpx;
-  height: 44rpx;
-  flex-shrink: 0;
-}
-
-.chevron {
+.store-line__chevron {
+  display: flex;
+  align-items: center;
   margin-left: auto;
-  font-size: 44rpx;
-  line-height: 1;
-  font-weight: 400;
-  color: $c-ink-faint;
 }
 
-/* --------------------------------------------------------------- 7. 按钮元件 */
 /* 次按钮：描边样式，文字回到 $c-ink 保证对比度 */
 .outline-button {
   border: 1rpx solid $c-border-strong;
@@ -325,13 +650,15 @@ button[disabled] {
   font-size: $fs-caption;
   font-weight: 500;
   color: $c-ink;
+  transition: background-color $dur-fast ease, border-color $dur-fast ease,
+    transform $dur-instant $ease-out;
 }
 
-/* --------------------------------------------------------------- 8. 订单商品条目（OrderItem 组件） */
+/* 订单商品条目（OrderItem 组件） */
 .order-product {
   border: 1rpx solid $c-border;
   border-radius: $r-lg;
-  padding: $sp-5 $sp-5;
+  padding: $sp-5;
   display: flex;
   align-items: center;
   gap: $sp-5;
@@ -366,15 +693,16 @@ button[disabled] {
   justify-content: space-between;
   font-size: $fs-caption;
   margin-top: $sp-4;
+  @include numeric;
 }
 
-/* --------------------------------------------------------------- 9. 固定底栏与滚动容器 */
+/* 固定底栏与滚动容器 */
 .bottom-fixed {
   position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 10;
+  z-index: $z-footer;
   background: $c-surface;
   box-shadow: 0 -8rpx 28rpx rgba(37, 32, 20, 0.05);
 }
@@ -384,7 +712,13 @@ button[disabled] {
   height: 100%;
 }
 
-/* --------------------------------------------------------------- 10. 交互状态（仅 H5 支持 hover / focus） */
+/* --------------------------------------------------------------- 6. 交互状态 */
+/* 统一的按压反馈：模板里写 hover-class="is-press" */
+.is-press {
+  transform: scale(0.975);
+  opacity: 0.9;
+}
+
 /* #ifdef H5 */
 .screen button:not([disabled]):hover,
 .back-button:hover {
@@ -421,11 +755,11 @@ input {
 
 input:focus {
   border-color: $c-gold-line !important;
-  box-shadow: 0 0 0 4rpx rgba(185, 151, 55, 0.18);
+  box-shadow: 0 0 0 4rpx $c-focus-ring;
 }
 /* #endif */
 
-/* 按压反馈（小程序与 H5 都支持 active） */
+/* 按压反馈（小程序与 H5 都支持 active；小程序端优先用 hover-class） */
 .screen button:not([disabled]):active,
 .back-button:active,
 .store-line:active {
@@ -433,36 +767,40 @@ input:focus {
   opacity: 0.82;
 }
 
-/* --------------------------------------------------------------- 11. 弹层与卡片入场 */
+/* --------------------------------------------------------------- 7. 弹层与卡片入场 */
 .voucher-mask {
   animation: modal-enter 200ms ease both;
 }
 
 .voucher {
-  animation: sheet-enter 240ms $ease-out both;
+  animation: sheet-enter 260ms $ease-out both;
 }
 
+/* 列表项逐个入场：上限 6 个，再多也只是整体同时出现，避免长列表看着像在抽搐 */
 .product-card,
 .history-card,
 .benefit-card,
 .orders-card,
 .service-card {
-  animation: card-enter 350ms ease both;
+  animation: card-enter 380ms $ease-out both;
 }
 
 .product-card:nth-child(2),
-.benefit-card:nth-child(2) {
-  animation-delay: 40ms;
+.benefit-card:nth-child(2),
+.history-card:nth-child(2) {
+  animation-delay: 45ms;
 }
 
 .product-card:nth-child(3),
-.benefit-card:nth-child(3) {
-  animation-delay: 80ms;
+.benefit-card:nth-child(3),
+.history-card:nth-child(3) {
+  animation-delay: 90ms;
 }
 
 .product-card:nth-child(4),
-.benefit-card:nth-child(4) {
-  animation-delay: 120ms;
+.benefit-card:nth-child(4),
+.history-card:nth-child(4) {
+  animation-delay: 135ms;
 }
 
 /* 降级动效：仅 H5 处理。
@@ -482,7 +820,7 @@ input:focus {
 /* #endif */
 
 /* ===========================================================================
- * 12. 平台适配
+ * 8. 平台适配
  * ======================================================================== */
 
 /* ---- H5：把 uni 内置标签的默认样式收敛到本项目体系 ---- */

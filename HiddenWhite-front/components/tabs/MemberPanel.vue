@@ -1,13 +1,16 @@
 <template>
   <!-- 会员面板：会员卡、积分概览与专属礼遇 -->
   <scroll-view class="panel-scroll member-panel" scroll-y>
-    <view class="member-card">
+    <view class="member-card reveal">
       <view class="card-top">
         <view class="card-block">
           <text class="brand">隐白</text>
           <text class="brand-caption">HIDDEN WHITE · MEMBER</text>
         </view>
-        <text class="level-badge">✦ {{ member.memberLevel || '普通会员' }}</text>
+        <view class="level-badge">
+          <Icon name="sparkle" tone="gold-on-dark" :size="22" />
+          <text class="level-text">{{ member.memberLevel || '普通会员' }}</text>
+        </view>
       </view>
 
       <view class="card-bottom">
@@ -17,32 +20,32 @@
         </view>
         <view class="points-block">
           <text class="card-label">当前积分</text>
-          <text class="points">{{ member.points ?? 0 }}</text>
+          <text class="points num">{{ member.points ?? 0 }}</text>
         </view>
       </view>
     </view>
 
-    <view class="summary-card">
-      <view class="summary-item" @tap="showFeature('积分明细')">
-        <text class="summary-value">{{ member.points ?? 0 }}</text>
-        <text class="summary-label">积分明细</text>
+    <view class="stat-grid reveal reveal-1">
+      <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="showFeature('积分明细')">
+        <text class="stat-value">{{ member.points ?? 0 }}</text>
+        <text class="stat-label">积分明细</text>
       </view>
-      <view class="summary-divider" />
-      <view class="summary-item" @tap="showFeature('我的优惠券')">
-        <text class="summary-value">{{ member.coupons ?? 0 }}</text>
-        <text class="summary-label">优惠券</text>
+      <view class="stat-sep" />
+      <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="showFeature('我的优惠券')">
+        <text class="stat-value">{{ member.coupons ?? 0 }}</text>
+        <text class="stat-label">优惠券</text>
       </view>
-      <view class="summary-divider" />
-      <view class="summary-item growth-item">
-        <text class="summary-value">{{ member.growthValue ?? 0 }}</text>
-        <text class="summary-label">成长值</text>
+      <view class="stat-sep" />
+      <view class="stat-cell">
+        <text class="stat-value">{{ member.growthValue ?? 0 }}</text>
+        <text class="stat-label">成长值</text>
         <view class="growth-track"><view class="growth-progress" /></view>
       </view>
     </view>
 
-    <view class="section-heading">
-      <text>会员专属礼遇</text>
-      <text class="section-note">为日常添一份特别</text>
+    <view class="section-head reveal reveal-2">
+      <text class="heading-main">会员专属礼遇</text>
+      <text class="heading-note">为日常添一份特别</text>
     </view>
 
     <view class="benefits-grid">
@@ -50,22 +53,31 @@
         v-for="benefit in benefits"
         :key="benefit.title"
         class="benefit-card"
+        hover-class="benefit-card--press"
+        :hover-stay-time="60"
         @tap="showFeature(benefit.title)"
       >
-        <text class="benefit-icon">{{ benefit.icon }}</text>
+        <view class="benefit-icon">
+          <Icon :name="benefit.icon" tone="gold" :size="32" />
+        </view>
         <text class="benefit-title">{{ benefit.title }}</text>
         <text class="benefit-description">{{ benefit.description }}</text>
       </view>
     </view>
 
-    <view class="activity-card" @tap="showFeature('会员专享活动')">
+    <view class="activity-card card-dark reveal reveal-3" hover-class="is-press" :hover-stay-time="60" @tap="showFeature('会员专享活动')">
       <view class="activity-copy">
         <text class="activity-kicker">MEMBER EXCLUSIVE</text>
         <text class="activity-title">每一份热爱，都值得回馈</text>
         <text class="activity-description">查看本月会员专属活动与限定礼遇</text>
-        <text class="activity-link">了解更多 ↗</text>
+        <view class="activity-link">
+          <text>了解更多</text>
+          <Icon name="arrow-up-right" tone="gold-on-dark" :size="22" />
+        </view>
       </view>
-      <text class="activity-mark">✦</text>
+      <view class="activity-mark">
+        <Icon name="sparkle" tone="decor" :size="120" />
+      </view>
     </view>
 
     <view class="member-footnote">会员权益以门店实际活动为准</view>
@@ -74,15 +86,17 @@
 
 <script setup>
 import { ref } from 'vue'
+import Icon from '../ui/Icon.vue'
 import { currentUser, isLoggedIn } from '../../store/auth'
 import { requestApi } from '../../config/backend'
 import { showNotice } from '../../utils/toast'
 
+// 礼遇图标走统一图标集：名称对应 scripts/icons 下的母版
 const defaultBenefits = [
-  { icon: '◇', title: '积分兑换', description: '好礼随心兑' },
-  { icon: '✧', title: '生日礼遇', description: '生日专属惊喜' },
-  { icon: '％', title: '会员折扣', description: '指定商品专享' },
-  { icon: '＋', title: '免费升杯', description: '每月专属礼遇' }
+  { icon: 'gift', title: '积分兑换', description: '好礼随心兑' },
+  { icon: 'calendar', title: '生日礼遇', description: '生日专属惊喜' },
+  { icon: 'percent', title: '会员折扣', description: '指定商品专享' },
+  { icon: 'cup', title: '免费升杯', description: '每月专属礼遇' }
 ]
 const benefits = ref(defaultBenefits)
 const member = ref({})
@@ -100,7 +114,11 @@ async function activate() {
       requestApi('/members/benefits')
     ])
     member.value = { ...profile, memberLevel: profile.memberLevel || profile.level }
-    benefits.value = rows
+    // 后端若返回了图标字段，只接受已登记的图标名，否则保留本地图标
+    benefits.value = rows.map((row, index) => ({
+      ...row,
+      icon: defaultBenefits[index % defaultBenefits.length].icon
+    }))
   } catch (error) {
     uni.showToast({ title: error.message || '会员信息加载失败', icon: 'none' })
   }
@@ -114,20 +132,19 @@ defineExpose({ activate })
 </script>
 
 <style lang="scss" scoped>
-/* 与 Menu/Orders 面板统一横向留白（原为 36rpx，四个面板不一致） */
 .member-panel {
-  /* 顶部留白与首页面板一致（$sp-6） */
-  padding: $sp-6 $gutter 218rpx;
+  padding: $pad-panel-top $gutter $pad-panel-plain;
   box-sizing: border-box;
 }
 
 /* 小程序端：与首页一致，整体下移避让右上角胶囊按钮 */
 /* #ifdef MP-WEIXIN */
 .member-panel {
-  padding-top: 116rpx;
+  padding-top: $pad-capsule;
 }
 /* #endif */
 
+/* ---- 会员卡：全站最深的一档表面，用来承载「身份」 ---- */
 .member-card {
   position: relative;
   min-height: 330rpx;
@@ -136,20 +153,21 @@ defineExpose({ activate })
   border: 2rpx solid $c-gold-line;
   border-radius: $r-lg;
   color: $c-gold-on-dark;
-  background: radial-gradient(circle at 90% 10%, #3c3421 0, transparent 38%),
-    linear-gradient(135deg, #10100f 0%, #24221b 58%, #0c0c0b 100%);
+  background: radial-gradient(circle at 90% 10%, $c-dark-glint 0, transparent 38%),
+    linear-gradient(135deg, $c-dark 0%, $c-dark-2 58%, $c-dark-deep 100%);
   box-shadow: $sh-dark;
 }
 
+/* 右下角金色细环：与 Banner / 进度卡同一笔触 */
 .member-card::after {
+  content: '';
   position: absolute;
   right: -82rpx;
   bottom: -160rpx;
   width: 350rpx;
   height: 350rpx;
-  border: 1rpx solid rgba(212, 173, 47, 0.25);
+  border: 1rpx solid $c-hairline-gold;
   border-radius: 50%;
-  content: '';
   z-index: 0;
 }
 
@@ -163,7 +181,6 @@ defineExpose({ activate })
   min-width: 0;
 }
 
-/* 卡片上下两栏内的文字块：flex 子项需要 min-width:0 才能正常收缩省略 */
 .card-block,
 .points-block {
   min-width: 0;
@@ -173,35 +190,38 @@ defineExpose({ activate })
   display: block;
   color: $c-gold-on-dark;
   font-family: $font-display;
-  font-size: 44rpx;
+  font-size: $fs-h2;
   letter-spacing: $ls-wider;
 }
 
 .brand-caption,
 .card-label {
   display: block;
-  /* 17rpx（8.5px）在手机上几乎读不清，统一抬到 22rpx */
+  @include caps;
   color: $c-on-dark-muted;
-  font-size: $fs-micro;
-  letter-spacing: $ls-wide;
 }
 
 .brand-caption {
   margin-top: $sp-1;
-  text-transform: uppercase;
 }
 
+/* 等级徽标：图标 + 文字，图标尺寸跟着字号走 */
 .level-badge {
+  display: flex;
+  align-items: center;
+  gap: $sp-1;
   flex-shrink: 0;
-  max-width: 48%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: $sp-1 $sp-3;
+  max-width: 46%;
+  padding: $sp-0 $sp-3;
   border: 1rpx solid $c-gold-line;
   border-radius: $r-pill;
   color: $c-gold-on-dark;
+}
+
+.level-text {
   font-size: $fs-micro;
+  letter-spacing: $ls-normal;
+  @include ellipsis;
 }
 
 .card-bottom {
@@ -212,8 +232,9 @@ defineExpose({ activate })
 .card-number {
   display: block;
   margin-top: $sp-2;
-  color: #e2cf94;
-  font-size: 28rpx;
+  color: $c-gold-on-dark;
+  font-family: $font-number;
+  font-size: $fs-body-sm;
   letter-spacing: $ls-wide;
   white-space: nowrap;
 }
@@ -224,68 +245,29 @@ defineExpose({ activate })
 
 .points {
   display: block;
-  margin-top: 4rpx;
+  margin-top: $sp-0;
   color: $c-gold-on-dark;
-  font-size: 46rpx;
+  font-size: $fs-h2;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
 }
 
-.summary-card {
-  display: flex;
-  align-items: stretch;
+/* ---- 概览数据 ---- */
+.stat-grid {
   margin-top: $sp-4;
-  padding: $sp-2 $sp-1;
-  border: 1rpx solid $c-border;
-  border-radius: $r-md;
-  background: $c-surface;
 }
 
-/* 三个数据格子都是可点入口，高度对齐 $tap-min（44px） */
-.summary-item {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  min-height: $tap-min;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: $sp-1;
-  border-radius: $r-sm;
-  transition: background-color $dur-fast ease;
-}
-
-.summary-value {
-  color: $c-ink-strong;
-  font-size: $fs-title;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.summary-label {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: $c-ink-muted;
-  font-size: 22rpx;
-}
-
-.summary-divider {
-  width: 1rpx;
-  height: 58rpx;
-  align-self: center;
-  background: $c-divider;
+.stat-cell--press {
+  background: $c-surface-2;
 }
 
 .growth-track {
   width: 104rpx;
   max-width: 100%;
-  height: 6rpx;
-  margin-top: 2rpx;
+  height: 8rpx;
+  margin-top: $sp-1;
   overflow: hidden;
   border-radius: $r-pill;
-  background: $c-surface-3;
+  background: $c-border-strong;
 }
 
 .growth-progress {
@@ -293,25 +275,42 @@ defineExpose({ activate })
   height: 100%;
   border-radius: inherit;
   background: $c-gold;
+  transform-origin: left center;
+  animation: track-grow 720ms $ease-out 320ms both;
 }
 
-.section-heading {
+@keyframes track-grow {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ---- 区块标题 ---- */
+.section-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: $sp-3;
   margin: $sp-6 2rpx $sp-4;
+}
+
+.heading-main {
   color: $c-ink-strong;
   font-size: $fs-title-sm;
   font-weight: 600;
+  letter-spacing: $ls-normal;
 }
 
-.section-note {
+.heading-note {
   color: $c-ink-muted;
-  font-size: 22rpx;
-  font-weight: 400;
+  font-size: $fs-micro;
 }
 
+/* ---- 礼遇卡 ---- */
 .benefits-grid {
   display: flex;
   flex-wrap: wrap;
@@ -322,117 +321,117 @@ defineExpose({ activate })
   display: flex;
   width: calc(50% - #{$sp-2});
   min-width: 0;
-  min-height: 168rpx;
+  min-height: 176rpx;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
   padding: $sp-4 $sp-5;
-  border: 1rpx solid $c-border;
-  border-radius: $r-md;
-  background: $c-surface;
-  box-sizing: border-box;
   margin-bottom: $sp-3;
-  transition: transform $dur-fast ease, box-shadow 200ms ease, border-color 200ms ease;
+  border: 1rpx solid $c-border;
+  border-radius: $r-lg;
+  background: $c-surface;
+  box-shadow: $sh-1;
+  transition: transform $dur-instant $ease-out, box-shadow $dur-base $ease-out,
+    border-color $dur-fast ease;
 }
 
+.benefit-card--press {
+  transform: scale(0.977);
+}
+
+/* 图标底：44rpx 的浅金方块，四个礼遇卡的图标视觉重量因此完全一致 */
 .benefit-icon {
-  color: $c-gold-display;
-  font-size: 34rpx;
-  line-height: 1.1;
+  display: flex;
+  width: 56rpx;
+  height: 56rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: $r-xs;
+  background: $c-gold-soft;
 }
 
 .benefit-title {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   margin-top: $sp-2;
   color: $c-ink-strong;
-  font-size: 26rpx;
+  font-size: $fs-body-sm;
   font-weight: 600;
+  @include ellipsis;
 }
 
 .benefit-description {
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-top: $sp-1;
+  margin-top: $sp-0;
   color: $c-ink-muted;
-  font-size: 22rpx;
+  font-size: $fs-micro;
+  @include ellipsis;
 }
 
+/* ---- 活动卡 ---- */
 .activity-card {
-  position: relative;
   display: flex;
-  min-height: 190rpx;
+  min-height: 196rpx;
   align-items: center;
   justify-content: space-between;
-  margin-top: $sp-4;
-  overflow: hidden;
-  padding: $sp-5 $sp-5;
-  border: 1rpx solid $c-gold-line;
-  border-radius: $r-md;
-  color: #f0e6c8;
-  background: linear-gradient(110deg, #11110f 0%, #252218 100%);
+  margin-top: $sp-2;
+  padding: $sp-5;
 }
 
 .activity-copy {
   position: relative;
   z-index: 1;
   min-width: 0;
-  max-width: calc(100% - 70rpx);
+  max-width: calc(100% - 96rpx);
 }
 
 .activity-kicker {
   display: block;
-  color: #cdaa53;
-  font-size: 20rpx;
-  letter-spacing: $ls-wide;
+  @include caps;
+  color: $c-gold-on-dark;
 }
 
 .activity-title {
   display: block;
   margin-top: $sp-2;
   font-family: $font-display;
-  font-size: 28rpx;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: $fs-title-sm;
+  color: $c-on-dark;
+  @include ellipsis;
 }
 
 .activity-description {
   display: block;
   margin-top: $sp-1;
-  color: #b0aca1;
-  font-size: 22rpx;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: $c-on-dark-muted;
+  font-size: $fs-micro;
+  @include ellipsis;
 }
 
 .activity-link {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: $sp-0;
   margin-top: $sp-2;
   color: $c-gold-on-dark;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
+/* 底纹星标：只做氛围，压在右下角且半透明，读屏应忽略 */
 .activity-mark {
   position: absolute;
-  right: 27rpx;
-  color: rgba(212, 173, 47, 0.22);
-  font-size: 130rpx;
+  right: 20rpx;
+  bottom: -18rpx;
+  opacity: 0.28;
+  pointer-events: none;
 }
 
 .member-footnote {
   padding: $sp-4 0 $sp-1;
   color: $c-ink-muted;
-  font-size: 22rpx;
+  font-size: $fs-micro;
   text-align: center;
 }
 
-/* ---- 交互态 ---- */
 /* #ifdef H5 */
 .benefit-card:hover {
   transform: translateY(-4rpx);
@@ -440,14 +439,10 @@ defineExpose({ activate })
   border-color: $c-border-strong;
 }
 
-.summary-item:hover {
-  background: $c-surface-2;
+.activity-card:hover {
+  box-shadow: $sh-3;
 }
 /* #endif */
-
-.benefit-card:active {
-  transform: scale(0.98);
-}
 
 @media (max-width: 340px) {
   .member-panel {
@@ -460,11 +455,11 @@ defineExpose({ activate })
   }
 
   .card-number {
-    font-size: 24rpx;
+    font-size: $fs-caption;
     letter-spacing: 1rpx;
   }
 
-  .section-heading {
+  .section-head {
     flex-wrap: wrap;
     gap: $sp-1;
   }

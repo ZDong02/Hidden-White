@@ -3,59 +3,78 @@
     <PhoneHeader />
 
     <view class="auth-body">
-      <view class="auth-brand">
+      <view class="auth-brand reveal">
         <text class="brand">隐白</text>
+        <text class="brand-rule" />
         <text class="caption">登录后即可点单并查看专属订单</text>
       </view>
 
-      <view class="auth-tabs">
-        <text :class="['auth-tab', { active: mode === 'login' }]" @tap="mode = 'login'">登录</text>
-        <text :class="['auth-tab', { active: mode === 'register' }]" @tap="mode = 'register'">注册</text>
+      <!-- 登录 / 注册：下划线指示条跟着切换滑动，而不是让文字自己换颜色 -->
+      <view class="auth-tabs reveal reveal-1">
+        <view class="auth-tabs-track">
+          <text
+            :class="['auth-tab', { active: mode === 'login' }]"
+            hover-class="auth-tab--press"
+            :hover-stay-time="60"
+            @tap="mode = 'login'"
+          >登录</text>
+          <text
+            :class="['auth-tab', { active: mode === 'register' }]"
+            hover-class="auth-tab--press"
+            :hover-stay-time="60"
+            @tap="mode = 'register'"
+          >注册</text>
+          <view class="auth-tab-indicator" :class="{ 'is-register': mode === 'register' }" />
+        </view>
       </view>
 
-      <!-- 使用新的 Input 组件 -->
-      <UiInput
-        v-model="phone"
-        label="手机号"
-        type="text"
-        :maxlength="20"
-        placeholder="请输入手机号"
-        :error="phoneError"
-        @blur="validatePhoneField"
-      />
+      <view class="auth-form reveal reveal-2">
+        <UiInput
+          v-model="phone"
+          label="手机号"
+          type="text"
+          :maxlength="20"
+          placeholder="请输入手机号"
+          :error="phoneError"
+          @blur="validatePhoneField"
+        />
 
-      <UiInput
-        v-if="mode === 'register'"
-        v-model="displayName"
-        label="昵称"
-        type="text"
-        :maxlength="30"
-        placeholder="请输入昵称"
-        :error="nameError"
-        @blur="validateNameField"
-      />
+        <UiInput
+          v-if="mode === 'register'"
+          v-model="displayName"
+          label="昵称"
+          type="text"
+          :maxlength="30"
+          placeholder="请输入昵称"
+          :error="nameError"
+          @blur="validateNameField"
+        />
 
-      <UiInput
-        v-model="password"
-        label="密码"
-        type="password"
-        :maxlength="30"
-        placeholder="至少 6 位密码"
-        :error="passwordError"
-        @blur="validatePasswordField"
-      />
+        <UiInput
+          v-model="password"
+          label="密码"
+          type="password"
+          :maxlength="30"
+          placeholder="至少 6 位密码"
+          :error="passwordError"
+          @blur="validatePasswordField"
+        />
 
-      <!-- 使用新的 Button 组件 -->
-      <UiButton
-        variant="primary"
-        :disabled="submitting"
-        @tap="submit"
-        style="width: 100%; margin-top: 48rpx;"
-      >
-        {{ submitting ? '请稍候…' : mode === 'login' ? '登录' : '注册并登录' }}
-      </UiButton>
+        <view class="auth-submit">
+          <UiButton
+            variant="primary"
+            :disabled="submitting"
+            style="width: 100%;"
+            @tap="submit"
+          >
+            {{ submitting ? '请稍候…' : mode === 'login' ? '登录' : '注册并登录' }}
+          </UiButton>
+        </view>
+      </view>
 
-      <text class="auth-hint">账号信息由服务端安全保存，登录后可跨设备查看会员资料和订单</text>
+      <text class="auth-hint reveal reveal-3">
+        账号信息由服务端安全保存，登录后可跨设备查看会员资料和订单
+      </text>
     </view>
 
     <HomeIndicator />
@@ -174,11 +193,15 @@ async function submit() {
 
 <style lang="scss" scoped>
 .auth-screen {
+  display: flex;
   min-height: 100vh;
+  flex-direction: column;
   background: $c-bg;
 }
 
+/* 表单区吃掉剩余高度，底部指示条才会贴到屏幕底部，而不是飘在内容末尾 */
 .auth-body {
+  flex: 1 1 auto;
   padding: $sp-8 $gutter $sp-6;
 }
 
@@ -189,22 +212,35 @@ async function submit() {
 .brand {
   display: block;
   font-family: $font-display;
-  font-size: 62rpx;
+  font-size: $fs-brand;
   line-height: $lh-display;
   letter-spacing: 8rpx;
   color: $c-ink-strong;
 }
 
-.caption {
+/* 品牌字下方的短金线：与首页品牌区同一条笔触 */
+.brand-rule {
   display: block;
-  margin-top: $sp-3;
-  color: $c-ink-muted;
-  font-size: 24rpx;
+  width: 56rpx;
+  height: 2rpx;
+  margin: $sp-4 auto $sp-3;
+  background: $c-gold-line;
 }
 
+.caption {
+  display: block;
+  color: $c-ink-muted;
+  font-size: $fs-caption;
+}
+
+/* ---- 切换标签 ---- */
 .auth-tabs {
+  margin: $sp-8 0 $sp-6;
+}
+
+.auth-tabs-track {
+  position: relative;
   display: flex;
-  margin: $sp-8 0 $sp-7;
   border-bottom: 1rpx solid $c-border-strong;
 }
 
@@ -215,23 +251,51 @@ async function submit() {
   align-items: center;
   justify-content: center;
   color: $c-ink-muted;
-  font-size: 28rpx;
-  border-bottom: 4rpx solid transparent;
-  margin-bottom: -1rpx;
-  transition: color $dur-fast ease, border-color $dur-fast ease;
+  font-size: $fs-body;
+  transition: color $dur-fast ease;
 }
 
 .auth-tab.active {
-  border-bottom-color: $c-gold-line;
   color: $c-ink-strong;
   font-weight: 600;
+}
+
+.auth-tab--press {
+  opacity: 0.6;
+}
+
+/* 指示条：宽度固定半栏，靠 transform 平移，切换时有明确的「移动」而不是「消失再出现」 */
+.auth-tab-indicator {
+  position: absolute;
+  left: 0;
+  bottom: -1rpx;
+  width: 50%;
+  height: 4rpx;
+  border-radius: $r-pill;
+  background: $c-gold-line;
+  transform: translateX(0);
+  transition: transform $dur-base $ease-out;
+}
+
+.auth-tab-indicator.is-register {
+  transform: translateX(100%);
+}
+
+/* ---- 表单 ---- */
+.auth-form {
+  display: block;
+}
+
+.auth-submit {
+  display: block;
+  margin-top: $sp-5;
 }
 
 .auth-hint {
   display: block;
   margin-top: $sp-5;
   color: $c-ink-muted;
-  font-size: 22rpx;
+  font-size: $fs-micro;
   line-height: 1.6;
   text-align: center;
 }

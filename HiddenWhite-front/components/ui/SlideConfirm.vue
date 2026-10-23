@@ -95,9 +95,10 @@ const fillStyle = computed(() => {
   // 填充宽度跟住滑块右缘，视觉上「已走过」的部分被点亮
   const width = knobWidth.value + offset.value
   if (completed.value) return ''
+  // 蓄力态加深、常态极浅：用同一支金色调透明度，避免引入第二种强调色
   return armed.value
-    ? `width: ${width}px; background: linear-gradient(90deg, rgba(212,173,47,0.28), rgba(212,173,47,0.62));`
-    : `width: ${width}px; background: linear-gradient(90deg, rgba(212,173,47,0.10), rgba(212,173,47,0.26));`
+    ? `width: ${width}px; background: linear-gradient(90deg, rgba(212, 173, 47, 0.3), rgba(212, 173, 47, 0.62));`
+    : `width: ${width}px; background: linear-gradient(90deg, rgba(212, 173, 47, 0.1), rgba(212, 173, 47, 0.26));`
 })
 
 const knobStyle = computed(() => `transform: translateX(${offset.value}px);`)

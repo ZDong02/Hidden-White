@@ -2,24 +2,27 @@
   <!-- 订单面板：进度卡片、门店信息、本单商品与历史订单 -->
   <scroll-view class="panel-scroll orders-panel" scroll-y>
     <view class="order-body">
-      <view v-if="order" class="current-heading">
+      <view v-if="order" class="current-heading reveal">
         <view>
-          <text class="section-title">正在进行</text>
-          <text class="muted current-caption">最新订单 · 到店后请出示取餐号</text>
+          <text class="section-title heading-title">正在进行</text>
+          <text class="card-note">最新订单 · 到店后请出示取餐号</text>
         </view>
-        <text class="current-badge">制作中</text>
+        <text class="tag">制作中</text>
       </view>
 
       <!-- 制作进度卡片：点击展开取餐凭证 -->
       <view
         v-if="order"
-        class="progress-card"
+        class="progress-card card-dark reveal reveal-1"
         hover-class="progress-card--press"
+        :hover-stay-time="60"
         @tap="emit('show-voucher')"
       >
         <text class="progress-caption">咖啡师正在为你制作</text>
         <text class="pickup-number">{{ order.pickup }}</text>
-        <text class="ready-caption">预计 {{ order.ready }} 可取 · 约需 {{ order.preparationTime || 5 }} 分钟</text>
+        <text class="ready-caption">
+          预计 {{ order.ready }} 可取 · 约需 {{ order.preparationTime || 5 }} 分钟
+        </text>
         <view class="progress-track">
           <view class="track-segment track-segment--done" />
           <view class="track-segment" />
@@ -32,17 +35,21 @@
         <!-- 取餐凭证入口：由底部操作区的按钮迁到这里，点击展开完整凭证 -->
         <view class="voucher-entry">
           <text class="voucher-entry-text">出示取餐凭证</text>
-          <view class="voucher-entry-arrow" />
+          <Icon name="chevron-right" tone="gold-on-dark" :size="24" />
         </view>
       </view>
 
       <!-- 门店信息 -->
-      <view v-if="order" class="store-block">
+      <view v-if="order" class="store-block reveal reveal-2">
         <StoreLine :arrow="false" />
         <text class="address muted">{{ storeAddress }}</text>
         <view class="store-actions">
-          <button class="outline-button" @tap="handleNavigateStore">导航到店</button>
-          <button class="outline-button" @tap="handleShowStore">联系门店</button>
+          <button class="outline-button" hover-class="is-press" :hover-stay-time="60" @tap="handleNavigateStore">
+            导航到店
+          </button>
+          <button class="outline-button" hover-class="is-press" :hover-stay-time="60" @tap="handleShowStore">
+            联系门店
+          </button>
         </view>
       </view>
 
@@ -64,14 +71,14 @@
         </view>
         <view class="metadata-row">
           <text class="muted">订单编号</text>
-          <text>{{ order.number }}</text>
+          <text class="num">{{ order.number }}</text>
         </view>
       </view>
 
       <view class="history-heading">
         <view>
-          <text class="section-title">历史订单</text>
-          <text class="muted history-caption">已完成的到店自提记录</text>
+          <text class="section-title heading-title">历史订单</text>
+          <text class="card-note">已完成的到店自提记录</text>
         </view>
         <text class="history-count">{{ shop.orderHistory.length }} 笔</text>
       </view>
@@ -88,11 +95,11 @@
               <text class="history-pickup gold">{{ historyOrder.pickup }}</text>
             </view>
             <view class="history-total">
-              <text class="history-status">已完成</text>
-              <text>实付 ¥{{ historyOrder.total }}</text>
+              <text class="tag tag-muted">已完成</text>
+              <text class="num">实付 ¥{{ historyOrder.total }}</text>
             </view>
           </view>
-          <view class="history-divider" />
+          <view class="divider history-divider" />
           <view class="history-items">
             <text class="history-summary">{{ historyOrder.summary }}</text>
             <text class="muted history-qty">共 {{ historyOrder.count }} 杯</text>
@@ -105,7 +112,7 @@
       </view>
 
       <view v-else class="history-empty">
-        <text class="empty-mark">☕</text>
+        <Icon name="cup" tone="decor" :size="52" />
         <text>完成取餐后，订单记录会保存在这里</text>
       </view>
     </view>
@@ -114,9 +121,10 @@
 
 <script setup>
 import { computed } from 'vue'
+import Icon from '../ui/Icon.vue'
 import StoreLine from '../StoreLine.vue'
 import OrderItem from '../OrderItem.vue'
-import { shop, refreshOrders } from '../../store/index'
+import { shop, storeInfo, refreshOrders } from '../../store/index'
 import { STORE } from '../../config/constants'
 import { navigateToStore, showStoreInfo } from '../../utils/navigation'
 
@@ -152,7 +160,13 @@ async function activate() {
 }
 
 function handleNavigateStore() {
-  navigateToStore()
+  // 与点店铺行同一套逻辑：接口坐标优先，缺失回落常量，非法则降级为地址弹窗
+  navigateToStore({
+    name: storeInfo.name,
+    address: storeInfo.address,
+    latitude: storeInfo.latitude,
+    longitude: storeInfo.longitude
+  })
 }
 
 function handleShowStore() {
@@ -165,50 +179,29 @@ defineExpose({ activate })
 <style lang="scss" scoped>
 .orders-panel {
   box-sizing: border-box;
-  /* 本 Tab 底栏最高：提示语 + 操作条 + 分段控件 + 指示条 ≈ 364rpx */
-  padding-bottom: 372rpx;
+  padding-bottom: $pad-panel-order;
 }
 
 .order-body {
-  padding: $sp-6 $gutter 0;
+  padding: $pad-panel-top $gutter 0;
 }
 
+/* ---- 进度卡片 ---- */
 .progress-card {
-  position: relative;
-  overflow: hidden;
   min-height: 500rpx;
-  background: #050504;
-  border: 2rpx solid $c-gold-line;
-  border-radius: $r-lg;
-  color: $c-on-dark;
-  text-align: center;
   padding: $sp-7 $sp-6;
-  box-shadow: $sh-dark;
-  transition: transform $dur-fast ease-out, opacity $dur-fast ease-out;
+  text-align: center;
+  transition: transform $dur-instant $ease-out, box-shadow $dur-base $ease-out;
 }
 
 /* 按压反馈用 hover-class：小程序 :active 在真机不可靠 */
 .progress-card--press {
   transform: scale(0.985);
-  opacity: 0.9;
-}
-
-/* 与首页 Banner 同源的暗金细环，强化「同一套设计语言」 */
-.progress-card::after {
-  content: '';
-  position: absolute;
-  right: -50rpx;
-  top: -80rpx;
-  width: 240rpx;
-  height: 240rpx;
-  border: 1rpx solid rgba(212, 173, 47, 0.22);
-  border-radius: 50%;
-  pointer-events: none;
 }
 
 .progress-caption {
   display: block;
-  font-size: 24rpx;
+  font-size: $fs-caption;
   color: $c-on-dark-muted;
 }
 
@@ -221,13 +214,13 @@ defineExpose({ activate })
   line-height: 1.15;
   margin-top: $sp-5;
   letter-spacing: -4rpx;
-  font-variant-numeric: tabular-nums;
   color: $c-gold-on-dark;
+  @include numeric;
 }
 
 .ready-caption {
   display: block;
-  font-size: 26rpx;
+  font-size: $fs-body-sm;
   margin-top: $sp-6;
   color: $c-on-dark-muted;
 }
@@ -239,57 +232,70 @@ defineExpose({ activate })
   margin-top: $sp-5;
 }
 
-/* 进度条分段：原为 .progress-track view / :first-child，组件 wxss 不允许标签名选择器 */
 .track-segment {
-  border-radius: $r-pill;
-  background: #4a4a4a;
   flex: 1;
+  border-radius: $r-pill;
+  background: $c-dark-track;
+  overflow: hidden;
 }
 
+/* 已完成段：进入时从左侧展开，把「进度」这件事演出来，而不是直接满格 */
 .track-segment--done {
+  position: relative;
+  background: $c-dark-track;
+}
+
+.track-segment--done::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   background: $c-gold;
+  transform-origin: left center;
+  animation: track-grow 720ms $ease-out 160ms both;
+}
+
+@keyframes track-grow {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
 }
 
 .progress-labels {
   display: flex;
   justify-content: space-between;
-  color: #9b9b9b;
-  font-size: 22rpx;
   margin-top: $sp-4;
+  font-size: $fs-micro;
+  color: $c-on-dark-faint;
 }
 
-/* 已完成的那一段（原 .progress-labels text:first-child） */
+/* 已完成的那一段 */
 .progress-label-done {
-  color: #d5d5d5;
+  color: $c-on-dark-muted;
 }
 
-/* ---- 取餐凭证入口（原在底部操作区，现并入进度卡片） ---- */
-
+/* ---- 取餐凭证入口 ---- */
 .voucher-entry {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: $sp-3;
+  gap: $sp-2;
   margin-top: $sp-6;
   padding-top: $sp-5;
-  border-top: 1rpx solid rgba(212, 173, 47, 0.18);
+  border-top: 1rpx solid $c-hairline-gold;
 }
 
 .voucher-entry-text {
-  font-size: 22rpx;
+  font-size: $fs-micro;
   color: $c-gold-on-dark;
   letter-spacing: $ls-wide;
 }
 
-/* 右向雪佛龙：与 SlideConfirm 的箭头同一套画法 */
-.voucher-entry-arrow {
-  width: 12rpx;
-  height: 12rpx;
-  border-top: 2rpx solid $c-gold-on-dark;
-  border-right: 2rpx solid $c-gold-on-dark;
-  transform: rotate(45deg);
-}
-
+/* ---- 门店信息 ---- */
 .store-block {
   padding: $sp-7 0 $sp-6;
   border-bottom: 1rpx solid $c-divider;
@@ -298,14 +304,14 @@ defineExpose({ activate })
 
 .address {
   display: block;
-  font-size: 24rpx;
-  margin-top: $sp-4;
+  font-size: $fs-caption;
+  margin-top: $sp-2;
 }
 
 .store-actions {
   display: flex;
   gap: $sp-5;
-  margin-top: $sp-6;
+  margin-top: $sp-5;
 }
 
 /* 两个按钮等宽（原 .store-actions button，组件 wxss 不允许标签名选择器） */
@@ -321,18 +327,17 @@ defineExpose({ activate })
   margin-top: $sp-7;
 }
 
-/* 每行「标签 + 值」左右分栏（原 .order-metadata > view） */
 .metadata-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: $sp-4;
-  font-size: 24rpx;
-  margin-bottom: $sp-6;
+  font-size: $fs-caption;
+  margin-bottom: $sp-5;
 }
 
 .order-metadata .gold {
-  font-size: 24rpx;
+  font-size: $fs-caption;
 }
 
 .current-heading,
@@ -347,28 +352,9 @@ defineExpose({ activate })
   margin-bottom: $sp-4;
 }
 
-.current-heading .section-title,
-.history-heading .section-title {
-  margin-bottom: 0;
-}
-
-.current-caption,
-.history-caption {
-  display: block;
-  margin-top: $sp-1;
-  font-size: 24rpx;
-}
-
-/* 状态标签：文字色用 $c-gold-text，底用极浅金，对比度 4.7:1 */
-.current-badge,
-.history-status {
-  flex-shrink: 0;
-  padding: $sp-1 $sp-3;
-  border-radius: $r-pill;
-  color: $c-gold-text;
-  background: $c-gold-soft;
-  border: 1rpx solid $c-gold-line;
-  font-size: 22rpx;
+/* 标题行里的 section-title 不再自带下边距，改由卡片间距承担 */
+.heading-title {
+  margin-bottom: $sp-1;
 }
 
 .history-heading {
@@ -377,14 +363,15 @@ defineExpose({ activate })
 
 .history-count {
   color: $c-ink-muted;
-  font-size: 24rpx;
+  font-size: $fs-caption;
 }
 
+/* 历史卡片：与首页商品卡同圆角（$r-lg），只是内边距更大 */
 .history-card {
   margin-bottom: $sp-3;
   padding: $sp-5;
   border: 1rpx solid $c-border;
-  border-radius: $r-md;
+  border-radius: $r-lg;
   background: $c-surface;
   box-shadow: $sh-1;
 }
@@ -401,51 +388,42 @@ defineExpose({ activate })
 .history-pickup-label {
   display: block;
   color: $c-ink-subtle;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
 .history-pickup {
   display: block;
-  margin-top: 4rpx;
+  margin-top: $sp-0;
   font-family: $font-display;
-  font-size: 46rpx;
+  font-size: $fs-h2;
   line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+  @include numeric;
 }
 
 .history-total {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: $sp-2;
-  font-size: 24rpx;
-}
-
-.history-status {
-  padding: 4rpx $sp-2;
-  font-size: 20rpx;
+  gap: $sp-1;
+  font-size: $fs-caption;
 }
 
 .history-divider {
-  height: 1rpx;
   margin: $sp-4 0;
-  background: $c-divider;
 }
 
 .history-items {
   align-items: flex-start;
   color: $c-ink;
-  font-size: 24rpx;
+  font-size: $fs-caption;
 }
 
-/* 左侧商品摘要：占满剩余宽度并允许收缩换行（原 .history-items > text:first-child） */
 .history-summary {
   flex: 1;
   min-width: 0;
   line-height: 1.6;
 }
 
-/* 右侧杯数不参与收缩（原 .history-items > text:last-child） */
 .history-qty {
   flex-shrink: 0;
 }
@@ -453,25 +431,30 @@ defineExpose({ activate })
 .history-meta {
   flex-wrap: wrap;
   margin-top: $sp-3;
-  font-size: 22rpx;
+  font-size: $fs-micro;
 }
 
 .history-empty {
   display: flex;
-  min-height: 220rpx;
+  min-height: 240rpx;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: $sp-3;
   border: 1rpx dashed $c-border-strong;
-  border-radius: $r-md;
+  border-radius: $r-lg;
   color: $c-ink-muted;
-  font-size: 24rpx;
+  font-size: $fs-caption;
   text-align: center;
 }
 
-.empty-mark {
-  color: $c-gold-line;
-  font-size: 52rpx;
+/* #ifdef H5 */
+.progress-card:hover {
+  box-shadow: $sh-3;
 }
+
+.history-card:hover {
+  border-color: $c-border-strong;
+}
+/* #endif */
 </style>

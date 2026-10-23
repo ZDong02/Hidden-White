@@ -11,7 +11,9 @@
           <view />
           <view />
         </view>
-        <image :src="iconWifi" />
+        <view class="status-wifi">
+          <Icon name="wifi" tone="ink" :size="28" />
+        </view>
         <view class="battery" />
       </view>
     </view>
@@ -22,8 +24,14 @@
     <!-- #endif -->
 
     <view v-if="title" class="page-header">
-      <view class="back-button" @tap="handleBack">
-        <image :src="iconBack" />
+      <view
+        class="back-button"
+        aria-label="返回"
+        hover-class="is-press"
+        :hover-stay-time="60"
+        @tap="handleBack"
+      >
+        <Icon name="arrow-left" tone="ink" :size="40" />
       </view>
       <text>{{ title }}</text>
       <view class="header-right">
@@ -34,7 +42,7 @@
 </template>
 
 <script setup>
-import { IMAGES } from '../config/constants'
+import Icon from './ui/Icon.vue'
 import { navigateBack } from '../utils/navigation'
 
 defineProps({
@@ -44,16 +52,17 @@ defineProps({
   }
 })
 
-const iconWifi = IMAGES.icons.wifi
-const iconBack = IMAGES.icons.back
-
 function handleBack() {
   navigateBack()
 }
 </script>
 
 <style lang="scss" scoped>
-/* 样式已在 common.scss 中定义 */
+/* 主体样式已在 common.scss 中定义 */
+.status-wifi {
+  margin-top: -2rpx;
+}
+
 .header-right {
   position: absolute;
   right: $sp-6;
