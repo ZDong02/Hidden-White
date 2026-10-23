@@ -7,6 +7,7 @@ import { resolveImageUrl } from '../utils/image'
 import { currentUser, isLoggedIn } from './auth'
 import { getStorage, setStorageDebounced, setStorageImmediate } from '../utils/storage'
 import { calculateCartTotal, calculateCartCount } from '../utils/price'
+import { normalizeCoordinate } from '../utils/location'
 
 const CART_KEY = 'hidden-white-cart'
 const ORDER_KEY = 'hidden-white-order'
@@ -102,6 +103,10 @@ export const storeInfo = reactive({
   address: '',
   hours: '',
   distance: '',
+  // 门店坐标（GCJ-02）：点店铺行跳地图时用。null 表示接口没给或给了非法值，
+  // 由 utils/navigation 的 resolveStoreCoords 回落 config/constants.js 的常量
+  latitude: null,
+  longitude: null,
   open: true,
   loaded: false
 })
@@ -124,6 +129,11 @@ export async function loadStoreInfo(options = {}) {
       storeInfo.address = info.shortAddress || info.address || ''
       storeInfo.hours = info.hours || ''
       storeInfo.distance = info.distance || ''
+      // 后端 BigDecimal 可能序列化成数字或字符串，交给 normalizeCoordinate 统一收敛；
+      // 拿不准就直接存 null，让调用方回落常量，别把坏坐标带给地图 API
+      const coords = normalizeCoordinate(info.latitude, info.longitude)
+      storeInfo.latitude = coords ? coords.latitude : null
+      storeInfo.longitude = coords ? coords.longitude : null
       storeInfo.open = info.open !== false
       storeInfo.loaded = true
       storeLoadedAt = Date.now()

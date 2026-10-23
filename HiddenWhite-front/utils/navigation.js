@@ -1,4 +1,5 @@
 import { STORE } from '../config/constants'
+import { normalizeCoordinate } from './location'
 
 // 订单 / 会员 / 我的已合并进壳页面（横向 Tab 面板），通过 ?tab= 直达对应分段
 const PAGES = Object.freeze({
@@ -79,26 +80,82 @@ export function navigateBack() {
   resetToPage('index')
 }
 
-// Navigate to the configured store location.
-export function navigateToStore() {
-  uni.openLocation({
-    latitude: STORE.latitude,
-    longitude: STORE.longitude,
-    name: STORE.name,
-    address: STORE.address,
-    fail: () => {
-      uni.showModal({
-        title: '门店地址',
-        content: STORE.address,
-        confirmText: '复制地址',
-        success: (res) => {
-          if (res.confirm) {
-            uni.setClipboardData({ data: STORE.shortAddress })
-          }
-        }
+/**
+ * 门店坐标来源，按优先级回落：
+ *   1. /api/store 返回的经纬度（管理端可改，DB 为唯一权威）
+ *   2. config/constants.js 的 STORE 本地常量（接口失败 / 未加载时的兜底）
+ *   3. 两份都非法 → null，调用方走「地址弹窗 + 复制」降级
+ * 校验在 normalizeCoordinate 内完成（范围、非 (0,0)、非有限数字）。
+ */
+export function resolveStoreCoords(store = {}) {
+  return (
+    normalizeCoordinate(store.latitude, store.longitude) ||
+    normalizeCoordinate(STORE.latitude, STORE.longitude)
+  )
+}
+
+function storeNameOf(store = {}) {
+  return store.name || STORE.name
+}
+
+function storeAddressOf(store = {}) {
+  return store.address || STORE.address
+}
+
+/**
+ * 降级路径：坐标缺失或地图拉不起来时，不静默失败。
+ * 弹窗保留完整地址，并把「复制地址」作为主操作——用户复制后可直接在地图 App 里搜，
+ * 比只显示一行错误提示有用。复制内容用 shortAddress（可被地图 App 直接解析的写法）。
+ */
+function fallbackToAddress(store = {}) {
+  uni.showModal({
+    title: storeNameOf(store),
+    content: `${storeAddressOf(store)}\n\n暂时无法打开地图，可复制地址后在地图 App 中搜索。`,
+    confirmText: '复制地址',
+    cancelText: '知道了',
+    success: (res) => {
+      if (!res.confirm) return
+      uni.setClipboardData({
+        data: STORE.shortAddress || storeAddressOf(store)
       })
     }
   })
+}
+
+/**
+ * 打开地图页面并标记门店位置（点店铺行的默认行为）。
+ *
+ * 目标平台：微信小程序内置地图页 wx.openLocation（uni 封装为 uni.openLocation）——
+ * 一次性给出「定位到门店 + 门店水滴标记 + 店名/地址卡片 + 导航按钮」，
+ * 不需要新增页面、不需要腾讯地图 key、不需要拿用户定位权限。
+ * H5 端由 uni 转成高德网页 URI（uri.amap.com）在新窗口打开，语义一致。
+ *
+ * @param {object} store 可选，{ name, address, latitude, longitude }；不传则只用本地常量
+ */
+export function openStoreMap(store = {}) {
+  const coords = resolveStoreCoords(store)
+  const name = storeNameOf(store)
+  const address = storeAddressOf(store)
+
+  if (!coords) {
+    fallbackToAddress(store)
+    return
+  }
+
+  uni.openLocation({
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    name,
+    address,
+    // 18 级 ≈ 街道级，能看清店面所在楼栋；再高会丢失周边参照
+    scale: 18,
+    fail: () => fallbackToAddress(store)
+  })
+}
+
+// 订单面板「导航到店」沿用旧入口名，行为统一收敛到 openStoreMap
+export function navigateToStore(store = {}) {
+  openStoreMap(store)
 }
 
 export function showStoreInfo() {

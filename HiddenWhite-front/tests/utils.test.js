@@ -19,6 +19,7 @@ import {
   validateDisplayName,
   validateCart
 } from '../utils/validators.js'
+import { normalizeCoordinate } from '../utils/location.js'
 
 // ---- 购物车计算 ----
 
@@ -85,4 +86,36 @@ test('validateCart 的错误信息带项序号', () => {
   ])
   assert.equal(result.valid, false)
   assert.match(result.message, /第 2 项/)
+})
+
+// ---- 门店坐标归一化（地图跳转前置校验）----
+
+test('normalizeCoordinate 接受数字与数字字符串，统一返回 number', () => {
+  assert.deepEqual(normalizeCoordinate(31.22472, 121.44618), {
+    latitude: 31.22472,
+    longitude: 121.44618
+  })
+  // 后端 BigDecimal 可能序列化成字符串
+  assert.deepEqual(normalizeCoordinate('31.22472', '121.44618'), {
+    latitude: 31.22472,
+    longitude: 121.44618
+  })
+})
+
+test('normalizeCoordinate 拒绝缺失与非法坐标', () => {
+  assert.equal(normalizeCoordinate(null, 121.4), null, '缺纬度应拒绝')
+  assert.equal(normalizeCoordinate(31.2, undefined), null, '缺经度应拒绝')
+  assert.equal(normalizeCoordinate('', ''), null, '空串应拒绝')
+  assert.equal(normalizeCoordinate('abc', 121.4), null, '非数字应拒绝')
+  assert.equal(normalizeCoordinate(NaN, 121.4), null, 'NaN 应拒绝')
+  assert.equal(normalizeCoordinate(Infinity, 121.4), null, 'Infinity 应拒绝')
+  assert.equal(normalizeCoordinate(91, 121.4), null, '纬度越界应拒绝')
+  assert.equal(normalizeCoordinate(-91, 121.4), null, '纬度越界应拒绝')
+  assert.equal(normalizeCoordinate(31.2, 181), null, '经度越界应拒绝')
+  assert.equal(normalizeCoordinate(0, 0), null, '(0,0) 视为漏填，应拒绝')
+})
+
+test('normalizeCoordinate 保留边界值', () => {
+  assert.deepEqual(normalizeCoordinate(90, 180), { latitude: 90, longitude: 180 })
+  assert.deepEqual(normalizeCoordinate(-90, -180), { latitude: -90, longitude: -180 })
 })
