@@ -1,0 +1,46 @@
+# 依赖更新自动化：安全公告不再依赖「人偶然看到」。
+# 三端各一个 ecosystem 条目；npm 两端按目录区分。
+version: 2
+
+updates:
+  # 统一后端（Maven）
+  - package-ecosystem: maven
+    directory: /HiddenWhite-backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+
+  # 管理端（Vue 3 + Vite）
+  - package-ecosystem: npm
+    directory: /HiddenWhite-admin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+
+  # 点单端（uni-app）：工具链锁定在 alpha 快照，major 升级须单独立项人工验证
+  - package-ecosystem: npm
+    directory: /HiddenWhite-front
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    ignore:
+      - dependency-name: "@dcloudio/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vue"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(ci)"

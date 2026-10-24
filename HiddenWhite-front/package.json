@@ -1,32 +1,33 @@
 {
- "name": "hidden-white",
- "version": "1.0.0",
- "private": true,
+  "name": "hidden-white",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-  "dev:h5": "node scripts/run-uni.cjs -p h5 --host 127.0.0.1",
-  "build:h5": "node scripts/run-uni.cjs build -p h5",
-  "dev:mp-weixin": "node scripts/run-uni.cjs -p mp-weixin",
-  "build:mp-weixin": "node scripts/run-uni.cjs build -p mp-weixin",
-  "assets:icons": "node scripts/generate-icons.cjs",
-  "lint": "eslint .",
-  "test": "node --test \"tests/**/*.test.js\""
- },
- "dependencies": {
-  "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",
-  "@dcloudio/uni-components": "3.0.0-alpha-5030120260930001",
-  "@dcloudio/uni-h5": "3.0.0-alpha-5030120260930001",
-  "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5030120260930001",
-  "vue": "3.4.21"
- },
- "devDependencies": {
-  "@dcloudio/types": "^3.4.15",
-  "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5030120260930001",
-  "@eslint/js": "^10.0.1",
-  "@resvg/resvg-js": "^2.6.2",
-  "eslint": "^10.12.0",
-  "eslint-plugin-vue": "^10.11.1",
-  "globals": "^17.13.0",
-  "sass": "1.77.8",
-  "vite": "5.2.8"
- }
+    "dev:h5": "node scripts/run-uni.cjs -p h5 --host 127.0.0.1",
+    "build:h5": "node scripts/run-uni.cjs build -p h5",
+    "dev:mp-weixin": "node scripts/run-uni.cjs -p mp-weixin",
+    "build:mp-weixin": "node scripts/run-uni.cjs build -p mp-weixin",
+    "assets:icons": "node scripts/generate-icons.cjs",
+    "lint": "eslint .",
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-components": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5030120260930001",
+    "vue": "3.4.21"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "^3.4.15",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5030120260930001",
+    "@eslint/js": "^10.0.1",
+    "@resvg/resvg-js": "^2.6.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-vue": "^10.11.1",
+    "globals": "^17.13.0",
+    "sass": "1.77.8",
+    "vite": "5.2.8"
+  }
 }

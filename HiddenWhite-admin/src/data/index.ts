@@ -4,11 +4,11 @@
 import type { StatsRange } from '@/api'
 
 export const APP = Object.freeze({
-  name: '通用后台管理系统',
+  name: '隐白咖啡 · 管理端',
   shortName: '管理后台',
-  subtitle: 'Admin Console',
+  subtitle: 'Hidden White Admin',
   version: 'v1.0.0',
-  copyright: `© ${new Date().getFullYear()} 通用后台管理系统`,
+  copyright: `© ${new Date().getFullYear()} 隐白咖啡 Hidden White`,
 })
 
 /* ── 导航 ─────────────────────────────────────────────────── */
