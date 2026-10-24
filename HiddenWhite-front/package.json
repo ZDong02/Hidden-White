@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@dcloudio/types": "^3.4.15",
-    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5030120260930001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-5020620260917001",
     "@eslint/js": "^10.0.1",
     "@resvg/resvg-js": "^2.6.2",
     "eslint": "^10.12.0",
