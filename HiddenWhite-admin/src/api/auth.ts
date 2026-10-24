@@ -9,7 +9,8 @@ export interface LoginRequest {
 
 export interface CaptchaResponse {
   uuid: string
-  code: string
+  /** 服务端生成的验证码图片（SVG data URI），明文验证码不再下发 */
+  image: string
 }
 
 export interface LoginResponse {

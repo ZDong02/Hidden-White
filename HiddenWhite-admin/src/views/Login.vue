@@ -21,7 +21,7 @@ const errors = ref<Partial<Record<keyof typeof form, string>>>({})
 const remember = ref(true)
 const submitting = ref(false)
 const formError = ref('')
-const captchaCode = ref('')
+const captchaImage = ref('')
 const captchaUuid = ref('')
 const captchaLoading = ref(false)
 const root = ref<HTMLElement | null>(null)
@@ -100,10 +100,10 @@ async function refreshCaptcha() {
   try {
     const res = await authApi.captcha()
     captchaUuid.value = res.uuid
-    captchaCode.value = res.code
+    captchaImage.value = res.image
   } catch {
     captchaUuid.value = ''
-    captchaCode.value = ''
+    captchaImage.value = ''
     formError.value = '无法连接服务，请确认后端已启动'
   } finally {
     captchaLoading.value = false
@@ -278,9 +278,7 @@ onBeforeUnmount(() => {
               <div class="captcha-row">
                 <TextInput v-model="form.captcha" icon="shield" placeholder="请输入右侧字符" :maxlength="6" autocomplete="off" :invalid="!!errors.captcha" />
                 <button type="button" class="captcha-box m-groove" :disabled="captchaLoading" aria-label="看不清，换一张" title="看不清，换一张" @click="refreshCaptcha">
-                  <span v-if="captchaCode" class="captcha-code" aria-hidden="true">
-                    <span v-for="(ch, i) in captchaCode.split('')" :key="i" :style="{ rotate: `${(i % 2 ? 1 : -1) * (6 + i * 3)}deg` }">{{ ch }}</span>
-                  </span>
+                  <img v-if="captchaImage" class="captcha-img" :src="captchaImage" alt="" aria-hidden="true">
                   <Icon v-else name="refresh" :size="16" />
                 </button>
               </div>
