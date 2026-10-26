@@ -106,6 +106,15 @@ public interface CoffeeMapper {
     @Update("UPDATE ${coffeeDb}.products SET enabled = 0 WHERE id = #{id}")
     int disableProduct(@Param("id") String id);
 
+    /**
+     * 仅切换上下架状态。
+     *
+     * <p>整行更新（{@link #updateProduct}）要求名称 / 价格 / 分类齐全，且会用传入值覆盖全部列；
+     * 只改一个布尔位必须走这条，否则未传字段会被写成空串，商品被清空。
+     */
+    @Update("UPDATE ${coffeeDb}.products SET enabled = #{enabled} WHERE id = #{id}")
+    int updateProductEnabled(@Param("id") String id, @Param("enabled") boolean enabled);
+
     @Select("SELECT COUNT(*) FROM ${coffeeDb}.order_items WHERE product_id = #{id}")
     long countProductOrders(@Param("id") String id);
 

@@ -18,14 +18,15 @@ export interface CoffeeProductRow {
 
 export interface CoffeeProductWrite {
   id?: string
-  name?: string
+  /** 后端 CoffeeService.updateProduct 强制校验：名称 / 价格 / 分类缺一即 400。 */
+  name: string
   subtitle?: string
   description?: string
   detailDescription?: string
-  price?: number
+  price: number
   image?: string
   detailImage?: string
-  category?: number
+  category: number
   hasMilk?: boolean
   enabled?: boolean
 }
@@ -196,8 +197,16 @@ export function createCoffeeApi(client: HttpClient) {
     return {
       list: (query?: QueryParams) => client.get<PageResult<Row>>(path, query),
       create: (body: WriteBody) => client.post<IdResponse>(path, body),
-      update: (id: string | number, body: Partial<WriteBody>) => client.put<void>(`${path}/${id}`, body),
+      // 后端 updateProduct 为整行写入，必须传全量；用 Partial 会让人误以为可以只改一个字段
+      update: (id: string | number, body: WriteBody) => client.put<void>(`${path}/${id}`, body),
       remove: (id: string | number) => client.delete<{ notice?: string }>(`${path}/${id}`),
+      /**
+       * 上下架。走独立端点，不复用 update：
+       * 后者是整行更新，只带 enabled 会被后端必填校验拒掉（表现为「下架没反应」），
+       * 语义上也不该用全量写入表达单字段变更。
+       */
+      setEnabled: (id: string | number, enabled: boolean) =>
+        client.put<void>(`${path}/${id}/enabled`, { enabled }),
     }
   }
 

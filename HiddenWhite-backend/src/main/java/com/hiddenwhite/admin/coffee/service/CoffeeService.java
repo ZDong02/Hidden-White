@@ -82,6 +82,19 @@ public class CoffeeService {
         if (rows == 0) throw new BusinessException(404, "商品不存在: " + id);
     }
 
+    /**
+     * 仅切换上下架状态。
+     *
+     * <p>不走 {@link #updateProduct}：那条路径是整行更新，要求名称 / 价格 / 分类齐全，
+     * 列表页的一键上下架只带一个 enabled 字段，过去因缺必填项被拒（商品下不掉），
+     * 即便放行也会把未传列覆盖成空。
+     */
+    public void setProductEnabled(String id, Boolean enabled) {
+        if (enabled == null) throw new BusinessException("请指定上下架状态");
+        int rows = mapper.updateProductEnabled(id, enabled);
+        if (rows == 0) throw new BusinessException(404, "商品不存在: " + id);
+    }
+
     /** 返回提示文案：商品被订单引用时软下架，否则物理删除返回 null。 */
     public String deleteProduct(String id) {
         if (mapper.countProductOrders(id) > 0) {

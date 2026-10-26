@@ -103,7 +103,7 @@ async function submit() {
 
 async function toggleEnabled(row: ProductRow) {
   try {
-    await coffeeApi.products.update(row.id, { enabled: !row.enabled })
+    await coffeeApi.products.setEnabled(row.id, !row.enabled)
     await list.load()
   } catch (error) {
     toastError(error, '状态修改失败')

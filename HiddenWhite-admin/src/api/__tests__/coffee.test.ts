@@ -27,17 +27,41 @@ test('coffee api maps product CRUD to backend endpoints', async () => {
 
   await api.products.list({ pageNum: 1, pageSize: 10, keyword: '拿铁' })
   await api.products.create({ name: '澳白', price: 32, category: 1, hasMilk: true, enabled: true })
-  await api.products.update('latte', { price: 35, enabled: false })
+  // 后端 updateProduct 是整行更新、必填校验齐全，故必须传全量字段
+  await api.products.update('latte', { name: '拿铁', price: 35, category: 2, hasMilk: true, enabled: true })
+  // 上下架走独立端点：只带 enabled，不会触发整行更新的必填校验
+  await api.products.setEnabled('latte', false)
   await api.products.remove('latte')
 
   assert.deepEqual(calls.map(c => `${c.method} ${c.url}`), [
     'GET /api/coffee/products?pageNum=1&pageSize=10&keyword=%E6%8B%BF%E9%93%81',
     'POST /api/coffee/products',
     'PUT /api/coffee/products/latte',
+    'PUT /api/coffee/products/latte/enabled',
     'DELETE /api/coffee/products/latte',
   ])
   assert.deepEqual(JSON.parse(calls[1].body ?? '{}'), { name: '澳白', price: 32, category: 1, hasMilk: true, enabled: true })
-  assert.deepEqual(JSON.parse(calls[2].body ?? '{}'), { price: 35, enabled: false })
+  assert.deepEqual(JSON.parse(calls[2].body ?? '{}'), { name: '拿铁', price: 35, category: 2, hasMilk: true, enabled: true })
+  // 防回归：上下架请求体必须只有 enabled 一个字段
+  assert.deepEqual(JSON.parse(calls[3].body ?? '{}'), { enabled: false })
+})
+
+test('product toggle never reuses the full-row update endpoint', async () => {
+  // 2026-10-26 缺陷回归：上下架曾调用 PUT /coffee/products/{id} 只带 { enabled }，
+  // 后端按整行更新校验 name/price/category，直接抛「商品名称不能为空」，商品下不掉。
+  const { calls, api } = createRecordingApi()
+
+  await api.products.setEnabled('latte', false)
+  await api.products.setEnabled('latte', true)
+
+  assert.deepEqual(calls.map(c => `${c.method} ${c.url}`), [
+    'PUT /api/coffee/products/latte/enabled',
+    'PUT /api/coffee/products/latte/enabled',
+  ])
+  assert.ok(
+    calls.every(c => c.url.endsWith('/enabled')),
+    '上下架不得落到不带 /enabled 后缀的整行更新路径上',
+  )
 })
 
 test('coffee api maps option and benefit endpoints', async () => {

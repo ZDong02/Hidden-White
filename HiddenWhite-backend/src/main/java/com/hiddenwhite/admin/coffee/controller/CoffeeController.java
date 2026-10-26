@@ -8,6 +8,7 @@ import com.hiddenwhite.framework.security.RequiresPermission;
 import com.hiddenwhite.admin.coffee.domain.dto.BenefitWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.MemberWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.OptionWriteRequest;
+import com.hiddenwhite.admin.coffee.domain.dto.ProductEnabledRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.ProductWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.StoreWriteRequest;
 import com.hiddenwhite.admin.coffee.service.CoffeeService;
@@ -81,6 +82,20 @@ public class CoffeeController {
     public R<Map<String, Object>> deleteProduct(@PathVariable String id) {
         String notice = service.deleteProduct(id);
         return R.success(notice == null ? Map.of("ok", true) : Map.of("ok", true, "notice", notice));
+    }
+
+    /**
+     * 上架 / 下架。
+     *
+     * <p>独立端点而非复用 {@code PUT /products/{id}}：后者是整行更新，
+     * 只带 enabled 会被必填校验拒绝，且会用空值覆盖其他列。
+     */
+    @PutMapping("/products/{id}/enabled")
+    @RequiresPermission("coffee:product:edit")
+    @OperLog(module = "商品管理", action = "上下架")
+    public R<Void> setProductEnabled(@PathVariable String id, @RequestBody ProductEnabledRequest request) {
+        service.setProductEnabled(id, request.getEnabled());
+        return R.success(null);
     }
 
     // ---- 规格选项 ----
