@@ -2,7 +2,7 @@
   "name": "hiddenwhite-admin-front",
   "version": "1.0.0",
   "private": true,
-  "description": "通用后台管理脚手架前端（Vue 3 + Vite + TS，珍珠玻璃主题）",
+  "description": "隐白咖啡 · 管理端（Vue 3 + Vite + TS，珍珠玻璃主题）",
   "type": "module",
   "scripts": {
     "dev": "vite",
