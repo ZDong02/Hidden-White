@@ -1,6 +1,9 @@
 <template>
   <!-- 订单面板：进度卡片、门店信息、本单商品与历史订单 -->
-  <scroll-view class="panel-scroll orders-panel" scroll-y>
+  <scroll-view
+    :class="['panel-scroll', 'orders-panel', { 'orders-panel--with-order': order }]"
+    scroll-y
+  >
     <view class="order-body">
       <view v-if="order" class="current-heading reveal">
         <view>
@@ -177,8 +180,16 @@ defineExpose({ activate })
 </script>
 
 <style lang="scss" scoped>
+/* 面板底部预留必须跟着底栏实际高度走：
+   没有进行中订单时底栏只剩「分段控件 + 指示条」，若仍按订单态的 380rpx 预留，
+   会多出一截约 170rpx 的空白画布，看起来像导航栏上方糊了一块白。 */
 .orders-panel {
   box-sizing: border-box;
+  padding-bottom: $pad-panel-plain;
+}
+
+/* 有进行中订单：底栏多出提示语 + 滑动确认 + 取消入口，才需要更大的预留 */
+.orders-panel--with-order {
   padding-bottom: $pad-panel-order;
 }
 
