@@ -7,6 +7,9 @@ target/
 *.class
 *.jar
 
+# ===== 本地校对用静态镜像（肉眼对动画节奏，不是运行时代码，且数值会与实现漂移）=====
+HiddenWhite-front/preview/
+
 # ===== IDE / 编辑器 =====
 .idea/
 .vscode/

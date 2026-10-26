@@ -129,6 +129,13 @@
         </view>
       </view>
     </view>
+
+    <!--
+      开屏动画：冷启动第一次进首页才放（consumeSplash 只发一次票）。
+      放在页面层而不是独立启动页，首页在它下面就能完成渲染与首屏请求，
+      退场时内容已就绪；层级由 $z-splash 保证盖住弹层。
+    -->
+    <SplashScreen v-if="splashVisible" @done="splashVisible = false" />
   </view>
 </template>
 
@@ -147,7 +154,9 @@ import Stepper from '../../components/ui/Stepper.vue'
 import UiButton from '../../components/ui/Button.vue'
 import SlideConfirm from '../../components/ui/SlideConfirm.vue'
 import Icon from '../../components/ui/Icon.vue'
+import SplashScreen from '../../components/ui/SplashScreen.vue'
 import { shop, count, subtotal, saveCart, completeOrder, cancelOrder, storeInfo } from '../../store/index'
+import { consumeSplash } from '../../store/splash'
 import { STORE } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
 import { isLoggedIn } from '../../store/auth'
@@ -159,6 +168,9 @@ const activeIndex = ref(0)
 const activeTab = computed(() => TAB_IDS[activeIndex.value])
 const bagOpen = ref(false)
 const voucherOpen = ref(false)
+
+// 在 setup 里同步取票：早于首帧，不会先闪一下首页再盖上开屏
+const splashVisible = ref(consumeSplash())
 
 const order = computed(() => shop.order)
 const storeName = STORE.name
