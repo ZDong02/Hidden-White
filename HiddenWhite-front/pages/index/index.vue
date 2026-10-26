@@ -195,7 +195,9 @@ onLoad((query) => {
 })
 
 onShow(() => {
-  activatePanel(activeTab.value)
+  // 子面板的模板 ref 要到首帧渲染后才赋值，onShow 有可能早于它；
+  // 推到 nextTick 再触发，避免"壳页叫了个空号、面板自己也不知道该加载"
+  nextTick(() => activatePanel(activeTab.value))
 })
 
 function activatePanel(tab) {

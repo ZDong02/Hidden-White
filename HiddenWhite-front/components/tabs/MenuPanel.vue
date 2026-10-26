@@ -134,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Icon from '../ui/Icon.vue'
 import StoreLine from '../StoreLine.vue'
 import { products, loadProducts, refreshOrders, loadStoreInfo, storeInfo } from '../../store/index'
@@ -189,18 +189,40 @@ async function refreshAll(force = false) {
   }
 }
 
-// 壳页面在切到本面板 / 页面 onShow 时调用
+// 壳页面在切到本面板 / 页面 onShow 时调用，这里也自己兜一层：
+// 面板挂载即发起首次加载，不再依赖壳页面的 onShow 时机（子组件 ref 到位与否不该决定有没有数据）
+let inFlight = null
+
 function activate() {
-  refreshAll()
+  if (inFlight) return inFlight
+  inFlight = refreshAll()
+    .catch(() => {
+      // refreshAll 自己抛错（同步或异步）也必须把加载态收掉：
+      // 骨架屏永远转下去比给一条错误提示糟糕得多
+      loadError.value = true
+      loading.value = false
+    })
+    .finally(() => {
+      inFlight = null
+    })
+  return inFlight
 }
+
+onMounted(activate)
 
 function onPullRefresh() {
   if (refreshing.value) return
   refreshing.value = true
   // 下拉刷新强制绕过缓存，保证管理端改动立刻可见
-  refreshAll(true).finally(() => {
-    refreshing.value = false
-  })
+  refreshAll(true)
+    .catch(() => {
+      // 同上：下拉刷新失败也要收掉 loading，否则下拉指示器会一直转
+      loadError.value = true
+      loading.value = false
+    })
+    .finally(() => {
+      refreshing.value = false
+    })
 }
 
 const visibleProducts = computed(() => {

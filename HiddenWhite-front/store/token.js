@@ -1,4 +1,4 @@
-import { getStorage, removeStorage, setStorageImmediate } from '../utils/storage'
+import { getStorage, removeStorage, setStorageImmediate } from '../utils/storage.js'
 
 /**
  * 会员访问令牌。
