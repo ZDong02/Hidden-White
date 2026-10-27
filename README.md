@@ -36,7 +36,7 @@
 | 管理端前端 | Vue 3.5 + TypeScript 5.7 + Vite 6 + Vue Router 4 + GSAP |
 | 后端 | Spring Boot 3.5.14 + Java 17 + Spring Security + JJWT |
 | 数据访问 | MyBatis-Plus 3.5.16（管理端）+ Spring JDBC / JdbcTemplate（点单端） |
-| 数据库 | MySQL 5.7+（单库 `hidden_white`，业务表与系统表同库） |
+| 数据库 | MySQL 8.0+（单库 `hidden_white`，业务表与系统表同库） |
 | API 文档 | knife4j 4.5（OpenAPI 3） |
 | 构建 | Maven（后端）+ npm（前端） |
 
