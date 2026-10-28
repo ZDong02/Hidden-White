@@ -1,5 +1,8 @@
 package com.hiddenwhite.shop.repository;
 
+import com.hiddenwhite.common.points.PointsBizType;
+import com.hiddenwhite.common.points.PointsLedger;
+import com.hiddenwhite.common.points.PointsRefType;
 import com.hiddenwhite.shop.domain.Member;
 import com.hiddenwhite.shop.domain.MemberBenefit;
 import com.hiddenwhite.shop.domain.Order;
@@ -73,9 +76,11 @@ public class ShopRepository {
             "order_id,product_id,product_name,size_label,temperature,milk,quantity,unit_price,line_total";
 
     private final JdbcTemplate jdbc;
+    private final PointsLedger pointsLedger;
 
-    public ShopRepository(JdbcTemplate jdbc) {
+    public ShopRepository(JdbcTemplate jdbc, PointsLedger pointsLedger) {
         this.jdbc = jdbc;
+        this.pointsLedger = pointsLedger;
     }
 
     // ---- 商品与规格 ----
@@ -360,6 +365,12 @@ public class ShopRepository {
      * 顾客会少拿成长值且无从对账。改成 {@code growth_value = growth_value + ?} 后，
      * 累加由数据库保证原子性。
      *
+     * <p><b>积分为什么交给 {@link PointsLedger}</b>：积分自 2026-10-28 起必须留流水
+     * （P0-2）。这里不再自己拼 {@code points = points + ?}，改由账本统一改余额并写
+     * {@code ORDER_AWARD} 流水；成长值仍是本类的职责（它不是积分，不进积分流水）。
+     * {@code transaction_id} 的唯一索引 + 状态条件更新仍是防重复发放的第一道闸，
+     * 流水让「重复发放」这类事故至少可从数据上被发现。
+     *
      * <p>等级是「读—算—写」，仍存在极窄的并发窗口。这里用 {@code growth_value=?} 作为
      * 写入条件：若期间被别的订单改过，本次写入自然不生效，而那个把成长值推高的订单
      * 会按更高的成长值算出不低于本次的等级，因此等级只会「最多滞后一单」，
@@ -372,12 +383,16 @@ public class ShopRepository {
             return;
         }
         int growthGain = points * 10;
+        // 先用成长值更新探一次会员是否存在：改造前这里「影响行数为 0 就静默返回」，
+        // 支付回调不能因为会员被删就抛 404 让渠道反复重投，语义保持不变。
         int updated = jdbc.update(
-                "UPDATE members SET points=points+?,growth_value=growth_value+? WHERE id=?",
-                points, growthGain, order.memberId());
+                "UPDATE members SET growth_value=growth_value+? WHERE id=?",
+                growthGain, order.memberId());
         if (updated == 0) {
             return;
         }
+        pointsLedger.adjust(order.memberId(), points, PointsBizType.ORDER_AWARD,
+                PointsRefType.ORDER, order.id().toString(), "订单实付 ¥" + order.total() + " 发放积分");
         List<MemberGrowth> rows = jdbc.query(
                 "SELECT member_level,growth_value FROM members WHERE id=?",
                 (rs, row) -> new MemberGrowth(rs.getString("member_level"), rs.getInt("growth_value")),

@@ -18,7 +18,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         "com.hiddenwhite.admin.system.mapper",
         "com.hiddenwhite.admin.generator.mapper",
         "com.hiddenwhite.admin.coffee.mapper",
-        "com.hiddenwhite.admin.operation.mapper"
+        "com.hiddenwhite.admin.operation.mapper",
+        "com.hiddenwhite.admin.redeem.mapper"
 })
 public class HiddenWhiteApplication {
 

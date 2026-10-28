@@ -939,3 +939,121 @@ VALUES
 INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, id FROM sys_menu WHERE id = 500 OR (id >= 501 AND id <= 5031);
 
+
+-- =====================================================================
+-- 七、积分运营（积分流水 / 兑换品 / 兑换单）
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) member_points_log：积分流水（开发清单 P0-2）
+--    每一笔积分变动都必须有且只有一条流水，余额以「条件更新」改写后
+--    同事务回读写入 balance_after —— 任何时点的流水序列求和应等于当时余额。
+--    biz_type 取值由 com.hiddenwhite.common.points.PointsBizType 枚举锁定：
+--      ORDER_AWARD / REDEEM / REDEEM_CANCEL / REDEEM_EXPIRE_REFUND /
+--      POINTS_DEDUCT / POINTS_REFUND / ADMIN_ADJUST
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_points_log (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    member_id VARCHAR(64) NOT NULL COMMENT '会员 id',
+    change_amount INT NOT NULL COMMENT '变动量：正为发放/退回，负为消耗',
+    balance_after INT NOT NULL COMMENT '变动后余额（同事务回读）',
+    biz_type VARCHAR(32) NOT NULL COMMENT '业务类型，见 PointsBizType',
+    ref_type VARCHAR(32) NOT NULL DEFAULT '' COMMENT '关联对象类型：ORDER / REDEMPTION / ADMIN',
+    ref_id VARCHAR(64) NOT NULL DEFAULT '' COMMENT '关联对象 id（订单/兑换单/管理操作）',
+    remark VARCHAR(200) NOT NULL DEFAULT '' COMMENT '备注文案',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_points_log_member (member_id, id),
+    KEY idx_points_log_ref (ref_type, ref_id)
+) ENGINE=InnoDB COMMENT='会员积分流水';
+
+-- ---------------------------------------------------------------------
+-- 2) redeem_products：兑换品目录
+--    独立于 products —— 后者绑定奶咖假设（has_milk / SIZE·MILK·TEMPERATURE），
+--    无法表达「0 元 / 纯积分价 / 非饮品」的兑换品，且兑换品不需要规格矩阵。
+--    stock 为 NULL 表示不限量；非空时用条件更新原子递减。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS redeem_products (
+    id VARCHAR(40) NOT NULL COMMENT '业务主键，如 rw-latte',
+    name VARCHAR(80) NOT NULL COMMENT '兑换品名称',
+    subtitle VARCHAR(120) NOT NULL DEFAULT '' COMMENT '副标题',
+    description VARCHAR(300) NOT NULL DEFAULT '' COMMENT '描述',
+    image VARCHAR(200) NOT NULL DEFAULT '' COMMENT '图片，复用 /uploads 链路，存相对路径',
+    points_cost INT NOT NULL COMMENT '兑换所需积分',
+    stock INT NULL DEFAULT NULL COMMENT '库存：NULL 不限，非空须 >0 可兑',
+    per_member_limit INT NOT NULL DEFAULT 0 COMMENT '每人限兑次数（待核销+已核销合计），0 不限',
+    sort_order INT NOT NULL DEFAULT 0,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB COMMENT='积分兑换品目录';
+
+-- ---------------------------------------------------------------------
+-- 3) redemptions：兑换单（到店核销凭证）
+--    商品名称与图片做快照：兑换品后续改名/下架/删图，已发出的凭证仍要能核对。
+--    expires_at 由下单时写入（默认 30 天），逾期由惰性结算改为 EXPIRED 并退分。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS redemptions (
+    id CHAR(36) NOT NULL,
+    redeem_no VARCHAR(32) NOT NULL COMMENT '兑换单号：RW + yyyyMMdd + 4 位日序号',
+    member_id VARCHAR(64) NOT NULL,
+    product_id VARCHAR(40) NOT NULL,
+    product_name VARCHAR(80) NOT NULL COMMENT '快照：兑换时的商品名',
+    product_image VARCHAR(200) NOT NULL DEFAULT '' COMMENT '快照：兑换时的商品图',
+    points_cost INT NOT NULL COMMENT '快照：实际扣除积分',
+    code VARCHAR(8) NOT NULL COMMENT '8 位核销码，全局唯一',
+    status ENUM('PENDING','REDEEMED','CANCELLED','EXPIRED') NOT NULL DEFAULT 'PENDING'
+        COMMENT 'PENDING=待核销 / REDEEMED=已核销 / CANCELLED=已取消 / EXPIRED=已过期',
+    expires_at DATETIME(6) NOT NULL COMMENT '核销截止时间',
+    verified_at DATETIME(6) NULL COMMENT '核销时间',
+    verified_by VARCHAR(64) NULL COMMENT '核销管理员账号（sys_user.username，非数字 id，便于日志直接读）',
+    cancelled_at DATETIME(6) NULL COMMENT '取消时间',
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_redemptions_no (redeem_no),
+    UNIQUE KEY uk_redemptions_code (code),
+    KEY idx_redemptions_member (member_id, created_at),
+    KEY idx_redemptions_status_expire (status, expires_at),
+    KEY idx_redemptions_product_limit (member_id, product_id, status),
+    CONSTRAINT fk_redemptions_member FOREIGN KEY (member_id) REFERENCES members(id),
+    CONSTRAINT fk_redemptions_product FOREIGN KEY (product_id) REFERENCES redeem_products(id)
+) ENGINE=InnoDB COMMENT='积分兑换单（核销凭证）';
+
+-- 演示兑换品：对齐 demo 会员的 1280 积分，开箱即有可走通的兑换路径。
+-- 用 INSERT IGNORE：运营在管理端改过的价格/库存/上下架状态不会被重跑脚本覆盖。
+INSERT IGNORE INTO redeem_products
+    (id, name, subtitle, description, points_cost, per_member_limit, sort_order, enabled)
+VALUES
+    ('rw-americano', '经典美式', '到店核销 · 兑一杯', '双份浓缩与纯净水，干净回甘。兑换后 30 天内到店出示核销码即可。', 880, 0, 1, TRUE),
+    ('rw-latte', '经典拿铁', '到店核销 · 兑一杯', '双份浓缩与丝绒奶泡，坚果香气绵长。每位会员限兑 1 次。', 1280, 1, 2, TRUE),
+    ('rw-oat-latte', '燕麦拿铁', '到店核销 · 兑一杯', '燕麦奶与浓缩的清爽组合，乳糖不耐也能安心喝。', 1580, 0, 3, TRUE),
+    ('rw-badge', '隐白周边徽章', '限量 · 到店自提', '门店限定金属徽章，数量有限，兑完即止。', 2880, 1, 4, TRUE);
+
+-- ---------------------------------------------------------------------
+-- 4) 管理端菜单：积分运营（600 段，排在店铺运营 500 段之后）
+--    页面组件路径对应 HiddenWhite-admin/src/views/redeem/ 下的页面；
+--    权限码前缀 redeem:，对应后端 com.hiddenwhite.admin.redeem.controller.RedeemAdminController。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
+VALUES
+    (600, 0, '积分运营', 'dir', 'activity', '/redeem', '', '', 7, 1, 1, 'system', 'system'),
+    (601, 600, '兑换品管理', 'menu', 'layers', '/redeem/product', 'redeem/product/index', 'redeem:product:list', 1, 1, 1, 'system', 'system'),
+    (6011, 601, '兑换品新增', 'btn', '', '', '', 'redeem:product:add', 1, 1, 1, 'system', 'system'),
+    (6012, 601, '兑换品编辑', 'btn', '', '', '', 'redeem:product:edit', 2, 1, 1, 'system', 'system'),
+    (6013, 601, '兑换品删除', 'btn', '', '', '', 'redeem:product:remove', 3, 1, 1, 'system', 'system'),
+    (602, 600, '兑换记录', 'menu', 'table', '/redeem/order', 'redeem/order/index', 'redeem:order:list', 2, 1, 1, 'system', 'system'),
+    (6021, 602, '兑换核销', 'btn', '', '', '', 'redeem:order:verify', 1, 1, 1, 'system', 'system');
+
+-- 超级管理员（role_id = 1）授予全部积分运营菜单与按钮。
+-- 用「父节点 ∈ 600/601/602」而非 id 区间：id 区间会误伤 1011、4011 这类
+-- 数字上落在 601~6029 之内的其它模块按钮，授权范围随菜单新增也不会走偏。
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE id = 600 OR parent_id IN (600, 601, 602);
+
+-- ---------------------------------------------------------------------
+-- 5) 只读检查
+-- ---------------------------------------------------------------------
+SELECT COUNT(*) AS redeem_products_rows FROM redeem_products;
+SELECT COUNT(*) AS redeem_menus_rows FROM sys_menu WHERE id = 600 OR parent_id IN (600, 601, 602);
+

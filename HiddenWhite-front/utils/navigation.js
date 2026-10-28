@@ -9,7 +9,10 @@ const PAGES = Object.freeze({
   auth: '/pages/auth/auth',
   detail: '/pages/detail/detail',
   checkout: '/pages/checkout/checkout',
-  order: '/pages/index/index?tab=orders'
+  order: '/pages/index/index?tab=orders',
+  // 会员页的两个出口：积分兑换、积分明细（均为独立页面，不新增底部 Tab）
+  redeem: '/pages/redeem/index',
+  pointsLog: '/pages/points-log/index'
 })
 
 let navigationPending = false

@@ -63,10 +63,11 @@ public class SecurityConfig {
                                 antMatcher("/api/members/benefits")
                         ).permitAll()
 
-                        // 点单端登录后才能访问：报价（首单减免需按本人订单判定）、订单、会员资料
+                        // 点单端登录后才能访问：报价（首单减免需按本人订单判定）、订单、会员资料、积分兑换
                         .requestMatchers(
                                 antMatcher("/api/cart/**"),
                                 antMatcher("/api/orders/**"),
+                                antMatcher("/api/redeem/**"),
                                 antMatcher("/api/members/**")
                         ).authenticated()
 

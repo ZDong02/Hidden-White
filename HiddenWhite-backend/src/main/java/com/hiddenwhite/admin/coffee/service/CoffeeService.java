@@ -3,6 +3,9 @@ package com.hiddenwhite.admin.coffee.service;
 import com.hiddenwhite.common.domain.PageQuery;
 import com.hiddenwhite.common.domain.PageResult;
 import com.hiddenwhite.common.exception.BusinessException;
+import com.hiddenwhite.common.points.PointsBizType;
+import com.hiddenwhite.common.points.PointsLedger;
+import com.hiddenwhite.common.points.PointsRefType;
 import com.hiddenwhite.admin.coffee.domain.dto.BenefitWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.MemberWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.OptionWriteRequest;
@@ -11,6 +14,7 @@ import com.hiddenwhite.admin.coffee.domain.dto.StoreWriteRequest;
 import com.hiddenwhite.admin.coffee.mapper.CoffeeMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -30,9 +34,11 @@ public class CoffeeService {
     private static final String PROTECTED_MEMBER_ID = "guest";
 
     private final CoffeeMapper mapper;
+    private final PointsLedger pointsLedger;
 
-    public CoffeeService(CoffeeMapper mapper) {
+    public CoffeeService(CoffeeMapper mapper, PointsLedger pointsLedger) {
         this.mapper = mapper;
+        this.pointsLedger = pointsLedger;
     }
 
     // ---- 概览 ----
@@ -205,15 +211,36 @@ public class CoffeeService {
         return PageResult.of(rows, total, query.normalizedPageNum(), query.normalizedPageSize());
     }
 
+    /**
+     * 编辑会员资料。
+     *
+     * <p>表单仍可改积分（运营侧的历史习惯），但积分不再直接写库：
+     * 先读出当前值算出差值，资料更新后再把差值交给 {@code PointsLedger}
+     * 记一条 {@code ADMIN_ADJUST} 流水。这样「管理员改分」与「支付发放 / 兑换扣除」
+     * 走的是同一条账本，对账时不存在无法解释的余额跳变。
+     *
+     * <p>整段加事务：资料写成功而账本失败（例如并发下余额已非预期值）时整体回滚，
+     * 不会出现「改了昵称但积分没动」或反过来的半更新状态。
+     */
+    @Transactional
     public void updateMember(String id, MemberWriteRequest request) {
         requireText(request.getDisplayName(), "会员昵称");
         requireText(request.getLevel(), "会员等级");
         if (request.getPoints() == null || request.getPoints() < 0) throw new BusinessException("积分不能为负数");
         if (request.getCoupons() == null || request.getCoupons() < 0) throw new BusinessException("优惠券不能为负数");
         if (request.getGrowthValue() == null || request.getGrowthValue() < 0) throw new BusinessException("成长值不能为负数");
+
+        Integer currentPoints = mapper.memberPoints(id);
+        if (currentPoints == null) throw new BusinessException(404, "会员不存在: " + id);
+
+        int delta = request.getPoints() - currentPoints;
         int rows = mapper.updateMember(id, request.getDisplayName().trim(), request.getLevel().trim(),
-                request.getPoints(), request.getCoupons(), request.getGrowthValue());
+                request.getCoupons(), request.getGrowthValue());
         if (rows == 0) throw new BusinessException(404, "会员不存在: " + id);
+        if (delta != 0) {
+            pointsLedger.adjust(id, delta, PointsBizType.ADMIN_ADJUST, PointsRefType.ADMIN, id,
+                    "管理端调整积分 " + currentPoints + " → " + request.getPoints());
+        }
     }
 
     public void deleteMember(String id) {

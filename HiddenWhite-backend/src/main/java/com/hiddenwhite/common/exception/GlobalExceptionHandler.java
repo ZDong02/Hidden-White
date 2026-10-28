@@ -58,6 +58,19 @@ public class GlobalExceptionHandler {
         return response(HttpStatus.BAD_REQUEST, exception.getMessage(), request, List.of());
     }
 
+    /**
+     * 积分账本的业务失败。
+     *
+     * <p>{@code PointsLedger} 被点单端与管理端共用，自己带状态码：
+     * 余额不足是 409（可重试冲突），会员不存在是 404。
+     * 这里按请求路径分流到各自端已有的响应结构，不新增前端需要识别的格式。
+     */
+    @ExceptionHandler(com.hiddenwhite.common.points.PointsException.class)
+    public ResponseEntity<Object> points(com.hiddenwhite.common.points.PointsException exception,
+                                         HttpServletRequest request) {
+        return response(exception.status(), exception.getMessage(), request, List.of());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Object> accessDenied(AccessDeniedException exception, HttpServletRequest request) {
         if (isAdmin(request)) {

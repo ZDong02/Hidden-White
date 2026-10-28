@@ -1,7 +1,10 @@
 package com.hiddenwhite.shop.controller;
 
+import com.hiddenwhite.common.domain.PageQuery;
+import com.hiddenwhite.common.domain.PageResult;
 import com.hiddenwhite.shop.domain.Member;
 import com.hiddenwhite.shop.domain.MemberBenefit;
+import com.hiddenwhite.shop.domain.PointsLogEntry;
 import com.hiddenwhite.shop.exception.BusinessException;
 import com.hiddenwhite.shop.service.MemberSessionService;
 import com.hiddenwhite.shop.service.MemberService;
@@ -18,6 +21,9 @@ import java.util.List;
  *
  * <p>{@code GET /api/members/{id}} 需登录且只能读取自己的资料（归属以 token 判定），
  * 避免越权读取他人手机号、卡号、积分。权益列表为公共信息，无需登录。
+ *
+ * <p>{@code GET /api/members/points-log} 补齐会员页「积分明细」入口：
+ * 同样只读本人流水，游客账号拒绝（见 {@link MemberSessionService#requireAccountMemberId()}）。
  */
 @RestController
 @RequestMapping("/api/members")
@@ -45,5 +51,11 @@ public class MemberController {
     @GetMapping("/benefits")
     public List<MemberBenefit> benefits() {
         return memberService.benefits();
+    }
+
+    /** 积分明细（分页，按时间倒序）。 */
+    @GetMapping("/points-log")
+    public PageResult<PointsLogEntry> pointsLog(PageQuery query) {
+        return memberService.pointsLog(sessionService.requireAccountMemberId(), query);
     }
 }

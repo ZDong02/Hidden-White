@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import Icon from '@/components/Icon.vue'
-import { coffeeApi, type CoffeeImageSlot, type CoffeeImageTarget } from '@/api'
+import { coffeeApi, type CoffeeImageSlot, type CoffeeImageTarget, type CoffeeImageUpload } from '@/api'
 import { pushToast, toastError } from '@/composables/toast'
 
 /**
@@ -21,11 +21,19 @@ const props = withDefaults(defineProps<{
   /** 已从服务端读取的规格（避免重复请求） */
   maxBytes?: number
   disabled?: boolean
+  /**
+   * 自定义上传通道。默认走商品图片接口（/coffee/images/upload）。
+   *
+   * 积分运营复用同一个控件，但上传接口挂在自己的权限码（redeem:product:add）下：
+   * 让「能维护兑换品」的账号不需要额外具备「商品管理」权限才能传图。
+   */
+  uploader?: (file: File, slot: CoffeeImageSlot) => Promise<CoffeeImageUpload>
 }>(), {
   modelValue: '',
   target: undefined,
   maxBytes: undefined,
   disabled: false,
+  uploader: undefined,
 })
 
 const emit = defineEmits<{ (e: 'update:modelValue', value: string): void }>()
@@ -108,7 +116,8 @@ async function handleFile(file: File) {
 
   uploading.value = true
   try {
-    const result = await coffeeApi.images.upload(file, props.slot)
+    const upload = props.uploader ?? coffeeApi.images.upload
+    const result = await upload(file, props.slot)
     emit('update:modelValue', result.url)
     infoText.value = describeResult(result.width, result.height, result.ratioChanged)
   } catch (error) {

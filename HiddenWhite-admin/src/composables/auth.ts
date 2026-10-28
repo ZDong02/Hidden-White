@@ -56,6 +56,8 @@ const COMPONENT_MAP: Record<string, () => Promise<{ default: Component }>> = {
   'operation/status/index': () => import('@/views/operation/Status.vue'),
   'operation/hours/index': () => import('@/views/operation/Hours.vue'),
   'operation/traffic/index': () => import('@/views/operation/Traffic.vue'),
+  'redeem/product/index': () => import('@/views/redeem/Products.vue'),
+  'redeem/order/index': () => import('@/views/redeem/Orders.vue'),
 }
 
 /** 路由名由路径推导：/system/user → system-user */

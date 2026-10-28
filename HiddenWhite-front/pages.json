@@ -35,6 +35,24 @@
         "backgroundColorTop": "#fbfaf7",
         "backgroundColorBottom": "#fbfaf7"
       }
+    },
+    {
+      "path": "pages/redeem/index",
+      "style": {
+        "navigationBarTitleText": "积分兑换",
+        "navigationStyle": "custom",
+        "backgroundColorTop": "#fbfaf7",
+        "backgroundColorBottom": "#fbfaf7"
+      }
+    },
+    {
+      "path": "pages/points-log/index",
+      "style": {
+        "navigationBarTitleText": "积分明细",
+        "navigationStyle": "custom",
+        "backgroundColorTop": "#fbfaf7",
+        "backgroundColorBottom": "#fbfaf7"
+      }
     }
   ],
   "globalStyle": {

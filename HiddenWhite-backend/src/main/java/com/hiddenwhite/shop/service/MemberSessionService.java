@@ -2,6 +2,8 @@ package com.hiddenwhite.shop.service;
 
 import com.hiddenwhite.framework.security.JwtService;
 import com.hiddenwhite.framework.security.TokenStore;
+import com.hiddenwhite.shop.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,15 @@ public class MemberSessionService {
 
     /** 会员 subject 前缀，隔离管理端账号。 */
     static final String SUBJECT_PREFIX = "member:";
+
+    /**
+     * 游客账号 id。
+     *
+     * <p>点单端下单时会自动创建/复用该账号，它没有手机号与登录口令，
+     * 余额恒为 0 且变动无归属意义 —— 积分兑换与积分明细对它一律拒绝，
+     * 否则会产生「永远对不上账」的流水。
+     */
+    public static final String GUEST_MEMBER_ID = "guest";
 
     private final JwtService jwtService;
     private final TokenStore tokenStore;
@@ -69,5 +80,21 @@ public class MemberSessionService {
         }
         String memberId = principal.substring(SUBJECT_PREFIX.length()).trim();
         return memberId.isEmpty() ? Optional.empty() : Optional.of(memberId);
+    }
+
+    /**
+     * 取「有账号的」当前会员：未登录或游客账号都拒绝。
+     *
+     * <p>积分相关的读接口（明细 / 兑换）统一走这里：
+     * 未登录时 401 让前端引导登录，游客账号同样 401 ——
+     * 对顾客而言处置一致（去登录），不必再区分一种「登录了但不能用」的状态。
+     */
+    public String requireAccountMemberId() {
+        String memberId = currentMemberId()
+                .orElseThrow(() -> new BusinessException(HttpStatus.UNAUTHORIZED, "请先登录"));
+        if (GUEST_MEMBER_ID.equals(memberId)) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "游客账号无法使用积分服务，请登录会员账号");
+        }
+        return memberId;
     }
 }

@@ -287,16 +287,26 @@ public interface CoffeeMapper {
                                           @Param("offset") long offset,
                                           @Param("size") int size);
 
+    /** 读取当前积分，供管理端改分时计算差值（差值才进流水）。 */
+    @Select("SELECT points FROM ${coffeeDb}.members WHERE id = #{id}")
+    Integer memberPoints(@Param("id") String id);
+
+    /**
+     * 更新会员资料。
+     *
+     * <p><b>刻意不写 points</b>：积分必须经 {@code PointsLedger} 变动才会留下流水，
+     * 若这里跟着整行一起覆盖，管理员改分就成了「没有流水的黑箱变动」。
+     * 目标积分由 Service 换算成差值后交给账本处理。
+     */
     @Update("""
             UPDATE ${coffeeDb}.members
-            SET display_name = #{displayName}, member_level = #{level}, points = #{points},
+            SET display_name = #{displayName}, member_level = #{level},
                 coupons = #{coupons}, growth_value = #{growthValue}
             WHERE id = #{id}
             """)
     int updateMember(@Param("id") String id,
                      @Param("displayName") String displayName,
                      @Param("level") String level,
-                     @Param("points") int points,
                      @Param("coupons") int coupons,
                      @Param("growthValue") int growthValue);
 

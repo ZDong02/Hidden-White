@@ -21,12 +21,21 @@
         <view class="points-block">
           <text class="card-label">当前积分</text>
           <text class="points num">{{ member.points ?? 0 }}</text>
+          <view
+            class="points-action"
+            hover-class="is-press"
+            :hover-stay-time="60"
+            @tap.stop="openRedeem"
+          >
+            <text class="points-action-text">去兑换</text>
+            <Icon name="chevron-right" tone="gold-on-dark" :size="20" />
+          </view>
         </view>
       </view>
     </view>
 
     <view class="stat-grid reveal reveal-1">
-      <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="showFeature('积分明细')">
+      <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="openPointsLog">
         <text class="stat-value">{{ member.points ?? 0 }}</text>
         <text class="stat-label">积分明细</text>
       </view>
@@ -55,7 +64,7 @@
         class="benefit-card"
         hover-class="benefit-card--press"
         :hover-stay-time="60"
-        @tap="showFeature(benefit.title)"
+        @tap="openBenefit(benefit)"
       >
         <view class="benefit-icon">
           <Icon :name="benefit.icon" tone="gold" :size="32" />
@@ -90,6 +99,7 @@ import Icon from '../ui/Icon.vue'
 import { currentUser, isLoggedIn } from '../../store/auth'
 import { requestApi } from '../../config/backend'
 import { showNotice } from '../../utils/toast'
+import { openPage } from '../../utils/navigation'
 
 // 礼遇图标走统一图标集：名称对应 scripts/icons 下的母版
 const defaultBenefits = [
@@ -125,7 +135,40 @@ async function activate() {
 }
 
 function showFeature(title) {
-  showNotice(title, '该会员服务当前仅展示权益说明，积分兑换与优惠券核销尚未开放。')
+  showNotice(title, '该会员服务当前仅展示权益说明，优惠券核销尚未开放。')
+}
+
+/**
+ * 积分兑换入口：会员卡「去兑换」与礼遇卡「积分兑换」共用。
+ * 未登录先去登录页，登录成功由登录页按 redirect=redeem 直接换到兑换页。
+ */
+function openRedeem() {
+  if (!isLoggedIn.value) {
+    openPage('auth', { redirect: 'redeem' })
+    return
+  }
+  openPage('redeem')
+}
+
+/** 积分明细：只读流水，游客与未登录同样先引导登录。 */
+function openPointsLog() {
+  if (!isLoggedIn.value) {
+    openPage('auth', { redirect: 'pointsLog' })
+    return
+  }
+  openPage('pointsLog')
+}
+
+/**
+ * 礼遇卡点击：只有「积分兑换」这一张对应真实功能，其余仍是权益说明。
+ * 用标题前缀匹配而不是下标，是因为礼遇列表来自后端（管理端可增删改）。
+ */
+function openBenefit(benefit) {
+  if (String(benefit?.title || '').includes('积分')) {
+    openRedeem()
+    return
+  }
+  showFeature(benefit.title)
 }
 
 defineExpose({ activate })
@@ -249,6 +292,23 @@ defineExpose({ activate })
   color: $c-gold-on-dark;
   font-size: $fs-h2;
   font-weight: 600;
+}
+
+/* 「去兑换」：深色卡上的次级入口，用金色文字 + 20rpx 图标，不抢积分数字的视觉重量 */
+.points-action {
+  display: inline-flex;
+  align-items: center;
+  gap: $sp-0;
+  margin-top: $sp-1;
+  padding: $sp-0 $sp-2;
+  border: 1rpx solid $c-gold-line;
+  border-radius: $r-pill;
+}
+
+.points-action-text {
+  color: $c-gold-on-dark;
+  font-size: $fs-micro;
+  letter-spacing: $ls-normal;
 }
 
 /* ---- 概览数据 ---- */

@@ -100,6 +100,12 @@ const password = ref('')
 const submitting = ref(false)
 const redirect = ref('profile')
 
+/**
+ * 登录成功后允许直接跳回的来源页（对应 utils/navigation.js 的 PAGES 键）。
+ * 新增需要「登录后继续」的页面时在这里登记，否则会被当成未知来源回到「我的」。
+ */
+const REDIRECT_PAGES = ['checkout', 'redeem', 'pointsLog']
+
 // 错误消息
 const phoneError = ref('')
 const nameError = ref('')
@@ -177,8 +183,10 @@ async function submit() {
     // 等待 toast 呈现后再跳转
     redirectTimer = setTimeout(() => {
       redirectTimer = null
-      if (redirect.value === 'checkout') {
-        replacePage('checkout')
+      // 只认白名单里的来源页；其余值一律回「我的」——
+      // 任意 redirect 都能跳等于把一个开放跳转口子暴露给调用方。
+      if (REDIRECT_PAGES.includes(redirect.value)) {
+        replacePage(redirect.value)
       } else {
         resetToPage('profile')
       }
