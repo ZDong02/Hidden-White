@@ -15,6 +15,9 @@
 | 首单减免 | 会员无历史订单时减 6 元，由后端判定 |
 | 门店（store） | 当前**单店**模型，`store_id` 硬编码为 1，多店支持见阶段Ⅳ |
 | 权益（benefit） | 会员卡背面的规则说明，如积分兑换、生日礼遇 |
+| 兑换品（redeem product） | 积分商城里用积分兑换的商品（饮品券 / 周边），**独立于 `products`**，不与「权益」混用 |
+| 积分流水（points log） | 每一笔积分变动（发放 / 兑换 / 退回 / 管理调整），`balance_after` 可反推任意时点余额 |
+| 核销码（code） | 兑换成功后生成的 8 位数字，到店由管理端核销 |
 
 ---
 
@@ -25,7 +28,7 @@
 | 端 | 登录接口 | subject 格式 | 可访问 |
 |---|---|---|---|
 | 管理端 | `/api/admin/auth/login` | `sys_user.username`（如 `admin`） | `/api/admin/**` |
-| 点单端 | `/api/auth/login` | `member:<会员ID>` | `/api/orders/**`、`/api/members/**`、`/api/cart/**` |
+| 点单端 | `/api/auth/login` | `member:<会员ID>` | `/api/orders/**`、`/api/members/**`、`/api/cart/**`、`/api/redeem/**` |
 
 管理端权限切面 `PermissionAspect` 用 principal 反查 `sys_user`，`member:` 前缀查不到该用户，
 因此**点单端 token 打不进任何管理端接口**，反之亦然。**该前缀是隔离关键，不要移除。**
@@ -38,7 +41,7 @@
 
 ## 三、点单端（HiddenWhite-front）
 
-4 个页面；订单 / 会员 / 我的为壳页面 `pages/index/index.vue` 内的 Tab 面板
+6 个页面；订单 / 会员 / 我的为壳页面 `pages/index/index.vue` 内的 Tab 面板
 （`components/tabs/`，通过 `?tab=` 直达，不单独注册）。
 
 | 页面 / 面板 | 后端接口 | 表 | 权限 |
@@ -51,14 +54,21 @@
 | `pages/detail/detail.vue` | `GET /api/products/options` | `product_options` | 公开 |
 | `pages/checkout/checkout.vue` | `POST /api/cart/quote`、`POST /api/orders` | `orders`、`order_items` | 需登录 |
 | `pages/auth/auth.vue` | `POST /api/auth/login`、`/api/auth/register`、`/api/auth/logout` | `members`、`users` | 公开 |
+| `pages/redeem/index.vue` | `GET /api/redeem/products`、`POST /api/redeem/products/{id}/exchange`、`GET /api/redeem/orders`、`POST /api/redeem/orders/{id}/cancel` | `redeem_products`、`redemptions`、`members` | 需登录（拒绝 `guest`） |
+| `pages/points-log/index.vue` | `GET /api/members/points-log` | `member_points_log` | 需登录（拒绝 `guest`） |
 
 **价格、取餐号、首单减免一律由后端计算**，不信任客户端传入的价格字段。
+
+**积分兑换链路**：会员页「去兑换 / 积分明细 / 积分兑换礼遇卡」三个入口 → 兑换页
+（余额条 + 兑换品卡片 + 我的兑换）→ 滑动确认扣分 → 展示 8 位核销码 → 到店由管理端核销。
+「能否兑换」由服务端判定（积分不足 / 已兑完 / 已达限兑次数），前端只展示结论与原因。
 
 ---
 
 ## 四、管理端（HiddenWhite-admin）
 
-20 个页面，`COMPONENT_MAP` 与 `views/` 目录 **20 = 20 完全对应**。
+`COMPONENT_MAP` 共 22 项，与 `views/` 下 22 个菜单页面一一对应
+（`Login` / `NoAccess` / `NotFound` 三个非菜单页不在映射内）。
 
 ### 4.1 咖啡运营
 
@@ -116,7 +126,26 @@
 `permissionGraph()` 三处。无标注时 `DataScopeContext.current()` 返回 `selfOnly(null)`（fail-closed），
 即**查不到数据**而非返回全表。新增查询若需数据权限，必须加注解。
 
-### 4.4 监控与工具
+### 4.4 积分运营
+
+| 页面 | 组件标识 | 接口前缀 | 权限码 |
+|---|---|---|---|
+| `redeem/Products.vue` | `redeem/product/index` | `/api/admin/redeem/products` | `redeem:product:*` |
+| `redeem/Orders.vue` | `redeem/order/index` | `/api/admin/redeem/orders` | `redeem:order:*` |
+
+| 接口 | 方法 | 说明 |
+|---|---|---|
+| `/api/admin/redeem/products` | GET / POST | 分页 + 关键字 / 上下架筛选；新增校验积分价 ≥ 1、库存 ≥ 0 或 NULL |
+| `/api/admin/redeem/products/{id}` | PUT / DELETE | 整行更新；**已有兑换记录 → 409 并建议改为下架**（凭证外键不能断） |
+| `/api/admin/redeem/products/{id}/enabled` | PUT | 上下架，独立端点（同商品管理约定） |
+| `/api/admin/redeem/orders` | GET | 分页 + 状态 / 关键字筛选，**查询前先做过期结算** |
+| `/api/admin/redeem/orders/verify` | POST | body `{code}`：8 位核销码 → `PENDING` 且未过期才翻转为 `REDEEMED` |
+| `/api/admin/redeem/images/upload|spec` | POST / GET | 复用商品图片处理链路，权限码换成 `redeem:product:*` |
+
+**过期结算不靠定时任务**：`RedeemService.settleExpired()` 在「会员查兑换单」「运营查兑换记录」
+「核销前」三个入口触发，条件翻转（`WHERE status='PENDING'`）保证退分只发生一次。
+
+### 4.5 监控与工具
 
 | 页面 | 组件标识 | 说明 |
 |---|---|---|
@@ -138,9 +167,12 @@
 | `product_options` | 规格选项（SIZE / MILK / TEMPERATURE） |
 | `members` | 会员。`guest` 为受保护的游客账号 |
 | `users` | 会员登录凭据（`phone` + `password_hash`），与管理端 `sys_user` 无关 |
-| `member_benefits` | 会员权益说明 |
-| `orders` | 订单。**当前无支付字段**，状态仅 `IN_PROGRESS` / `COMPLETED` |
+| `member_benefits` | 会员权益说明（**规则文案，不是商品**） |
+| `orders` | 订单。含支付字段（`pay_channel`/`transaction_id`/`prepay_id`/`paid_at`/`refund_*`），状态五态 `CREATED`/`PENDING_PAYMENT`/`PAID`/`COMPLETED`/`CANCELLED` |
 | `order_items` | 订单明细 |
+| `member_points_log` | **积分流水**。`change_amount` 正负记方向，`balance_after` 为同事务回读余额；`biz_type` 取值由 `PointsBizType` 锁定 |
+| `redeem_products` | **兑换品目录**（独立于 `products`，纯积分为价；`stock=NULL` 不限量） |
+| `redemptions` | **兑换单（核销凭证）**。8 位唯一核销码、30 天有效期、商品名/图/积分价快照 |
 | `store_hours` | 按星期运营时段，恰好 7 行 |
 | `store_daily_traffic` | 日客流量，打烊时结算 |
 
@@ -163,8 +195,9 @@
 
 | 项 | 说明 | 阶段 |
 |---|---|---|
-| 无支付 | `orders` 表无支付字段，微信支付未接入 | Ⅲ |
-| 积分 / 券无流水 | 仅整数字段，无法追溯消耗过程 | Ⅲ |
+| 无支付 | `orders` 已有完整支付字段，微信支付通道未接入（`pay.enabled=false`），演示模式直接置 `PAID` | Ⅲ |
+| 券无流水 | `members.coupons` 仍是数量计数，优惠券实体化另立方案（积分已于 2026-10-28 接入流水） | Ⅲ |
+| 积分抵现未接入 | 结算尚未接入积分抵扣（方案阶段 C），当前只有「兑换」这一条消耗出口 | Ⅲ |
 | 跨日结算无定时任务 | `@Scheduled` 零命中，跨日客流不会自动结算 | Ⅲ |
 | 单店硬编码 | `OperationMapper` 6 处 `store_id = 1` | Ⅳ |
 | 死代码接口 | 后端已实现但前端未调用：`GET /api/orders/current`、`GET /api/orders/{id}`、`GET /api/products/{id}` | Ⅳ |

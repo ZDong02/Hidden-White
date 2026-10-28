@@ -47,7 +47,7 @@
 ```
 Hidden White/
 ├── HiddenWhite-front/                  # 点单端：uni-app（微信小程序 / H5）
-│   ├── pages/                          # 4 个业务页面（订单/会员/我的为壳页内 Tab 面板）
+│   ├── pages/                          # 6 个业务页面（订单/会员/我的为壳页内 Tab 面板；另有积分兑换、积分明细）
 │   ├── components/                     # 共享组件 + components/ui/ 统一组件库
 │   │                                   #   Button / Card / Icon / Input / Modal / SlideConfirm / Stepper
 │   ├── styles/                         # 设计令牌 tokens.scss + 通用元件与动效 common.scss
@@ -60,7 +60,7 @@ Hidden White/
 │   └── static/                         # 图片资源；icons/*.png 由 npm run assets:icons 生成
 │
 ├── HiddenWhite-admin/                  # 管理端：Vue 3 + TS + Vite（端即项目根，无额外嵌套）
-│   ├── src/views/                      # 23 个页面
+│   ├── src/views/                      # 25 个页面（含 redeem/ 积分运营两页）
 │   ├── src/components/                 # ui(27) + business(19) + charts(6) + layout(6)
 │   ├── src/composables/                # 15 个组合式函数
 │   ├── src/api/                        # 统一 HTTP 客户端 + 业务接口模块
@@ -190,8 +190,8 @@ npm run dev:mp-weixin
 |----|------|------|------|
 | 小程序 / H5 | `/api/auth/login`、`/api/auth/register` | 无需登录 | 登录 / 注册，**返回 `{ member, token }`** |
 | 小程序 / H5 | `/api/products`、`/api/products/options`、`/api/store`、`/api/members/benefits` | 无需登录 | 浏览类公开接口 |
-| 小程序 / H5 | `/api/orders/**`、`/api/members/{id}`、`/api/cart/quote`、`/api/auth/logout` | **需登录** | 会员归属以 token 判定，不接受客户端传入 memberId；报价要按本人历史订单判首单，故也需登录 |
-| 管理端 | `/api/admin/**` | JWT 登录 + 权限码 | auth、coffee、operation、system、dashboard、monitor、tool/generator |
+| 小程序 / H5 | `/api/orders/**`、`/api/members/{id}`、`/api/members/points-log`、`/api/cart/quote`、`/api/redeem/**`、`/api/auth/logout` | **需登录** | 会员归属以 token 判定，不接受客户端传入 memberId；报价要按本人历史订单判首单，故也需登录；积分兑换与明细拒绝 `guest` 账号 |
+| 管理端 | `/api/admin/**` | JWT 登录 + 权限码 | auth、coffee、operation、redeem（积分运营）、system、dashboard、monitor、tool/generator |
 | 健康检查 | `/api/health` | 放行 | 点单端用于后端地址自动探测 |
 
 > 管理端登录地址：`/api/admin/auth/login`；点单端注销地址：`/api/auth/logout`
