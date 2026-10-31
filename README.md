@@ -162,6 +162,15 @@ npm run dev:mp-weixin
 - H5 开发服务器默认 `127.0.0.1`
 - 后端地址自动探测：按 `config/backend-hosts.js` 候选列表做健康检查，换网络只需修改该文件
 
+> **不要用微信开发者工具的「生成骨架屏」**（工具 → 生成骨架屏）。它会把
+> `pages/xxx/xxx.skeleton.wxml` / `.wxss` 写进**编译产物目录**（`dist/dev|build/mp-weixin`
+> 或 HBuilderX 的 `unpackage/dist/dev/mp-weixin`），而下一次编译会清空该目录，
+> 文件消失后工具仍按旧文件表编译，于是报
+> `ENOENT ... index.skeleton.wxml` / `index.skeleton.wxss`。
+> 这不是代码问题，处理办法：开发者工具「工具 → 清缓存 → 全部清除」（或关闭项目重开）后重新编译；
+> 顽固时删掉产物目录再让 HBuilderX / `npm run dev:mp-weixin` 完整编一次。
+> 需要骨架屏请写在源码里——首页商品列表、积分明细、兑换页都已有 `skeleton-*` 加载态。
+
 ---
 
 ## 配置说明
