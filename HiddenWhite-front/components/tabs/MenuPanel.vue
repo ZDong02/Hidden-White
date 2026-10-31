@@ -41,24 +41,14 @@
         </view>
       </view>
 
-      <!-- Banner：黑金主视觉，编辑式排版层级 -->
-      <view
-        class="banner card-dark reveal reveal-2"
-        hover-class="banner--press"
-        :hover-stay-time="60"
-        @tap="openDetail('latte')"
-      >
-        <view class="banner-eyebrow-row">
-          <view class="eyebrow-rule" />
-          <text class="banner-eyebrow">本周推荐 · 匠心双份浓缩</text>
-        </view>
-        <text class="banner-title">一杯，恰好。</text>
-        <text class="banner-caption">细腻奶感，纯粹咖啡香。</text>
-        <view class="banner-link-row">
-          <text class="banner-link">品味招牌馥白</text>
-          <Icon name="arrow-up-right" tone="gold-on-dark" :size="24" />
-        </view>
-        <image class="banner-image" :src="bannerImage" mode="aspectFill" />
+      <!--
+        首页推荐位：轮播池来自管理端「推荐商品」，端上随机抽最多 3 屏。
+        原来的静态 Banner（写死「一杯，恰好。」）已落成推荐位数据，
+        文案改在管理端，这里只负责展示。
+        paused：本面板不在前台时停掉自动轮播（切到别的 Tab 仍在渲染，没必要继续转）。
+      -->
+      <view class="hero-block reveal reveal-2">
+        <RecommendCarousel :slides="heroSlides" :paused="!panelActive" @select="openDetail" />
       </view>
 
       <!-- 分类：可横向滚动的紧凑标签列，选中项金色下划线跟随 -->
@@ -137,8 +127,17 @@
 import { ref, computed, onMounted } from 'vue'
 import Icon from '../ui/Icon.vue'
 import StoreLine from '../StoreLine.vue'
-import { products, loadProducts, refreshOrders, loadStoreInfo, storeInfo } from '../../store/index'
-import { STORE, IMAGES, CATEGORY_NAMES } from '../../config/constants'
+import RecommendCarousel from '../RecommendCarousel.vue'
+import {
+  products,
+  heroSlides,
+  loadProducts,
+  loadRecommendations,
+  refreshOrders,
+  loadStoreInfo,
+  storeInfo
+} from '../../store/index'
+import { STORE, CATEGORY_NAMES } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
 
 defineEmits(['switch-tab'])
@@ -148,11 +147,17 @@ const refreshing = ref(false)
 const loading = ref(true)
 const loadError = ref(false)
 
+/**
+ * 本面板是否在前台。
+ * 壳页面用横向 swiper 同时挂着四个面板，切走后面板仍在渲染树里 ——
+ * 轮播的自动播放没有观众时应该停掉，所以这里如实记录可见性，透传给轮播组件。
+ */
+const panelActive = ref(false)
+
 // 门店信息来自 /api/store（管理端可改），未加载到时回落本地常量
 const storeDistance = computed(() => storeInfo.distance || STORE.distance)
 const storeHours = computed(() => storeInfo.hours || STORE.hours)
 const storeOpen = computed(() => (storeInfo.loaded ? storeInfo.open : true))
-const bannerImage = IMAGES.coffee.banner
 
 // 分类由实际商品动态派生：只给「商品里真实出现过的分类」出标签，
 // 名称从 CATEGORY_NAMES 取，未登记的数字分类显示为「分类 N」。
@@ -170,7 +175,7 @@ const categoryTabs = computed(() => {
   ]
 })
 
-// 三个请求相互独立：用 allSettled 隔离失败，避免门店信息报错时
+// 四个请求相互独立：用 allSettled 隔离失败，避免门店信息报错时
 // 把商品列表一起拖下水（原来 Promise.all 会整体reject，商品随之加载失败）。
 async function refreshAll(force = false) {
   const results = await Promise.allSettled([
@@ -178,10 +183,12 @@ async function refreshAll(force = false) {
     refreshOrders(),
     // 门店营业状态直接决定能否下单，每次 activate（onShow / 切 tab）都强制刷新，
     // 不吃缓存；单条门店查询开销极小，实时性优先
-    loadStoreInfo({ force: true })
+    loadStoreInfo({ force: true }),
+    // 推荐位同样按 force 走：下拉刷新要立刻看到管理端刚改的文案 / 商品
+    loadRecommendations({ force })
   ])
   const failed = results.find((item) => item.status === 'rejected')
-  // 只有商品列表失败才算致命：订单 / 门店失败仍可展示缓存内容
+  // 只有商品列表失败才算致命：订单 / 门店 / 推荐位失败仍可展示缓存或隐藏该区块
   loadError.value = results[0].status === 'rejected'
   loading.value = false
   if (failed) {
@@ -194,6 +201,7 @@ async function refreshAll(force = false) {
 let inFlight = null
 
 function activate() {
+  panelActive.value = true
   if (inFlight) return inFlight
   inFlight = refreshAll()
     .catch(() => {
@@ -206,6 +214,11 @@ function activate() {
       inFlight = null
     })
   return inFlight
+}
+
+/** 切走时由壳页面调用：只影响「是否还在前台」这一件事，不做数据清理（回来要秒显） */
+function deactivate() {
+  panelActive.value = false
 }
 
 onMounted(activate)
@@ -236,7 +249,7 @@ function openDetail(id) {
   openPage('detail', { id })
 }
 
-defineExpose({ activate })
+defineExpose({ activate, deactivate })
 </script>
 
 <style lang="scss" scoped>
@@ -359,82 +372,7 @@ defineExpose({ activate })
   margin-left: auto;
 }
 
-/* ---- Banner ---- */
-.banner {
-  height: 360rpx;
-  padding: $sp-6 $sp-5;
-  transition: transform $dur-instant $ease-out, box-shadow $dur-base $ease-out;
-}
-
-.banner--press {
-  transform: scale(0.985);
-}
-
-.banner-eyebrow-row {
-  display: flex;
-  align-items: center;
-  gap: $sp-2;
-  position: relative;
-  z-index: 1;
-}
-
-.eyebrow-rule {
-  width: 26rpx;
-  height: 2rpx;
-  background: $c-gold;
-}
-
-.banner-eyebrow {
-  font-size: $fs-micro;
-  letter-spacing: $ls-wide;
-  color: $c-gold-on-dark;
-}
-
-.banner-title {
-  display: block;
-  position: relative;
-  z-index: 1;
-  font-family: $font-display;
-  font-size: $fs-h2;
-  line-height: $lh-display;
-  margin-top: $sp-5;
-  color: $c-on-dark;
-}
-
-.banner-caption {
-  display: block;
-  position: relative;
-  z-index: 1;
-  font-size: $fs-micro;
-  margin-top: $sp-4;
-  color: $c-on-dark-muted;
-}
-
-.banner-link-row {
-  display: flex;
-  align-items: center;
-  gap: $sp-1;
-  position: relative;
-  z-index: 1;
-  margin-top: $sp-6;
-}
-
-.banner-link {
-  font-size: $fs-micro;
-  letter-spacing: 1rpx;
-  color: $c-gold-on-dark;
-}
-
-.banner-image {
-  position: absolute;
-  right: 28rpx;
-  top: 32rpx;
-  z-index: 1;
-  width: 280rpx;
-  height: 280rpx;
-  border-radius: $r-md;
-  border: 1rpx solid $c-hairline-gold;
-}
+/* 推荐轮播：整块沿用原 Banner 的纵向节奏，间距由 .categories 的 margin-top 提供 */
 
 /* ---- 分类标签：横向滚动 + 金色下划线 ---- */
 .categories {
@@ -644,10 +582,6 @@ defineExpose({ activate })
 
 .category:hover {
   color: $c-gold-text;
-}
-
-.banner:hover {
-  box-shadow: $sh-3;
 }
 
 .add-button:hover {

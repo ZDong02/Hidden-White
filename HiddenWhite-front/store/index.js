@@ -7,6 +7,7 @@ import { resolveImageUrl } from '../utils/image'
 import { currentUser, isLoggedIn } from './auth'
 import { getStorage, setStorageDebounced, setStorageImmediate } from '../utils/storage'
 import { calculateCartTotal, calculateCartCount } from '../utils/price'
+import { pickSlides, poolSignature } from '../utils/recommend'
 import { normalizeCoordinate } from '../utils/location'
 
 const CART_KEY = 'hidden-white-cart'
@@ -32,6 +33,12 @@ export const shop = reactive({
 })
 
 export const products = apiProducts
+
+/** 首页推荐位（轮播池）。为空时首页不渲染轮播区，而不是留一张空的黑卡。 */
+export const recommendPool = reactive([])
+
+/** 当前轮播的 3 屏（池内随机抽样，池子内容不变就保持不变） */
+export const heroSlides = reactive([])
 
 function mapBackendProduct(product) {
   const price = Number(product.price)
@@ -144,6 +151,75 @@ export async function loadStoreInfo(options = {}) {
     })
 
   return storePending
+}
+
+/**
+ * 首页推荐位同步。
+ *
+ * 「实时」的口径：管理端保存后，点单端最迟一次进入首页（含切 Tab 回来、
+ * 下拉刷新）就能看到。TTL 取 15 秒——比商品目录的 30 秒更短，是因为
+ * 推荐位是运营随时会调的展示位；又比门店状态长，避免每次切 Tab 都打一次接口。
+ * 下拉刷新走 force，绕过 TTL。
+ *
+ * 抽到的 3 屏在池子内容不变时保持不变：否则每次后台同步都会换一批商品，
+ * 用户会觉得页面在乱跳。三种情况会重抽：
+ * 池子内容变了（新增 / 删除 / 改文案 / 停用）、首次加载、以及用户主动下拉刷新
+ * —— 手动刷新本来就是在要「换一批看看」，这时再保持原样反而奇怪。
+ */
+const RECOMMEND_TTL = 15000
+let recommendLoadedAt = 0
+let recommendPending = null
+let recommendSignature = ''
+
+function mapBackendRecommendation(row) {
+  const price = Number(row.price)
+  const name = String(row.name || '')
+  return {
+    ...row,
+    // 服务端已回填兜底文案，这里再兜一层：字段缺失时卡片会塌成空白，
+    // 而轮播是首屏第一眼，不能出现「什么都没有」的一屏
+    id: Number(row.id),
+    productId: String(row.productId || ''),
+    name,
+    subtitle: String(row.subtitle || ''),
+    price: Number.isFinite(price) ? price : 0,
+    image: resolveImageUrl(row.image),
+    eyebrow: row.eyebrow || '本周推荐',
+    headline: row.headline || name,
+    caption: row.caption || String(row.subtitle || ''),
+    linkText: row.linkText || (name ? `品味${name}` : '查看')
+  }
+}
+
+export async function loadRecommendations(options = {}) {
+  const now = Date.now()
+  if (!options.force && recommendLoadedAt && now - recommendLoadedAt < RECOMMEND_TTL) {
+    return heroSlides
+  }
+  if (recommendPending) return recommendPending
+
+  recommendPending = requestApi('/recommendations')
+    .then((rows) => {
+      const list = (Array.isArray(rows) ? rows : []).map(mapBackendRecommendation)
+      const signature = poolSignature(list)
+      // 内容没变就一行都不写：这里每 15 秒可能被调一次（切 Tab 回来 / onShow），
+      // 无脑 splice 会让所有订阅 recommendPool 的视图跟着重算，纯属白做功
+      if (signature !== recommendSignature) {
+        recommendPool.splice(0, recommendPool.length, ...list)
+        recommendSignature = signature
+      }
+      // force 来自下拉刷新：主动刷新就换一批；后台同步只在池子内容变了时重抽
+      if (options.force || !heroSlides.length) {
+        heroSlides.splice(0, heroSlides.length, ...pickSlides(list))
+      }
+      recommendLoadedAt = Date.now()
+      return heroSlides
+    })
+    .finally(() => {
+      recommendPending = null
+    })
+
+  return recommendPending
 }
 
 // 计算属性 - 使用新的 price 工具

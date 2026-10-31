@@ -204,17 +204,32 @@ function activatePanel(tab) {
   panelRefs.value[tab]?.activate?.()
 }
 
+/**
+ * 面板切走时通知它「已经不在前台」。
+ *
+ * 四个面板同处一个横向 swiper，切走并没有卸载组件；不通知的话
+ * 首页轮播会在看不见的地方继续自动播放（白算帧、白耗电）。
+ * 只做状态标记，不清数据 —— 切回来要秒显。
+ */
+function deactivatePanel(index) {
+  panelRefs.value[TAB_IDS[index]]?.deactivate?.()
+}
+
 function switchTo(tab) {
   const index = TAB_IDS.indexOf(tab)
   if (index < 0 || index === activeIndex.value) return
+  const previous = activeIndex.value
   activeIndex.value = index
+  deactivatePanel(previous)
   nextTick(() => activatePanel(tab))
 }
 
 function onSwiperChange(event) {
   const index = event.detail.current
   if (index === activeIndex.value) return
+  const previous = activeIndex.value
   activeIndex.value = index
+  deactivatePanel(previous)
   nextTick(() => activatePanel(TAB_IDS[index]))
 }
 

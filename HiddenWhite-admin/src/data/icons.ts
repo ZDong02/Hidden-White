@@ -24,6 +24,8 @@ export const ICON_PATHS: Record<string, string> = {
   home: 'M4 11 12 4l8 7v9h-5v-6H9v6H4v-9z',
   chart: 'M4 20V10m6 10V4m6 16v-7m4 7H3',
   activity: 'M3 12h4l3-7 4 14 3-7h4',
+  // 推荐商品（首页轮播）：五角星 —— 代表「精选 / 推荐位」
+  star: 'M12 3.8l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.2-4.1 5.8-.8z',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm0-13v4l3 2',
   bell: 'M18 16V11a6 6 0 0 0-12 0v5l-2 2h16l-2-2zm-8 4a2 2 0 0 0 4 0',
   mail: 'M3 5h18v14H3V5zm0 1 9 7 9-7',
@@ -77,5 +79,5 @@ export const ICON_PATHS: Record<string, string> = {
 export const MENU_ICON_OPTIONS = [
   'dashboard', 'gear', 'users', 'user', 'role', 'shield', 'menu', 'dept', 'post', 'dict', 'log', 'file',
   'lock', 'tool', 'command', 'code', 'database', 'monitor', 'layers', 'grid', 'home', 'chart', 'activity',
-  'clock', 'bell', 'mail', 'key', 'sliders',
+  'clock', 'bell', 'mail', 'key', 'sliders', 'star',
 ]

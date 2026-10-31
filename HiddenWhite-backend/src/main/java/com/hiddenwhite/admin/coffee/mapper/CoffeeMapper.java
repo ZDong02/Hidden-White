@@ -354,6 +354,82 @@ public interface CoffeeMapper {
     @Delete("DELETE FROM ${coffeeDb}.member_benefits WHERE id = #{id}")
     int deleteBenefit(@Param("id") long id);
 
+    // ---- 首页推荐位 ----
+
+    /**
+     * 推荐位全量清单（含已停用）。
+     *
+     * <p>连 products 取名称 / 图片 / 现价：管理端要能一眼看出「推荐的是哪款、
+     * 现在卖多少钱」。价格不做快照 —— 轮播上显示的就是商品的当前售价。
+     * 关掉商品（enabled=0）后推荐位仍在，靠 productEnabled 标出来提醒运营。
+     */
+    @Select("""
+            SELECT r.id, r.product_id AS productId, p.name AS productName, p.image AS productImage,
+                   p.price AS price, p.enabled AS productEnabled,
+                   r.eyebrow, r.headline, r.caption, r.link_text AS linkText,
+                   r.sort_order AS sortOrder, r.enabled AS enabled
+            FROM ${coffeeDb}.recommend_products r
+            JOIN ${coffeeDb}.products p ON p.id = r.product_id
+            ORDER BY r.sort_order, r.id
+            """)
+    List<Map<String, Object>> listRecommendations();
+
+    /** 可作为新增项的候选商品：在售且尚未进入推荐池。 */
+    @Select("""
+            SELECT p.id, p.name, p.price, p.image
+            FROM ${coffeeDb}.products p
+            WHERE p.enabled = TRUE
+              AND NOT EXISTS (SELECT 1 FROM ${coffeeDb}.recommend_products r WHERE r.product_id = p.id)
+            ORDER BY p.category, p.id
+            """)
+    List<Map<String, Object>> recommendCandidates();
+
+    /** 同一商品只能占一个推荐位；编辑时排除自己，避免改文案被判重复。 */
+    @Select("""
+            SELECT COUNT(*) FROM ${coffeeDb}.recommend_products
+            WHERE product_id = #{productId} AND (#{excludeId} IS NULL OR id <> #{excludeId})
+            """)
+    long countRecommendProduct(@Param("productId") String productId, @Param("excludeId") Long excludeId);
+
+    /** 商品是否在售；返回 null 表示商品不存在（据此区分 404 与「已下架」两种拒绝）。 */
+    @Select("SELECT enabled FROM ${coffeeDb}.products WHERE id = #{id}")
+    Boolean productEnabled(@Param("id") String id);
+
+    @Insert("""
+            INSERT INTO ${coffeeDb}.recommend_products
+                (product_id, eyebrow, headline, caption, link_text, sort_order, enabled)
+            VALUES (#{productId}, #{eyebrow}, #{headline}, #{caption}, #{linkText}, #{sortOrder}, #{enabled})
+            """)
+    int insertRecommend(@Param("productId") String productId,
+                        @Param("eyebrow") String eyebrow,
+                        @Param("headline") String headline,
+                        @Param("caption") String caption,
+                        @Param("linkText") String linkText,
+                        @Param("sortOrder") int sortOrder,
+                        @Param("enabled") boolean enabled);
+
+    @Update("""
+            UPDATE ${coffeeDb}.recommend_products
+            SET product_id = #{productId}, eyebrow = #{eyebrow}, headline = #{headline},
+                caption = #{caption}, link_text = #{linkText}, sort_order = #{sortOrder}, enabled = #{enabled}
+            WHERE id = #{id}
+            """)
+    int updateRecommend(@Param("id") long id,
+                        @Param("productId") String productId,
+                        @Param("eyebrow") String eyebrow,
+                        @Param("headline") String headline,
+                        @Param("caption") String caption,
+                        @Param("linkText") String linkText,
+                        @Param("sortOrder") int sortOrder,
+                        @Param("enabled") boolean enabled);
+
+    /** 仅切换推荐位开关：与商品上下架同理，整行更新要求文案 / 商品齐全，单字段变更不该走它。 */
+    @Update("UPDATE ${coffeeDb}.recommend_products SET enabled = #{enabled} WHERE id = #{id}")
+    int updateRecommendEnabled(@Param("id") long id, @Param("enabled") boolean enabled);
+
+    @Delete("DELETE FROM ${coffeeDb}.recommend_products WHERE id = #{id}")
+    int deleteRecommend(@Param("id") long id);
+
     // ---- 门店 ----
 
     @Select("""

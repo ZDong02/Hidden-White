@@ -67,7 +67,7 @@
 
 ## 四、管理端（HiddenWhite-admin）
 
-`COMPONENT_MAP` 共 22 项，与 `views/` 下 22 个菜单页面一一对应
+`COMPONENT_MAP` 共 23 项，与 `views/` 下 23 个菜单页面一一对应
 （`Login` / `NoAccess` / `NotFound` 三个非菜单页不在映射内）。
 
 ### 4.1 咖啡运营
@@ -80,6 +80,22 @@
 | `coffee/Members.vue` | `coffee/member/index` | `/api/admin/coffee/members` | `coffee:member:*` |
 | `coffee/Benefits.vue` | `coffee/benefit/index` | `/api/admin/coffee/benefits` | `coffee:benefit:*` |
 | `coffee/Store.vue` | `coffee/store/index` | `/api/admin/coffee/store` | `coffee:store:*` |
+| `coffee/Recommend.vue` | `coffee/recommend/index` | `/api/admin/coffee/recommendations` | `coffee:recommend:*` |
+
+**首页轮播推荐位**：管理端配置「推荐池」，点单端从池中随机抽最多 3 款做首屏轮播
+（`GET /api/recommendations`，免登录）。
+
+| 接口 | 方法 | 说明 |
+|---|---|---|
+| `/api/admin/coffee/recommendations` | GET / POST | 全量清单（连 `products` 取名称/图/现价）/ 新增，商品须存在且在售、不得重复进池 |
+| `/api/admin/coffee/recommendations/candidates` | GET | 新增候选：在售且尚未进池的商品 |
+| `/api/admin/coffee/recommendations/{id}` | PUT / DELETE | 整行更新（文案可留空，留空即用商品字段兜底）/ 移除推荐位 |
+| `/api/admin/coffee/recommendations/{id}/enabled` | PUT | 启用 / 停用，独立端点（同商品上下架约定） |
+
+**随机抽样在端上，不写进 SQL**：池子是「管理端配置的结果」，抽哪 3 款是「本次浏览的结果」。
+服务端 `ORDER BY sort_order,id` 保持确定性便于排查，端上用内容指纹决定要不要重新抽
+（`utils/recommend.js`）—— 池子没变时刷新不会让轮播整块换人，改了文案/商品则立即重抽。
+价格与图片不做快照，轮播上显示的就是商品当前数据；商品软下架时该屏自动从池中消失。
 
 **业务规则**：删除商品时若已产生订单，改为软下架（`enabled=false`）并返回提示文案，不做物理删除。
 `guest` 会员受保护，不可删除。
@@ -164,6 +180,7 @@
 |---|---|
 | `stores` | 门店。含 `manual_closed` / `manual_open` 三态开关 |
 | `products` | 商品。`enabled=false` 为软下架 |
+| `recommend_products` | **首页轮播推荐位**。`product_id` 唯一（一款商品一个位），文案留空由服务端回填商品字段；`ON DELETE CASCADE` 随商品物理删除 |
 | `product_options` | 规格选项（SIZE / MILK / TEMPERATURE） |
 | `members` | 会员。`guest` 为受保护的游客账号 |
 | `users` | 会员登录凭据（`phone` + `password_hash`），与管理端 `sys_user` 无关 |

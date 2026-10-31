@@ -147,3 +147,44 @@ test('coffee api exposes summary and accepts soft-delete notice on product remov
   ])
   assert.equal(result.notice, '该商品已产生订单，已改为下架')
 })
+
+test('recommendation api maps CRUD to /coffee/recommendations endpoints', async () => {
+  // 首页轮播推荐位：路径与后端 CoffeeController 的 /recommendations 段严格对应，
+  // 启用 / 停用单独走 /enabled 端点（整行更新要求商品与文案齐全，单字段变更不能复用它）。
+  const { calls, api } = createRecordingApi()
+
+  await api.recommendations.list()
+  await api.recommendations.candidates()
+  await api.recommendations.create({
+    productId: 'latte',
+    eyebrow: '本周推荐',
+    headline: '一杯，恰好。',
+    caption: '细腻奶感，纯粹咖啡香。',
+    linkText: '品味招牌馥白',
+    sortOrder: 1,
+    enabled: true,
+  })
+  await api.recommendations.update(3, { productId: 'latte', headline: '换一句', sortOrder: 2, enabled: false })
+  await api.recommendations.setEnabled(3, false)
+  await api.recommendations.remove(3)
+
+  assert.deepEqual(calls.map(c => `${c.method} ${c.url}`), [
+    'GET /api/coffee/recommendations',
+    'GET /api/coffee/recommendations/candidates',
+    'POST /api/coffee/recommendations',
+    'PUT /api/coffee/recommendations/3',
+    'PUT /api/coffee/recommendations/3/enabled',
+    'DELETE /api/coffee/recommendations/3',
+  ])
+  assert.deepEqual(JSON.parse(calls[2].body ?? '{}'), {
+    productId: 'latte',
+    eyebrow: '本周推荐',
+    headline: '一杯，恰好。',
+    caption: '细腻奶感，纯粹咖啡香。',
+    linkText: '品味招牌馥白',
+    sortOrder: 1,
+    enabled: true,
+  })
+  // 防回归：开关请求体必须只有 enabled，混进其它字段就说明又走了整行更新
+  assert.deepEqual(JSON.parse(calls[4].body ?? '{}'), { enabled: false })
+})

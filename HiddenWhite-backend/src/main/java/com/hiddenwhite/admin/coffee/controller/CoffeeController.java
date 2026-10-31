@@ -10,6 +10,7 @@ import com.hiddenwhite.admin.coffee.domain.dto.MemberWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.OptionWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.ProductEnabledRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.ProductWriteRequest;
+import com.hiddenwhite.admin.coffee.domain.dto.RecommendWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.StoreWriteRequest;
 import com.hiddenwhite.admin.coffee.service.CoffeeService;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -212,6 +213,53 @@ public class CoffeeController {
     @OperLog(module = "会员权益", action = "删除")
     public R<Void> deleteBenefit(@PathVariable long id) {
         service.deleteBenefit(id);
+        return R.success(null);
+    }
+
+    // ---- 首页推荐位 ----
+
+    @GetMapping("/recommendations")
+    @RequiresPermission("coffee:recommend:list")
+    public R<List<Map<String, Object>>> recommendations() {
+        return R.success(service.recommendations());
+    }
+
+    /** 新增推荐位的候选商品：在售且尚未进入推荐池。 */
+    @GetMapping("/recommendations/candidates")
+    @RequiresPermission("coffee:recommend:list")
+    public R<List<Map<String, Object>>> recommendCandidates() {
+        return R.success(service.recommendCandidates());
+    }
+
+    @PostMapping("/recommendations")
+    @RequiresPermission("coffee:recommend:add")
+    @OperLog(module = "推荐商品", action = "新增")
+    public R<Void> createRecommend(@RequestBody RecommendWriteRequest request) {
+        service.createRecommend(request);
+        return R.success(null);
+    }
+
+    @PutMapping("/recommendations/{id}")
+    @RequiresPermission("coffee:recommend:edit")
+    @OperLog(module = "推荐商品", action = "修改")
+    public R<Void> updateRecommend(@PathVariable long id, @RequestBody RecommendWriteRequest request) {
+        service.updateRecommend(id, request);
+        return R.success(null);
+    }
+
+    @PutMapping("/recommendations/{id}/enabled")
+    @RequiresPermission("coffee:recommend:edit")
+    @OperLog(module = "推荐商品", action = "启用/停用")
+    public R<Void> setRecommendEnabled(@PathVariable long id, @RequestBody ProductEnabledRequest request) {
+        service.setRecommendEnabled(id, request.getEnabled());
+        return R.success(null);
+    }
+
+    @DeleteMapping("/recommendations/{id}")
+    @RequiresPermission("coffee:recommend:remove")
+    @OperLog(module = "推荐商品", action = "删除")
+    public R<Void> deleteRecommend(@PathVariable long id) {
+        service.deleteRecommend(id);
         return R.success(null);
     }
 

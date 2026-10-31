@@ -10,6 +10,7 @@ import com.hiddenwhite.admin.coffee.domain.dto.BenefitWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.MemberWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.OptionWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.ProductWriteRequest;
+import com.hiddenwhite.admin.coffee.domain.dto.RecommendWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.StoreWriteRequest;
 import com.hiddenwhite.admin.coffee.mapper.CoffeeMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -283,6 +284,79 @@ public class CoffeeService {
         if (rows == 0) throw new BusinessException(404, "权益不存在: " + id);
     }
 
+    // ---- 首页推荐位 ----
+
+    public List<Map<String, Object>> recommendations() {
+        return mapper.listRecommendations();
+    }
+
+    public List<Map<String, Object>> recommendCandidates() {
+        return mapper.recommendCandidates();
+    }
+
+    public void createRecommend(RecommendWriteRequest request) {
+        validateRecommend(request, null);
+        mapper.insertRecommend(request.getProductId().trim(), trim(request.getEyebrow()),
+                trim(request.getHeadline()), trim(request.getCaption()), trim(request.getLinkText()),
+                request.getSortOrder(), !Boolean.FALSE.equals(request.getEnabled()));
+    }
+
+    public void updateRecommend(long id, RecommendWriteRequest request) {
+        validateRecommend(request, id);
+        int rows = mapper.updateRecommend(id, request.getProductId().trim(), trim(request.getEyebrow()),
+                trim(request.getHeadline()), trim(request.getCaption()), trim(request.getLinkText()),
+                request.getSortOrder(), !Boolean.FALSE.equals(request.getEnabled()));
+        if (rows == 0) throw new BusinessException(404, "推荐位不存在: " + id);
+    }
+
+    /**
+     * 仅切换推荐位开关。
+     *
+     * <p>与商品上下架同一条口径：整行更新要求商品与文案齐全，
+     * 列表页的开关只带一个布尔位，必须走专用方法，否则会把未传列写成空串。
+     */
+    public void setRecommendEnabled(long id, Boolean enabled) {
+        if (enabled == null) throw new BusinessException("请指定启用状态");
+        int rows = mapper.updateRecommendEnabled(id, enabled);
+        if (rows == 0) throw new BusinessException(404, "推荐位不存在: " + id);
+    }
+
+    public void deleteRecommend(long id) {
+        int rows = mapper.deleteRecommend(id);
+        if (rows == 0) throw new BusinessException(404, "推荐位不存在: " + id);
+    }
+
+    /**
+     * 推荐位入参校验。
+     *
+     * <p>三道关都是「写库前必须挡掉」的类型：
+     * <ol>
+     *   <li>商品必须存在且在售 —— 推荐一个已下架的商品，点单端会直接少一屏，
+     *       运营却以为已经挂上去了；</li>
+     *   <li>同一商品不能占两个推荐位（表上有唯一键，先查出友好提示，
+     *       不让用户看到 500）；</li>
+     *   <li>文案长度按列宽上界校验 —— MySQL 严格模式下超长会抛 1406，
+     *       表现为笼统的「保存失败」，运营完全不知道自己哪个字写多了。</li>
+     * </ol>
+     *
+     * @param excludeId 编辑时排除自身，新增传 null
+     */
+    private void validateRecommend(RecommendWriteRequest request, Long excludeId) {
+        requireText(request.getProductId(), "推荐商品");
+        String productId = request.getProductId().trim();
+        Boolean productEnabled = mapper.productEnabled(productId);
+        if (productEnabled == null) throw new BusinessException(404, "商品不存在: " + productId);
+        if (!productEnabled) throw new BusinessException(409, "商品已下架，请先在商品管理里上架: " + productId);
+        if (mapper.countRecommendProduct(productId, excludeId) > 0) {
+            throw new BusinessException(409, "该商品已在推荐位中，如需换文案请直接编辑");
+        }
+        requireMaxLength(request.getEyebrow(), 40, "眉标");
+        requireMaxLength(request.getHeadline(), 40, "主标题");
+        requireMaxLength(request.getCaption(), 60, "短句");
+        requireMaxLength(request.getLinkText(), 40, "链接文案");
+        if (request.getSortOrder() == null) request.setSortOrder(0);
+    }
+
     // ---- 门店 ----
 
     public Map<String, Object> store() {
@@ -325,6 +399,13 @@ public class CoffeeService {
 
     private void requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new BusinessException(field + "不能为空");
+    }
+
+    /** 长度上界与列宽一致：超长在 MySQL 严格模式下会抛 1406，转成可读的字段级提示。 */
+    private void requireMaxLength(String value, int max, String field) {
+        if (value != null && value.trim().length() > max) {
+            throw new BusinessException(field + "最多 " + max + " 个字，当前 " + value.trim().length() + " 个字");
+        }
     }
 
     private void requirePrice(BigDecimal price) {

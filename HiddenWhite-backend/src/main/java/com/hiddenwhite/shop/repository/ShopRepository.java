@@ -11,6 +11,7 @@ import com.hiddenwhite.shop.domain.OrderStatus;
 import com.hiddenwhite.shop.domain.PickupNumber;
 import com.hiddenwhite.shop.domain.Product;
 import com.hiddenwhite.shop.domain.ProductOption;
+import com.hiddenwhite.shop.domain.Recommendation;
 import com.hiddenwhite.shop.domain.StoreInfo;
 import com.hiddenwhite.shop.dto.LoginRequest;
 import com.hiddenwhite.shop.dto.MemberRegistrationRequest;
@@ -100,6 +101,26 @@ public class ShopRepository {
     public List<ProductOption> options(String type) {
         return jdbc.query("SELECT label,extra_price FROM product_options WHERE option_type=? AND enabled=TRUE ORDER BY sort_order,id",
                 (rs, row) -> new ProductOption(rs.getString("label"), rs.getBigDecimal("extra_price")), type);
+    }
+
+    // ---- 首页推荐位 ----
+
+    /**
+     * 首页轮播的推荐池。
+     *
+     * <p>只取「推荐位启用 且 商品在售」的交集：商品软下架后推荐位配置仍保留
+     * （重新上架即自动回到轮播），但下架期间不该出现在点单端。
+     *
+     * <p>上限 24 行：轮播一次最多展示 3 屏，池子再大也只是随机抽样的分母，
+     * 没有理由把整张表读回。排序稳定（sort_order, id）——
+     * 随机发生在调用端，这里保持确定性，便于排查「为什么抽到这几款」。
+     */
+    public List<Recommendation> recommendations() {
+        return jdbc.query("SELECT r.id,r.product_id,p.name,p.subtitle,p.price,p.image," +
+                        "r.eyebrow,r.headline,r.caption,r.link_text,r.sort_order " +
+                        "FROM recommend_products r JOIN products p ON p.id=r.product_id " +
+                        "WHERE r.enabled=TRUE AND p.enabled=TRUE ORDER BY r.sort_order,r.id LIMIT 24",
+                RECOMMENDATION_MAPPER);
     }
 
     // ---- 门店 ----
@@ -606,6 +627,12 @@ public class ShopRepository {
     private static final RowMapper<Product> PRODUCT_MAPPER = (rs, row) -> new Product(rs.getString("id"), rs.getString("name"),
             rs.getString("subtitle"), rs.getString("description"), rs.getString("detail_description"), rs.getBigDecimal("price"),
             rs.getString("image"), rs.getString("detail_image"), rs.getInt("category"), rs.getBoolean("has_milk"));
+    /** 推荐位映射：商品列与文案列一次取回，避免每屏再回查一次商品。 */
+    private static final RowMapper<Recommendation> RECOMMENDATION_MAPPER = (rs, row) -> new Recommendation(
+            rs.getLong("id"), rs.getString("product_id"), rs.getString("name"), rs.getString("subtitle"),
+            rs.getBigDecimal("price"), rs.getString("image"), rs.getString("eyebrow"), rs.getString("headline"),
+            rs.getString("caption"), rs.getString("link_text"), rs.getInt("sort_order"));
+
     private static final RowMapper<Member> MEMBER_MAPPER = (rs, row) -> new Member(rs.getString("id"), rs.getString("display_name"),
             rs.getString("phone"), rs.getString("member_level"), rs.getString("card_number"), rs.getInt("points"),
             rs.getInt("coupons"), rs.getInt("growth_value"));

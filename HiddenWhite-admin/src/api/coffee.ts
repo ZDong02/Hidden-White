@@ -142,6 +142,50 @@ export interface CoffeeStoreRow {
   closingTime: string
 }
 
+/**
+ * 首页轮播推荐位。
+ *
+ * 价格与商品图不存快照，始终跟着 products 走：轮播上写的就是当前售价，
+ * 商品下架后推荐位保留配置但会被 productEnabled=false 标出来。
+ */
+export interface CoffeeRecommendRow {
+  id: number
+  productId: string
+  productName: string
+  productImage: string
+  price: number
+  /** 商品是否在售；false 时这一屏在点单端不会出现 */
+  productEnabled: boolean
+  eyebrow: string
+  headline: string
+  caption: string
+  linkText: string
+  sortOrder: number
+  enabled: boolean
+}
+
+/** 新增推荐位可选的商品：在售且尚未进入推荐池 */
+export interface CoffeeRecommendCandidate {
+  id: string
+  name: string
+  price: number
+  image: string
+}
+
+/**
+ * 推荐位写入。文案字段可留空 —— 留空即由服务端回填商品自身的字段
+ * （主标题→商品名、短句→副标题、链接词→品味+商品名）。
+ */
+export interface CoffeeRecommendWrite {
+  productId: string
+  eyebrow?: string
+  headline?: string
+  caption?: string
+  linkText?: string
+  sortOrder?: number
+  enabled?: boolean
+}
+
 /** 图片用途：列表图 / 详情图，两者目标宽高独立配置 */
 export type CoffeeImageSlot = 'list' | 'detail'
 
@@ -238,6 +282,18 @@ export function createCoffeeApi(client: HttpClient) {
     store: {
       get: () => client.get<CoffeeStoreRow>('/coffee/store'),
       update: (body: CoffeeStoreRow) => client.put<void>('/coffee/store', body),
+    },
+    recommendations: {
+      /** 推荐位全量清单（含已停用），条数很少，不做分页 */
+      list: () => client.get<CoffeeRecommendRow[]>('/coffee/recommendations'),
+      /** 新增时的候选商品：在售且尚未进入推荐池 */
+      candidates: () => client.get<CoffeeRecommendCandidate[]>('/coffee/recommendations/candidates'),
+      create: (body: CoffeeRecommendWrite) => client.post<void>('/coffee/recommendations', body),
+      update: (id: number, body: CoffeeRecommendWrite) => client.put<void>(`/coffee/recommendations/${id}`, body),
+      /** 启用 / 停用走独立端点：整行更新要求商品与文案齐全，单字段变更不该复用 */
+      setEnabled: (id: number, enabled: boolean) =>
+        client.put<void>(`/coffee/recommendations/${id}/enabled`, { enabled }),
+      remove: (id: number) => client.delete<void>(`/coffee/recommendations/${id}`),
     },
     images: {
       /** 查询各用途图片的目标规格（用于上传前预校验与提示） */

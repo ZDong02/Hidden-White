@@ -1057,3 +1057,66 @@ SELECT 1, id FROM sys_menu WHERE id = 600 OR parent_id IN (600, 601, 602);
 SELECT COUNT(*) AS redeem_products_rows FROM redeem_products;
 SELECT COUNT(*) AS redeem_menus_rows FROM sys_menu WHERE id = 600 OR parent_id IN (600, 601, 602);
 
+
+-- =====================================================================
+-- 八、首页推荐商品（轮播位）
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) recommend_products：首页轮播位的推荐池
+--    刻意不复用 products 的 enabled 来表达「是否推荐」：
+--      · 在售 ≠ 推荐，一个商品下架后可能仍想保留推荐位配置（重新上架即恢复）；
+--      · 推荐位需要独立排序与专属文案（眉标 / 主标题 / 短句 / 链接词），
+--        这些字段放回 products 会污染点单端的商品模型。
+--    前台从「推荐位启用 + 商品在售」的交集里随机抽最多 3 款做轮播。
+--    product_id 唯一：同一款商品在轮播里重复出现没有意义。
+--    外键 ON DELETE CASCADE：商品被物理删除时推荐位一并消失，不留悬空行；
+--    商品被软下架（enabled=0）时推荐位保留，重新上架即可再次进入轮播。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS recommend_products (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    product_id VARCHAR(40) NOT NULL COMMENT '关联 products.id',
+    eyebrow VARCHAR(40) NOT NULL DEFAULT '' COMMENT '眉标，空则由服务端回填「本周推荐」',
+    headline VARCHAR(40) NOT NULL DEFAULT '' COMMENT '主标题，空则回填商品名称',
+    caption VARCHAR(60) NOT NULL DEFAULT '' COMMENT '短句，空则回填商品副标题',
+    link_text VARCHAR(40) NOT NULL DEFAULT '' COMMENT '链接文案，空则回填「品味 + 商品名称」',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '池内展示顺序（随机抽样前的稳定基准）',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_recommend_product (product_id),
+    KEY idx_recommend_enabled_sort (enabled, sort_order),
+    CONSTRAINT fk_recommend_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='首页轮播推荐位';
+
+-- 演示推荐位：把原先写死在点单端 Banner 里的文案落成数据，
+-- 于是「本周推荐 · 匠心双份浓缩 / 一杯，恰好。/ 细腻奶感，纯粹咖啡香。」这句
+-- 不再需要改代码，运营在管理端就能改。
+INSERT IGNORE INTO recommend_products
+    (product_id, eyebrow, headline, caption, link_text, sort_order, enabled)
+VALUES
+    ('latte', '本周推荐 · 匠心双份浓缩', '一杯，恰好。', '细腻奶感，纯粹咖啡香。', '品味招牌馥白', 1, TRUE),
+    ('americano', '经典之选 · 纯粹双份', '干净，回甘。', '不加修饰的浓缩与水。', '品味经典美式', 2, TRUE);
+
+-- ---------------------------------------------------------------------
+-- 2) 管理端菜单：推荐商品（挂在咖啡运营 400 下，排在门店设置之后）
+--    页面组件路径对应 HiddenWhite-admin/src/views/coffee/Recommend.vue；
+--    权限码前缀 coffee:recommend:，对应 CoffeeController 的推荐位端点。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
+VALUES
+    (407, 400, '推荐商品', 'menu', 'star', '/coffee/recommend', 'coffee/recommend/index', 'coffee:recommend:list', 7, 1, 1, 'system', 'system'),
+    (4071, 407, '新增推荐', 'btn', '', '', '', 'coffee:recommend:add', 1, 1, 1, 'system', 'system'),
+    (4072, 407, '编辑推荐', 'btn', '', '', '', 'coffee:recommend:edit', 2, 1, 1, 'system', 'system'),
+    (4073, 407, '删除推荐', 'btn', '', '', '', 'coffee:recommend:remove', 3, 1, 1, 'system', 'system');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE id = 407 OR parent_id = 407;
+
+-- ---------------------------------------------------------------------
+-- 3) 只读检查
+-- ---------------------------------------------------------------------
+SELECT COUNT(*) AS recommend_rows FROM recommend_products;
+SELECT COUNT(*) AS recommend_menus_rows FROM sys_menu WHERE id = 407 OR parent_id = 407;
+

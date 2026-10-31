@@ -54,11 +54,12 @@ public class SecurityConfig {
                         .requestMatchers(antMatcher("/api/admin/auth/captcha"), antMatcher("/api/admin/auth/login")).permitAll()
                         .requestMatchers(antMatcher("/api/auth/logout")).authenticated()
 
-                        // 点单端公开浏览：菜单 / 规格 / 门店 / 权益
+                        // 点单端公开浏览：菜单 / 规格 / 门店 / 权益 / 首页推荐位
                         .requestMatchers(
                                 antMatcher("/api/products"),
                                 antMatcher("/api/products/*"),
                                 antMatcher("/api/products/options"),
+                                antMatcher("/api/recommendations"),
                                 antMatcher("/api/store"),
                                 antMatcher("/api/members/benefits")
                         ).permitAll()
