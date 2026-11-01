@@ -46,8 +46,12 @@ const handleTap = (event) => {
   font-size: $fs-title-sm;
   font-weight: 600;
   letter-spacing: 0.5rpx;
-  transition: transform $dur-instant $ease-out, background-color $dur-fast ease,
-    color $dur-fast ease, box-shadow $dur-base $ease-out, opacity $dur-fast ease;
+  /* v2: 使用弹性曲线，增强按压反馈 */
+  transition: transform $dur-instant cubic-bezier(0.34, 1.4, 0.64, 1),
+    background-color $dur-fast ease,
+    color $dur-fast ease,
+    box-shadow $dur-base $ease-out,
+    opacity $dur-fast ease;
 }
 
 .ui-button.primary {
@@ -73,7 +77,7 @@ const handleTap = (event) => {
 
 /* 按压：由 hover-class 挂上（小程序 :active 在真机不可靠） */
 .ui-button--press {
-  transform: scale(0.975);
+  transform: scale(0.96); // v2: 从 0.975 加大压缩感
   opacity: 0.88;
 }
 

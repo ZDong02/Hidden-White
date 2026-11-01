@@ -341,15 +341,16 @@ function confirmCancelOrder() {
   animation: bar-in $dur-base $ease-out both;
 }
 
+/* v2: 增强入场动画，增加缩放效果 */
 @keyframes bar-in {
   from {
     opacity: 0;
-    transform: translateY(16rpx);
+    transform: translateY(20rpx) scale(0.98);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -368,14 +369,14 @@ function confirmCancelOrder() {
   display: inline-block;
   color: $c-ink;
   font-weight: 600;
-  animation: number-pop $dur-fast $ease-out both;
+  animation: number-pop 280ms cubic-bezier(0.34, 1.4, 0.64, 1) both; // v2: 使用弹性曲线
 }
 
 .cart-total {
   display: block;
   margin-top: $sp-0;
   font-size: $fs-h2;
-  font-weight: 600;
+  font-weight: 700; // v2: 从 600 提升到 700
   line-height: 1.2;
   letter-spacing: $ls-tight;
   @include numeric;

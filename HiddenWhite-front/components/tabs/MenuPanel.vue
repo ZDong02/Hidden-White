@@ -271,20 +271,41 @@ defineExpose({ activate, deactivate })
 
 /* ---- 品牌区 ---- */
 .brand-row {
+  position: relative; // v2: 新增定位上下文
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: $sp-4;
-  margin-bottom: $sp-5;
+  margin-bottom: $sp-block; // v2: 使用语义化变量（32rpx）
+
+  /* v2: 品牌区装饰光晕 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -40rpx;
+    left: -40rpx;
+    width: 240rpx;
+    height: 240rpx;
+    background: radial-gradient(
+      circle,
+      rgba(212, 173, 47, 0.06) 0%,
+      transparent 70%
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
 }
 
 .brand {
   display: block;
   font-family: $font-display;
   font-size: $fs-h1;
+  font-weight: 600; // v2: 增强字重
   line-height: $lh-display;
   letter-spacing: $ls-wider;
   color: $c-ink-strong;
+  position: relative; // v2: 确保在光晕之上
+  z-index: 1;
 }
 
 .brand-caption-line {
@@ -331,8 +352,8 @@ defineExpose({ activate, deactivate })
 /* ---- 门店信息 ---- */
 .store-block {
   border-bottom: 1rpx solid $c-divider;
-  padding-bottom: $sp-3;
-  margin-bottom: $sp-5;
+  padding-bottom: $sp-inline; // v2: 使用语义化变量（16rpx）
+  margin-bottom: $sp-block; // v2: 使用语义化变量（32rpx）
 }
 
 .store-meta-row {
@@ -373,10 +394,14 @@ defineExpose({ activate, deactivate })
 }
 
 /* 推荐轮播：整块沿用原 Banner 的纵向节奏，间距由 .categories 的 margin-top 提供 */
+/* v2: 增加底部间距 */
+.hero-block {
+  margin-bottom: $sp-section; // v2: 新增（56rpx）
+}
 
 /* ---- 分类标签：横向滚动 + 金色下划线 ---- */
 .categories {
-  margin: $sp-6 (-$gutter) $sp-5;
+  margin: $sp-section (-$gutter) $sp-block; // v2: 优化上下间距
   white-space: nowrap;
 }
 
@@ -441,7 +466,7 @@ defineExpose({ activate, deactivate })
 }
 
 .product-card {
-  padding: $sp-4;
+  padding: $sp-5; // v2: 从 $sp-4(24rpx) 增加到 32rpx
   border: 1rpx solid $c-border;
   border-radius: $r-lg;
   background: $c-surface;
@@ -464,7 +489,7 @@ defineExpose({ activate, deactivate })
   border-radius: $r-md;
   overflow: hidden;
   background: linear-gradient(150deg, $c-surface-2, $c-bg-sunken);
-  margin-bottom: $sp-4;
+  margin-bottom: $sp-5; // v2: 从 $sp-4 增加呼吸感
 }
 
 .media-fallback {
@@ -485,7 +510,7 @@ defineExpose({ activate, deactivate })
 
 .product-name {
   display: block;
-  font-size: $fs-title-sm;
+  font-size: $fs-title-lg; // v2: 从 $fs-title-sm(30rpx) 提升到 38rpx
   font-weight: 600;
   color: $c-ink-strong;
   letter-spacing: $ls-normal;
@@ -507,12 +532,12 @@ defineExpose({ activate, deactivate })
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: $sp-4;
+  margin-top: $sp-5; // v2: 从 $sp-4 增加
 }
 
 .product-price {
   font-size: $fs-title-lg;
-  font-weight: 600;
+  font-weight: 700; // v2: 从 600 提升到 700
 }
 
 /* 加购按钮：88rpx（44px）触控目标 */

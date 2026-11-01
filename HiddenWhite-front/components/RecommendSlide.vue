@@ -109,12 +109,32 @@ function onError() {
   position: relative;
   box-sizing: border-box;
   height: 360rpx;
-  padding: $sp-6 $sp-5;
+  padding: $sp-7 $sp-6; // v2: 从 $sp-6 $sp-5 增加到 56rpx 40rpx，更宽松
+  background: $c-dark-gradient-enhanced; // v2: 使用增强渐变
   transition: transform $dur-instant $ease-out, box-shadow $dur-base $ease-out;
+
+  /* v2: 左上角金色光晕 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(
+      circle at 80% 20%,
+      rgba(212, 173, 47, 0.15) 0%,
+      transparent 60%
+    );
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 0;
+  }
 }
 
 .hero-slide--press {
-  transform: scale(0.985);
+  transform: scale(0.985) translateY(2rpx); // v2: 增加下沉感
+  box-shadow: 0 4rpx 16rpx rgba(20, 16, 8, 0.2); // v2: 按压时阴影减弱
 }
 
 /* 文案列：整列不统一让出图片宽度 ——
@@ -122,7 +142,7 @@ function onError() {
    这样「本周推荐 · 匠心双份浓缩」这类长眉标不会被截成省略号。 */
 .hero-copy {
   position: relative;
-  z-index: 1;
+  z-index: 2; // v2: 从 z-index: 1 提升，确保在光晕之上
   display: flex;
   height: 100%;
   flex-direction: column;
@@ -150,29 +170,37 @@ function onError() {
 
 .hero-eyebrow {
   font-size: $fs-micro;
+  font-weight: 600; // v2: 增强眉标字重
   line-height: $lh-tight;
-  letter-spacing: $ls-wide;
+  letter-spacing: $ls-wider; // v2: 从 $ls-wide 加宽
+  text-transform: uppercase; // v2: 拉丁文字大写
   color: $c-gold-on-dark;
+  text-shadow: 0 0 16rpx rgba(212, 173, 47, 0.4); // v2: 文字发光效果
   @include ellipsis;
 }
 
 /* 主标题用展示字（宋体系），是这一屏唯一的「大声说话」的地方 */
 .hero-headline {
-  display: block;
+  display: -webkit-box; // v2: 改为多行支持
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2; // v2: 最多两行
+  overflow: hidden;
   margin-top: $sp-5;
   font-family: $font-display;
-  font-size: $fs-h2;
+  font-size: $fs-display; // v2: 从 $fs-h2(44rpx) 提升到 68rpx
+  font-weight: 500; // v2: 宋体大字号用中等字重
   line-height: $lh-display;
+  letter-spacing: $ls-tight; // v2: 增加字距控制
   color: $c-on-dark;
-  @include ellipsis;
 }
 
 .hero-caption {
   display: block;
   margin-top: $sp-4;
-  font-size: $fs-micro;
-  line-height: 1.5;
+  font-size: $fs-body-sm; // v2: 从 $fs-micro(22rpx) 提升到 28rpx
+  line-height: 1.6; // v2: 从 1.5 增加可读性
   color: $c-on-dark-muted;
+  opacity: 0.95; // v2: 轻微透明度让视觉更柔和
   @include ellipsis;
 }
 
@@ -190,6 +218,7 @@ function onError() {
   min-width: 0;
   align-items: center;
   gap: $sp-1;
+  transition: transform $dur-fast $ease-out; // v2: 悬停动效
 }
 
 .hero-link {
@@ -202,7 +231,7 @@ function onError() {
 .hero-price {
   flex-shrink: 0;
   font-size: $fs-body;
-  font-weight: 600;
+  font-weight: 700; // v2: 从 600 提升到 700，价格更醒目
   letter-spacing: $ls-tight;
   color: $c-gold-on-dark;
 }
@@ -221,6 +250,27 @@ function onError() {
   border: 1rpx solid $c-hairline-gold;
   border-radius: $r-md;
   background: linear-gradient(150deg, $c-dark-2, $c-dark-deep);
+  z-index: 1;
+
+  /* v2: 内阴影增强边框感 + 外阴影增加深度 */
+  box-shadow:
+    inset 0 0 0 1rpx rgba(212, 173, 47, 0.08),
+    0 8rpx 24rpx rgba(11, 10, 7, 0.4);
+
+  /* v2: 图片边缘渐隐效果 */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: $r-md;
+    background: radial-gradient(
+      ellipse at center,
+      transparent 30%,
+      rgba(11, 10, 7, 0.3) 100%
+    );
+    pointer-events: none;
+  }
 }
 
 .hero-media-fallback {
@@ -249,8 +299,18 @@ function onError() {
   transform: scale(1.04);
 }
 
+/* v2: 悬停时链接文字右移，暗示可点击 */
+.hero-slide:hover .hero-link-row {
+  transform: translateX(4rpx);
+}
+
 .hero-slide--press:hover {
-  transform: scale(0.985);
+  transform: scale(0.985) translateY(2rpx); // v2: 保持按压下沉感
+}
+
+/* v2: 按住时图片微放大 */
+.hero-slide--press .hero-image {
+  transform: scale(1.02);
 }
 /* #endif */
 

@@ -123,10 +123,15 @@ button[disabled] {
 }
 
 /* 数字跳变：仅用于「值被替换」的瞬间（步进器、计数变化） */
+/* v2: 增强动画幅度，增加过冲效果 */
 @keyframes number-pop {
   0% {
-    opacity: 0.4;
-    transform: translateY(-6rpx) scale(0.94);
+    opacity: 0.3; // v2: 从 0.4 降低，对比更强
+    transform: translateY(-8rpx) scale(0.9); // v2: 增加位移和缩放幅度
+  }
+
+  60% {
+    transform: translateY(0) scale(1.06); // v2: 新增过冲
   }
 
   100% {
@@ -157,13 +162,20 @@ button[disabled] {
 }
 
 /* 横向掠光：骨架屏专用，靠 transform 位移而不是背景定位，小程序更稳 */
+/* v2: 增加透明度变化，中段最亮 */
 @keyframes sweep {
-  from {
+  0% {
     transform: translateX(-100%);
+    opacity: 0;
   }
 
-  to {
+  50% {
+    opacity: 1; // v2: 中段最亮
+  }
+
+  100% {
     transform: translateX(100%);
+    opacity: 0;
   }
 }
 
@@ -222,6 +234,21 @@ button[disabled] {
   animation-delay: 360ms;
 }
 
+/* v2: 购物车晃动动画 */
+@keyframes cart-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-4rpx) scale(1.02);
+  }
+
+  75% {
+    transform: translateX(4rpx) scale(1.02);
+  }
+}
+
 /* --------------------------------------------------------------- 3. 排版工具类 */
 /* 次要文字统一使用 $c-ink-muted（对画布 6.8:1），比原先的 #999/#aaa 更清晰 */
 .muted {
@@ -246,7 +273,7 @@ button[disabled] {
 .section-title {
   display: block;
   color: $c-ink-strong;
-  font-size: $fs-title;
+  font-size: $fs-title; // v2: 使用新的 34rpx 档位
   font-weight: 600;
   line-height: $lh-tight;
   letter-spacing: $ls-normal;
@@ -262,7 +289,7 @@ button[disabled] {
 /* ---- 4.1 卡片 ---- */
 /* 内容卡统一 $r-lg + $sh-1；同屏相邻卡片不要再混用 $r-md / $r-lg */
 .card {
-  padding: $sp-5;
+  padding: $sp-6; // v2: 从 $sp-5(32rpx) 增加到 40rpx，更宽松
   border: 1rpx solid $c-border;
   border-radius: $r-lg;
   background: $c-surface;
@@ -270,7 +297,7 @@ button[disabled] {
 }
 
 .card-sunken {
-  padding: $sp-5;
+  padding: $sp-6; // v2: 从 $sp-5(32rpx) 增加到 40rpx
   border: 1rpx solid $c-border;
   border-radius: $r-lg;
   background: $c-surface-2;
@@ -285,9 +312,11 @@ button[disabled] {
   background: linear-gradient(150deg, $c-dark 0%, $c-dark-deep 100%);
   color: $c-on-dark;
   box-shadow: $sh-dark;
+  padding: $sp-7 $sp-6; // v2: 纵向 56rpx，横向 40rpx（深色卡更需要留白）
 }
 
 /* 深色卡右下的金色细环：三张深色卡共用的品牌笔触 */
+/* v2: 优化为双环效果 */
 .card-dark::after {
   content: '';
   position: absolute;
@@ -295,9 +324,12 @@ button[disabled] {
   bottom: -130rpx;
   width: 300rpx;
   height: 300rpx;
-  border: 1rpx solid $c-hairline-gold;
+  border: 2rpx solid $c-hairline-gold;
   border-radius: 50%;
   pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1rpx rgba(212, 173, 47, 0.1),
+    0 0 40rpx rgba(212, 173, 47, 0.1);
 }
 
 .card-dark .gold {
@@ -473,8 +505,8 @@ button[disabled] {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
-  animation: sweep 1.4s $ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.8), transparent); // v2: 从 0.7 提升亮度
+  animation: sweep 1.6s $ease-in-out infinite; // v2: 从 1.4s 略微放慢
 }
 
 /* --------------------------------------------------------------- 5. 页面骨架 */

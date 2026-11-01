@@ -58,12 +58,19 @@ $c-on-dark: #f5f0e3; // 深色底正文
 $c-on-dark-muted: #b5ad99; // 深色底次要文字 · 对 $c-dark 约 6.5:1
 $c-on-dark-faint: #8f8778; // 深色底三级文字（非信息性，约 3.6:1）
 
+/* 深色面增强渐变（v2 轮播优化） */
+$c-dark-gradient-enhanced: linear-gradient(135deg, #29261d 0%, #171713 40%, #241f15 75%, #0b0a07 100%);
+
 /* ------------------------------------------------------------------ 色彩 · 遮罩与半透明 */
 $c-scrim: rgba(18, 14, 7, 0.58); // 弹层遮罩
 $c-veil: rgba(212, 173, 47, 0.2); // 深色面上的装饰金（巨大星标、细环）
 $c-hairline-gold: rgba(212, 173, 47, 0.3); // 深色面上的金色发丝线
 $c-focus-ring: rgba(185, 151, 55, 0.18); // 输入聚焦光晕
 $c-splash-glow: rgba(212, 173, 47, 0.08); // 开屏深色底上的金色晕光（大面积铺底，必须极淡）
+
+/* v2 轮播增强 */
+$c-gold-glow-light: rgba(212, 173, 47, 0.15); // 金色光晕（轮播卡片装饰）
+$c-media-vignette: rgba(11, 10, 7, 0.3); // 图片边缘渐隐遮罩
 
 /* ------------------------------------------------------------------ 色彩 · 语义 */
 $c-success: #3d7833;
@@ -78,19 +85,19 @@ $font-body: 'PingFang SC', 'HarmonyOS Sans SC', 'Hiragino Sans GB', 'Microsoft Y
 $font-number: 'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo, Consolas, monospace;
 
 /* ------------------------------------------------------------------ 字阶（rpx · 750 设计宽 · 375px 视口下 2rpx = 1px） */
-$fs-micro: 22rpx; // 拉丁大写微标签 / 角标（须配 letter-spacing）
-$fs-caption: 24rpx; // 说明文字下限
-$fs-body-sm: 26rpx; // 次要正文
-$fs-body: 28rpx; // 正文
-$fs-title-sm: 30rpx; // 小标题
-$fs-title: 32rpx; // 区块标题
-$fs-title-lg: 36rpx; // 卡片标题
-$fs-h2: 44rpx; // 页面级标题
-$fs-h1: 56rpx; // 品牌字
-$fs-brand: 62rpx; // 登录页品牌字（比 h1 大半档，唯一破格用法）
-$fs-display: 64rpx; // 展示字
-$fs-ticket: 132rpx; // 取餐号
-$fs-splash: 112rpx; // 开屏品牌字：两字居中，是唯一为「整屏只有两个字」准备的字号
+$fs-micro: 24rpx; // 拉丁大写微标签 / 角标（须配 letter-spacing）· v2 从 22rpx 提升
+$fs-caption: 26rpx; // 说明文字下限
+$fs-body-sm: 28rpx; // 次要正文 · v2 从 26rpx 提升
+$fs-body: 30rpx; // 正文 · v2 从 28rpx 提升
+$fs-title-sm: 32rpx; // 小标题 · v2 从 30rpx 调整
+$fs-title: 34rpx; // 区块标题 · v2 新增档位（原 32rpx）
+$fs-title-lg: 38rpx; // 卡片标题 · v2 从 36rpx 微调
+$fs-h2: 46rpx; // 页面级标题 · v2 从 44rpx 微调
+$fs-h1: 58rpx; // 品牌字 · v2 从 56rpx 微调
+$fs-brand: 64rpx; // 登录页品牌字 · v2 从 62rpx 调整
+$fs-display: 68rpx; // 展示字 · v2 从 64rpx 提升
+$fs-ticket: 136rpx; // 取餐号 · v2 从 132rpx 微调
+$fs-splash: 116rpx; // 开屏品牌字 · v2 从 112rpx 微调
 
 /* 行高 */
 $lh-tight: 1.2;
@@ -117,6 +124,15 @@ $sp-8: 80rpx;
 
 /* 页面横向留白（四个 Tab 面板、四个页面共用同一条） */
 $gutter: 44rpx;
+$gutter-sm: 32rpx; // v2 新增：紧凑场景留白
+
+/* v2 语义化间距（特定场景使用） */
+$sp-section: $sp-7; // 区块之间（56rpx）
+$sp-block: $sp-5; // 内容块之间（32rpx）
+$sp-group: $sp-4; // 相关元素组（24rpx）
+$sp-inline: $sp-3; // 行内元素（16rpx）
+$sp-tight: $sp-2; // 紧凑场景（12rpx）
+$sp-optical: $sp-0; // 光学对齐微调（4rpx）
 
 /* 面板底部预留：盖住固定底栏，避免最后一行被遮挡。
    数值 = 分段控件 + 指示条 + 该 Tab 额外业务条的实测高度 + 呼吸余量。 */

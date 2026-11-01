@@ -16,7 +16,7 @@
       :current="current"
       :autoplay="autoplayEnabled"
       :interval="interval"
-      :duration="duration"
+      :duration="340"
       easing-function="easeOutCubic"
       :circular="circular"
       @change="onChange"
@@ -71,8 +71,8 @@ const emit = defineEmits(['select'])
 
 /** 自动轮播间隔：够读完标题与短句，又不至于让人等下一屏 */
 const interval = 5600
-/** 切换时长：比初版的 420ms 短 40ms，手感更跟手，仍能看清是「划过去」而不是「跳过去」 */
-const duration = 380
+/** 切换时长：v2 优化从 380ms 减少到 340ms，更跟手 */
+const duration = 340
 /** 首帧之后多久开始预热相邻屏：留出首屏渲染与主接口的带宽 */
 const WARMUP_DELAY = 700
 /** 手指离开后多久恢复自动播放：等切换惯性动画落定，避免刚滑完就被自动切走 */
@@ -177,30 +177,42 @@ onBeforeUnmount(() => {
   height: 360rpx;
 }
 
-/* ---- 指示点（叠在深色卡内，左下角） ---- */
+/* ---- 指示点（v2: 从左下改为底部居中，增强毛玻璃背景） ---- */
 .hero-dots {
   position: absolute;
-  left: $sp-5;
-  bottom: 20rpx;
+  left: 50%;
+  bottom: 16rpx;
+  transform: translateX(-50%);
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: $sp-1;
+  gap: $sp-2; // v2: 从 8rpx 增加到 12rpx
+  padding: $sp-1 $sp-3; // v2: 新增内边距
+  border-radius: $r-pill;
+  background: rgba(11, 10, 7, 0.4); // v2: 半透明背景
+  backdrop-filter: blur(12rpx); // v2: 毛玻璃效果
   /* 纯展示：不拦截手势，点击与滑动都交给卡片本身 */
   pointer-events: none;
 }
 
 .hero-dot {
-  width: 8rpx;
-  height: 8rpx;
+  width: 10rpx; // v2: 从 8rpx 增加到 10rpx
+  height: 10rpx;
   border-radius: $r-pill;
-  background: $c-hairline-gold;
-  transition: width $dur-base $ease-spring, background-color $dur-fast ease;
+  background: rgba(233, 209, 145, 0.3); // v2: 从完全透明改为半透明金
+  transition: width $dur-base $ease-spring,
+              background-color $dur-fast ease,
+              transform $dur-fast ease; // v2: 新增 transform 过渡
 }
 
 /* 当前屏拉成一小段金线：比「换个颜色」更容易在余光里分辨位置 */
 .hero-dot--active {
-  width: 28rpx;
+  width: 32rpx; // v2: 从 28rpx 增加到 32rpx
   background: $c-gold;
+
+  /* v2: 激活点发光效果 */
+  box-shadow:
+    0 0 8rpx rgba(212, 173, 47, 0.6),
+    0 0 16rpx rgba(212, 173, 47, 0.3);
 }
 </style>
