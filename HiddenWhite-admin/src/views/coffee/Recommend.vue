@@ -334,23 +334,26 @@ onMounted(load)
           </div>
 
           <div v-else class="preview-stage">
-            <div :class="['preview-card', { 'is-dim': !preview.usable }]">
-              <div class="preview-copy">
-                <div class="preview-eyebrow-row">
-                  <span class="preview-rule" />
-                  <span class="preview-eyebrow">{{ preview.eyebrow }}</span>
+            <div class="preview-frame">
+              <div :class="['preview-card', { 'is-dim': !preview.usable }]">
+                <div class="preview-copy">
+                  <div class="preview-eyebrow-row">
+                    <span class="preview-rule" />
+                    <span class="preview-eyebrow">{{ preview.eyebrow }}</span>
+                  </div>
+                  <p class="preview-headline">{{ preview.headline }}</p>
+                  <p class="preview-caption">{{ preview.caption }}</p>
+                  <div class="preview-foot">
+                    <span class="preview-link">{{ preview.linkText }}</span>
+                    <span class="preview-price">¥{{ preview.price }}</span>
+                  </div>
                 </div>
-                <p class="preview-headline">{{ preview.headline }}</p>
-                <p class="preview-caption">{{ preview.caption }}</p>
-                <div class="preview-foot">
-                  <span class="preview-link">{{ preview.linkText }}</span>
-                  <span class="preview-price">¥{{ preview.price }}</span>
+                <div class="preview-media">
+                  <img v-if="uploadedImage(preview.image)" :src="uploadedImage(preview.image)" alt="" />
+                  <span v-else class="preview-media-mono">{{ preview.productName.slice(0, 1) }}</span>
                 </div>
               </div>
-              <div class="preview-media">
-                <img v-if="uploadedImage(preview.image)" :src="uploadedImage(preview.image)" alt="" />
-    <span v-else class="preview-media-mono">{{ preview.productName.slice(0, 1) }}</span>
-              </div>
+              <!-- 指示点在卡片之外：点单端卡片内的操作行贴底，点叠进去会压住价格 -->
               <div class="preview-dots" aria-hidden="true">
                 <span v-for="n in Math.min(SLIDES_PER_VIEW, Math.max(rows.length, 1))" :key="`dot-${n}`" :class="['preview-dot', n === 1 && 'is-on']" />
               </div>
@@ -565,20 +568,26 @@ onMounted(load)
 
 /* ── 预览：1:1 复刻点单端首屏卡片 ───────────────────────────
    取点单端 tokens.scss 的色值（那边是深色主视觉，与后台浅色玻璃不是一套皮）。
-   尺寸按 750rpx:375px = 2:1 换算：卡片 662×360rpx → 331×180px。 */
+   尺寸按 750rpx:375px = 2:1 换算，与 RecommendSlide.vue 的布局常量一一对应：
+   卡片 662×328rpx → 331×164px，图片 206rpx → 103px、距上 72rpx → 36px、
+   距右 36rpx → 18px，文案右边界 258rpx（padding-right）→ 129px。
+   改动点单端版面时请同步这里，否则运营看到的预览会骗人。 */
 .preview-stage { margin-top: 12px; }
+
+/* 卡片 + 卡下指示点：指示点不参与卡片内部布局 */
+.preview-frame { width: 331px; }
 
 .preview-card {
   position: relative;
   width: 331px;
-  height: 180px;
+  height: 164px;
   box-sizing: border-box;
-  padding: 20px 16px;
+  padding: 16px 18px 14px;
   overflow: hidden;
   border: 1px solid #b99737;
   border-radius: 11px;
-  background: linear-gradient(150deg, #171713 0%, #0b0a07 100%);
-  box-shadow: 0 10px 24px rgba(20, 16, 8, 0.28);
+  background: linear-gradient(135deg, #29261d 0%, #171713 40%, #241f15 75%, #0b0a07 100%);
+  box-shadow: 0 6px 14px rgba(20, 16, 8, 0.22);
 }
 
 /* 深色卡右下的金色细环：点单端三张深色卡共用的品牌笔触 */
@@ -595,29 +604,44 @@ onMounted(load)
 
 .preview-card.is-dim { opacity: 0.45; filter: grayscale(0.4); }
 
+/* 与点单端一致：眉标贴顶、操作行贴底，余量均分到三段间距 */
 .preview-copy {
   position: relative;
   z-index: 1;
   display: flex;
   height: 100%;
   flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
 }
 
-/* 与点单端一致：眉标吃满整行（图片上沿在它下方），
-   标题 / 短句 / 操作行才让出图片宽度，否则长眉标会被提前截断 */
+/* 眉标吃满整行（图片上沿在它下方），标题 / 短句 / 操作行才让出图片宽度 */
 .preview-headline,
 .preview-caption,
 .preview-foot {
-  padding-right: 150px;
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 129px;
 }
 
-.preview-eyebrow-row { display: flex; align-items: center; gap: 6px; }
+/* 与点单端同一约束：卡片高度固定，文本块一律禁止 flex 收缩，
+   否则内容一超，行盒被压扁，字会被削掉半截 */
+.preview-eyebrow-row,
+.preview-headline,
+.preview-caption,
+.preview-foot {
+  flex: none;
+}
 
-.preview-rule { width: 13px; height: 1px; flex: none; background: #d4ad2f; }
+.preview-eyebrow-row { display: flex; width: 100%; align-items: center; gap: 4px; }
+
+.preview-rule { width: 12px; height: 1px; flex: none; background: #d4ad2f; }
 
 .preview-eyebrow {
+  min-width: 0;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   letter-spacing: 1px;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -626,38 +650,40 @@ onMounted(load)
 
 .preview-headline {
   display: -webkit-box;
-  margin-top: 16px;
+  margin-top: 8px;
   overflow: hidden;
   font-family: "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
-  font-size: 22px;
-  line-height: 1.12;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.15;
   color: #f5f0e3;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
+/* 短句单行：三屏高度不能跟着文案长短跳 */
 .preview-caption {
-  display: -webkit-box;
-  margin-top: 12px;
+  margin-top: 6px;
   overflow: hidden;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: #b5ad99;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
 .preview-foot {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 6px;
-  margin-top: 16px;
+  gap: 8px;
+  padding-top: 8px;
 }
 
 .preview-link {
+  min-width: 0;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.5px;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -666,7 +692,7 @@ onMounted(load)
 
 .preview-price {
   flex: none;
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: #e9d191;
@@ -674,16 +700,16 @@ onMounted(load)
 
 .preview-media {
   position: absolute;
-  /* 与点单端同一几何关系：图片 268rpx / 距顶 52rpx / 距右 26rpx */
-  top: 26px;
-  right: 13px;
+  /* 与点单端同一几何关系：图片 206rpx / 距顶 72rpx / 距右 36rpx */
+  top: 36px;
+  right: 18px;
   /* 图片块压在装饰金环之上：与点单端一致（那边图片也是 z-index 1），
      否则环形描边会横穿商品图，看起来像一条划痕 */
   z-index: 1;
   display: grid;
   place-items: center;
-  width: 134px;
-  height: 134px;
+  width: 103px;
+  height: 103px;
   overflow: hidden;
   border: 1px solid rgba(212, 173, 47, 0.3);
   border-radius: 9px;
@@ -694,25 +720,24 @@ onMounted(load)
 
 .preview-media-mono {
   font-family: "Songti SC", "Noto Serif SC", serif;
-  font-size: 44px;
+  font-size: 36px;
   color: rgba(233, 209, 145, 0.55);
 }
 
+/* 指示点：卡下独立一行，居中（与点单端 .hero-dots 一致） */
 .preview-dots {
-  position: absolute;
-  left: 16px;
-  bottom: 10px;
-  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .preview-dot {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   border-radius: 999px;
-  background: rgba(212, 173, 47, 0.3);
+  background: rgba(185, 151, 55, 0.42);
   transition: width 0.2s ease;
 }
 

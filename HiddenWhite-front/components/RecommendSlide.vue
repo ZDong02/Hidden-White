@@ -4,9 +4,16 @@
     单独成组件有两个实际收益：
       1. 指示点变化时只有本组件的 props 参与比较，三屏内容不会被反复 patch；
       2. 图片的加载 / 失败状态天然按屏隔离，不必在父组件里维护一份按下标的映射表。
+
+    排版约束（改动前先读）：
+      · 卡片高度固定（$hero-card-h），但纵向排布只允许「文案自然堆叠 + 操作行贴底」，
+        任何一段都不许参与 flex 收缩 —— 否则行盒被压缩，字会被削掉半截；
+      · 文案列的右边界由图片区反推（见 $hero-copy-right），保证眉标、标题、短句、
+        操作行共用同一条右边界，图片永远不压字；
+      · 眉标 / 短句单行省略，主标题最多两行：三屏文案长短不一，行数不定会让整块高度跳动。
   -->
   <view
-    class="hero-slide card-dark"
+    class="hero-slide"
     hover-class="hero-slide--press"
     :hover-stay-time="60"
     :aria-label="label"
@@ -104,170 +111,225 @@ function onError() {
 </script>
 
 <style lang="scss" scoped>
-/* 卡片高度固定：三屏文案长短不一，高度随内容走会导致轮播切换时整块抖动 */
+/* ---- 组件内布局常量：先定图片区，再由它反推文案列，避免两处各写一个魔法值 ----
+   卡片实际宽 = 750 − 页面左右留白(44×2) = 662rpx
+   （轮播槽左右各 12rpx 的内边距被 swiper 的等量负边距抵消，首屏仍与栅格对齐）；
+   卡片内容宽 = 662 − 左右内边距(36×2) = 590rpx。 */
+$hero-card-h: 328rpx; // 卡片高度（与 RecommendCarousel 的 swiper 高度联动）
+$hero-media: 206rpx; // 图片区边长
+$hero-media-right: 36rpx; // 图片距卡片右边缘
+$hero-media-top: 72rpx; // 图片上沿 = 上内边距(32) + 眉标行高(31) + 间距(9)：眉标独占一整行，图片不压字
+/* 文案右边界 = 590 − 图片宽(206) − 图片右边距(36) − 呼吸位(16) = 332rpx 可用，
+   padding-right = 590 − 332 = 258rpx。（图片左沿 420rpx，文案止于 404rpx） */
+$hero-copy-right: 258rpx;
+
 .hero-slide {
   position: relative;
   box-sizing: border-box;
-  height: 360rpx;
-  padding: $sp-7 $sp-6; // v2: 从 $sp-6 $sp-5 增加到 56rpx 40rpx，更宽松
-  background: $c-dark-gradient-enhanced; // v2: 使用增强渐变
+  height: $hero-card-h;
+  padding: $sp-5 36rpx 28rpx;
+  overflow: hidden;
+  border: 2rpx solid $c-gold-line;
+  border-radius: $r-lg;
+  background: $c-dark-gradient-enhanced;
+  color: $c-on-dark;
+  box-shadow: 0 12rpx 28rpx rgba(20, 16, 8, 0.22);
   transition: transform $dur-instant $ease-out, box-shadow $dur-base $ease-out;
 
-  /* v2: 左上角金色光晕 */
+  /* 右上角金色光晕：只做氛围，不参与布局 */
   &::before {
     content: '';
     position: absolute;
     top: 0;
-    left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(
-      circle at 80% 20%,
-      rgba(212, 173, 47, 0.15) 0%,
-      transparent 60%
-    );
-    opacity: 0.6;
-    pointer-events: none;
+    left: 0;
     z-index: 0;
+    background: radial-gradient(
+      circle at 82% 16%,
+      rgba(212, 173, 47, 0.14) 0%,
+      rgba(212, 173, 47, 0) 62%
+    );
+    pointer-events: none;
+  }
+
+  /* 右下角金色细环：品牌笔触 */
+  &::after {
+    content: '';
+    position: absolute;
+    right: -70rpx;
+    bottom: -130rpx;
+    width: 300rpx;
+    height: 300rpx;
+    border: 2rpx solid $c-hairline-gold;
+    border-radius: 50%;
+    box-shadow:
+      inset 0 0 0 1rpx rgba(212, 173, 47, 0.1),
+      0 0 40rpx rgba(212, 173, 47, 0.1);
+    pointer-events: none;
   }
 }
 
 .hero-slide--press {
-  transform: scale(0.985) translateY(2rpx); // v2: 增加下沉感
-  box-shadow: 0 4rpx 16rpx rgba(20, 16, 8, 0.2); // v2: 按压时阴影减弱
+  transform: scale(0.994);
+  box-shadow: 0 6rpx 14rpx rgba(20, 16, 8, 0.18);
 }
 
-/* 文案列：整列不统一让出图片宽度 ——
-   眉标横在图片上沿之上，可以吃满整行；只有标题/短句/操作行需要避开图片。
-   这样「本周推荐 · 匠心双份浓缩」这类长眉标不会被截成省略号。 */
+/* 文案列：撑满卡片内容区，纵向 space-between 把余量均分到三段间距里
+   （眉标贴顶、操作行贴底，单行标题时不会在底部堆出一大块空白）。
+   子元素统一 flex-shrink:0 —— 卡片高度固定，内容一旦超出必须溢出（可被发现），
+   绝不允许被 flex 压缩：行盒一缩，字就被削掉半截，这是 v2 轮播截断的直接原因。 */
 .hero-copy {
   position: relative;
-  z-index: 2; // v2: 从 z-index: 1 提升，确保在光晕之上
+  z-index: 2;
   display: flex;
   height: 100%;
   flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
 }
 
-/* 标题 / 短句 / 操作行避开右侧图片（图片宽 268rpx + 右边距 26rpx + 呼吸位） */
-.hero-headline,
-.hero-caption,
-.hero-foot {
-  padding-right: 300rpx;
-}
-
+/* 眉标吃满整行（图片从它下方开始），长文案才不会被截成省略号 */
 .hero-eyebrow-row {
   display: flex;
+  width: 100%;
+  flex-shrink: 0;
   align-items: center;
-  gap: $sp-2;
+  gap: $sp-1;
+  line-height: $lh-tight;
 }
 
 .hero-rule {
-  width: 26rpx;
+  width: 24rpx;
   height: 2rpx;
   flex-shrink: 0;
   background: $c-gold;
 }
 
+/* 眉标：小字号靠字重与字距撑可读性；中文的字距过大会被拉散，取 2rpx 一档 */
 .hero-eyebrow {
-  font-size: $fs-micro;
-  font-weight: 600; // v2: 增强眉标字重
-  line-height: $lh-tight;
-  letter-spacing: $ls-wider; // v2: 从 $ls-wide 加宽
-  text-transform: uppercase; // v2: 拉丁文字大写
+  min-width: 0;
+  flex: 1;
   color: $c-gold-on-dark;
-  text-shadow: 0 0 16rpx rgba(212, 173, 47, 0.4); // v2: 文字发光效果
+  font-size: $fs-micro;
+  font-weight: 600;
+  letter-spacing: $ls-wide;
+  line-height: $lh-tight;
   @include ellipsis;
 }
 
-/* 主标题用展示字（宋体系），是这一屏唯一的「大声说话」的地方 */
-.hero-headline {
-  display: -webkit-box; // v2: 改为多行支持
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2; // v2: 最多两行
-  overflow: hidden;
-  margin-top: $sp-5;
-  font-family: $font-display;
-  font-size: $fs-display; // v2: 从 $fs-h2(44rpx) 提升到 68rpx
-  font-weight: 500; // v2: 宋体大字号用中等字重
-  line-height: $lh-display;
-  letter-spacing: $ls-tight; // v2: 增加字距控制
-  color: $c-on-dark;
+/* 主标题 / 短句 / 操作行统一让出图片宽度：三者共用同一条右边界 */
+.hero-headline,
+.hero-caption,
+.hero-foot {
+  padding-right: $hero-copy-right;
 }
 
+/* 主标题：整屏唯一「大声说话」的地方，宋体展示字 + 紧凑行高。
+   48rpx 时 332rpx 的文案列一行吃下 6 个汉字（两屏预置文案都是 6 字，正好单行成形）；
+   更长的标题折第二行，两行正好被卡片高度容纳；再长才由 line-clamp 省略。 */
+.hero-headline {
+  display: -webkit-box;
+  flex-shrink: 0;
+  width: 100%;
+  margin-top: $sp-3;
+  overflow: hidden;
+  color: $c-on-dark;
+  font-family: $font-display;
+  font-size: 48rpx;
+  font-weight: 500;
+  letter-spacing: $ls-tight;
+  line-height: 1.15;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-word;
+}
+
+/* 短句：与标题同一视觉族、弱一档颜色，单行省略（三屏高度不能跟着文案长短跳） */
 .hero-caption {
   display: block;
-  margin-top: $sp-4;
-  font-size: $fs-body-sm; // v2: 从 $fs-micro(22rpx) 提升到 28rpx
-  line-height: 1.6; // v2: 从 1.5 增加可读性
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 39rpx; // 26rpx × 1.5：文案为空时不塌陷，保住与操作行的间距
+  margin-top: $sp-2;
   color: $c-on-dark-muted;
-  opacity: 0.95; // v2: 轻微透明度让视觉更柔和
+  font-size: $fs-caption;
+  letter-spacing: $ls-normal;
+  line-height: 1.5;
   @include ellipsis;
 }
 
-/* 价格与链接同一基线：链接是动作，价格是信息，左右分列读起来不抢 */
+/* 操作行：链接是动作、价格是信息，左右分列同一基线；贴底保证三屏位置一致 */
 .hero-foot {
   display: flex;
-  align-items: center;
+  width: 100%;
+  flex-shrink: 0;
+  align-items: baseline;
   justify-content: space-between;
-  gap: $sp-2;
-  margin-top: $sp-5;
+  gap: $sp-3;
+  padding-top: $sp-3;
 }
 
 .hero-link-row {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: $sp-1;
-  transition: transform $dur-fast $ease-out; // v2: 悬停动效
+  gap: $sp-0;
+  transition: transform $dur-fast $ease-out;
 }
 
 .hero-link {
-  font-size: $fs-micro;
-  letter-spacing: 1rpx;
   color: $c-gold-on-dark;
+  font-size: $fs-caption;
+  letter-spacing: $ls-normal;
+  line-height: 1.5;
   @include ellipsis;
 }
 
+/* 价格：等宽数字 + 唯一的大字重，与标题构成第二层级 */
 .hero-price {
   flex-shrink: 0;
-  font-size: $fs-body;
-  font-weight: 700; // v2: 从 600 提升到 700，价格更醒目
-  letter-spacing: $ls-tight;
   color: $c-gold-on-dark;
+  font-size: $fs-title;
+  font-weight: 600;
+  letter-spacing: $ls-tight;
+  line-height: 1.2;
+  @include numeric;
 }
 
-/* 图片：比原 Banner 略小并下移一点，把顶部让给整行眉标；比例与位置关系保持不变 */
+/* 图片：上沿与主标题对齐、下沿与操作行对齐，构成右侧一块完整的方形内容区 */
 .hero-media {
   position: absolute;
-  right: 26rpx;
-  top: 52rpx;
+  top: $hero-media-top;
+  right: $hero-media-right;
   display: flex;
-  width: 268rpx;
-  height: 268rpx;
+  width: $hero-media;
+  height: $hero-media;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   border: 1rpx solid $c-hairline-gold;
   border-radius: $r-md;
   background: linear-gradient(150deg, $c-dark-2, $c-dark-deep);
-  z-index: 1;
-
-  /* v2: 内阴影增强边框感 + 外阴影增加深度 */
   box-shadow:
     inset 0 0 0 1rpx rgba(212, 173, 47, 0.08),
     0 8rpx 24rpx rgba(11, 10, 7, 0.4);
+  z-index: 1;
 
-  /* v2: 图片边缘渐隐效果 */
-  &::before {
+  /* 边缘渐隐：图与卡面之间不留一条硬边 */
+  &::after {
     content: '';
     position: absolute;
-    inset: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
     z-index: 2;
     border-radius: $r-md;
     background: radial-gradient(
       ellipse at center,
-      transparent 30%,
-      rgba(11, 10, 7, 0.3) 100%
+      rgba(11, 10, 7, 0) 46%,
+      $c-media-vignette 100%
     );
     pointer-events: none;
   }
@@ -278,7 +340,7 @@ function onError() {
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 .hero-image {
@@ -292,46 +354,26 @@ function onError() {
 /* ---- H5 悬停：桌面端给鼠标一点回应（小程序端没有 hover，用按压态已足够） ---- */
 /* #ifdef H5 */
 .hero-slide:hover {
-  box-shadow: $sh-3;
+  box-shadow: 0 18rpx 40rpx rgba(20, 16, 8, 0.28);
 }
 
 .hero-slide:hover .hero-image {
   transform: scale(1.04);
 }
 
-/* v2: 悬停时链接文字右移，暗示可点击 */
 .hero-slide:hover .hero-link-row {
   transform: translateX(4rpx);
 }
 
 .hero-slide--press:hover {
-  transform: scale(0.985) translateY(2rpx); // v2: 保持按压下沉感
+  transform: scale(0.994);
 }
 
-/* v2: 按住时图片微放大 */
 .hero-slide--press .hero-image {
   transform: scale(1.02);
 }
 /* #endif */
 
-/* ---- 窄屏（≤340px，如 SE 一代 320pt）：收紧纵向留白，把高度让给文字 ----
-   rpx 本身随机型等比缩放，这里只处理「字挤」而不是「比例」：
-   纵向内边距各收 8rpx、图片上沿提 8rpx，换来标题行多出约一整行的高 */
-@media (max-width: 340px) {
-  .hero-slide {
-    padding: $sp-5 $sp-5;
-  }
-
-  .hero-headline {
-    margin-top: $sp-4;
-  }
-
-  .hero-caption {
-    margin-top: $sp-3;
-  }
-
-  .hero-foot {
-    margin-top: $sp-4;
-  }
-}
+/* 窄屏（≤340px）不需要单独适配：全部尺寸用 rpx，随视口等比缩放，
+   卡片内的比例关系（文案列 : 图片 : 留白）在任何机型上都保持不变。 */
 </style>

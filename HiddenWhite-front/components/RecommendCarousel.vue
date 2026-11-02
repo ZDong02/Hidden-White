@@ -9,6 +9,12 @@
       · 图片按屏懒加载：首帧只挂当前屏的 src，相邻屏空闲预热，用户一触摸就全部放行；
       · 自动播放在「面板不可见 / 手指按住 / 系统偏好减少动效」三种情况下一律暂停；
       · 指示点纯展示且不拦截手势（pointer-events: none），避免抢走卡片的点击与滑动。
+
+    间距要点（v3 修复「相邻卡片粘连」）：
+      swiper-item 的宽度恒等于 swiper 宽度，卡片若直接铺满 item，两张卡就是零间隙的
+      两块深色面 —— 圆角、描边、阴影会互相压住，滑动过程中看起来像一张被切开的卡。
+      做法：item 内套一层 .hero-slot 承担内边距，swiper 用等量负边距抵消，
+      于是「首屏仍与页面栅格对齐」+「相邻屏之间始终有一条 24rpx 的缝」。
   -->
   <view v-if="slides.length" class="hero">
     <swiper
@@ -16,7 +22,7 @@
       :current="current"
       :autoplay="autoplayEnabled"
       :interval="interval"
-      :duration="340"
+      :duration="duration"
       easing-function="easeOutCubic"
       :circular="circular"
       @change="onChange"
@@ -25,19 +31,21 @@
       @touchcancel="onTouchEnd"
     >
       <swiper-item v-for="(slide, index) in slides" :key="slide.id">
-        <RecommendSlide
-          :slide="slide"
-          :eager="eagerList.includes(index)"
-          @select="emit('select', $event)"
-        />
+        <view class="hero-slot">
+          <RecommendSlide
+            :slide="slide"
+            :eager="eagerList.includes(index)"
+            @select="emit('select', $event)"
+          />
+        </view>
       </swiper-item>
     </swiper>
 
     <!--
       自定义指示点而不是 swiper 的 indicator-dots：
-      原生点是白/灰方块，压在深色卡上会盖住图片，也无法与金色体系对齐。
-      点叠在卡片内部底边（而不是卡片下方另起一行），
-      这样首页的纵向节奏与原 Banner 完全一致，不额外吃掉 44rpx。
+      原生点是白/灰方块，无法与金色体系对齐。
+      v3 起移到卡片外：卡片里操作行贴着底边，点叠在里面必然压住「价格」那一行；
+      放到卡下自成一行 10rpx，只多吃 20rpx，换来干净的边界。
     -->
     <view v-if="slides.length > 1" class="hero-dots" aria-hidden="true">
       <view
@@ -71,8 +79,8 @@ const emit = defineEmits(['select'])
 
 /** 自动轮播间隔：够读完标题与短句，又不至于让人等下一屏 */
 const interval = 5600
-/** 切换时长：v2 优化从 380ms 减少到 340ms，更跟手 */
-const duration = 340
+/** 切换时长：320ms 比 340ms 更跟手，仍足以看清滑动方向（距 tokens 的 base 档 300ms 最近） */
+const duration = 320
 /** 首帧之后多久开始预热相邻屏：留出首屏渲染与主接口的带宽 */
 const WARMUP_DELAY = 700
 /** 手指离开后多久恢复自动播放：等切换惯性动画落定，避免刚滑完就被自动切走 */
@@ -167,52 +175,52 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="scss" scoped>
-/* .hero 作为定位上下文：指示点绝对定位到卡片底边内侧 */
+/* 卡片高度必须与 RecommendSlide 的 $hero-card-h 保持一致（328rpx），
+   两侧各留 $sp-2 作为阴影呼吸位，故 swiper 高 = 328 + 12 × 2。 */
+$hero-card-h: 328rpx;
+$hero-gap-half: $sp-2; // 卡片间距 24rpx 的一半，由 slot 内边距实现
+
 .hero {
   position: relative;
 }
 
-/* swiper 必须给确定高度：默认 150px 会裁掉卡片下半部分 */
+/* 负边距抵消 slot 内边距：当前屏的卡片左右边缘仍与页面栅格对齐，
+   而相邻屏之间留出 2 × 12rpx 的缝；上下各 12rpx 让卡片阴影不被 swiper 裁掉。 */
 .hero-swiper {
-  height: 360rpx;
+  height: $hero-card-h + $hero-gap-half * 2;
+  margin: (-$hero-gap-half) (-$hero-gap-half) 0;
 }
 
-/* ---- 指示点（v2: 从左下改为底部居中，增强毛玻璃背景） ---- */
+/* 每一屏的容器：只负责留白，不参与任何视觉 */
+.hero-slot {
+  box-sizing: border-box;
+  height: 100%;
+  padding: $hero-gap-half;
+}
+
+/* ---- 指示点：卡片下方独立一行（卡内会被「价格」那一行压住） ---- */
 .hero-dots {
-  position: absolute;
-  left: 50%;
-  bottom: 16rpx;
-  transform: translateX(-50%);
-  z-index: 2;
   display: flex;
+  height: 10rpx;
   align-items: center;
-  gap: $sp-2; // v2: 从 8rpx 增加到 12rpx
-  padding: $sp-1 $sp-3; // v2: 新增内边距
-  border-radius: $r-pill;
-  background: rgba(11, 10, 7, 0.4); // v2: 半透明背景
-  backdrop-filter: blur(12rpx); // v2: 毛玻璃效果
+  justify-content: center;
+  gap: $sp-2;
+  margin-top: $sp-2;
   /* 纯展示：不拦截手势，点击与滑动都交给卡片本身 */
   pointer-events: none;
 }
 
 .hero-dot {
-  width: 10rpx; // v2: 从 8rpx 增加到 10rpx
+  width: 10rpx;
   height: 10rpx;
   border-radius: $r-pill;
-  background: rgba(233, 209, 145, 0.3); // v2: 从完全透明改为半透明金
-  transition: width $dur-base $ease-spring,
-              background-color $dur-fast ease,
-              transform $dur-fast ease; // v2: 新增 transform 过渡
+  background: rgba(185, 151, 55, 0.42);
+  transition: width $dur-base $ease-spring, background-color $dur-fast ease;
 }
 
 /* 当前屏拉成一小段金线：比「换个颜色」更容易在余光里分辨位置 */
 .hero-dot--active {
-  width: 32rpx; // v2: 从 28rpx 增加到 32rpx
+  width: 28rpx;
   background: $c-gold;
-
-  /* v2: 激活点发光效果 */
-  box-shadow:
-    0 0 8rpx rgba(212, 173, 47, 0.6),
-    0 0 16rpx rgba(212, 173, 47, 0.3);
 }
 </style>
