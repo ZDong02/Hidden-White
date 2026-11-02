@@ -59,9 +59,9 @@
 
     <view class="benefits-grid">
       <view
-        v-for="benefit in benefits"
+        v-for="benefit in benefitCards"
         :key="benefit.title"
-        class="benefit-card"
+        :class="['benefit-card', { 'benefit-card--active': benefit.state === 'CLAIMABLE' }]"
         hover-class="benefit-card--press"
         :hover-stay-time="60"
         @tap="openBenefit(benefit)"
@@ -69,6 +69,8 @@
         <view class="benefit-icon">
           <Icon :name="benefit.icon" tone="gold" :size="32" />
         </view>
+        <!-- 可领取是全屏唯一的强调位：角标 + 金色描边，别让第二张卡也亮起来 -->
+        <text v-if="benefit.state === 'CLAIMABLE'" class="benefit-badge">可领取</text>
         <text class="benefit-title">{{ benefit.title }}</text>
         <text class="benefit-description">{{ benefit.description }}</text>
       </view>
@@ -94,9 +96,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Icon from '../ui/Icon.vue'
 import { currentUser, isLoggedIn } from '../../store/auth'
+import { birthday, loadBirthday, resetBirthday } from '../../store/birthday'
 import { requestApi } from '../../config/backend'
 import { showNotice } from '../../utils/toast'
 import { openPage } from '../../utils/navigation'
@@ -111,10 +114,48 @@ const defaultBenefits = [
 const benefits = ref(defaultBenefits)
 const member = ref({})
 
+const emit = defineEmits(['open-birthday'])
+
+/** 生日礼遇卡的文案由服务端状态决定：同一张卡，四态只换第二行 */
+const birthdayCard = computed(() => {
+  const status = birthday.data
+  if (!status) return { description: '生日专属惊喜', state: '' }
+  switch (status.state) {
+    case 'NO_BIRTHDAY':
+      return { description: '填写生日，收下惊喜', state: 'NO_BIRTHDAY' }
+    case 'CLAIMABLE':
+      return { description: `本月可领 ${status.pointsAmount} 积分`, state: 'CLAIMABLE' }
+    case 'CLAIMED':
+      return {
+        description: `已领取 · ${status.claim?.amount ?? status.pointsAmount} 积分`,
+        state: 'CLAIMED'
+      }
+    case 'NOT_IN_WINDOW':
+      return {
+        description: status.daysUntil > 0 ? `距生日还有 ${status.daysUntil} 天` : '生日月开放领取',
+        state: 'NOT_IN_WINDOW'
+      }
+    default:
+      return { description: '筹备中，敬请期待', state: 'DISABLED' }
+  }
+})
+
+/**
+ * 礼遇卡视图：后端列表 + 生日卡的状态文案。
+ * 按标题匹配而非下标——礼遇清单由管理端维护，顺序随时可能变。
+ */
+const benefitCards = computed(() =>
+  benefits.value.map((benefit) => {
+    if (!String(benefit.title || '').includes('生日')) return benefit
+    return { ...benefit, ...birthdayCard.value }
+  })
+)
+
 // 壳页面在切到本面板 / 页面 onShow 时调用
 async function activate() {
   if (!isLoggedIn.value) {
     member.value = { memberLevel: '游客', cardNumber: '登录后查看', points: 0, coupons: 0, growthValue: 0 }
+    resetBirthday()
     return
   }
 
@@ -123,6 +164,8 @@ async function activate() {
       requestApi(`/members/${encodeURIComponent(currentUser.value.id)}`),
       requestApi('/members/benefits')
     ])
+    // 生日状态单独失败不连累上面两块：会员页的首要信息是积分与礼遇清单
+    await loadBirthday()
     member.value = { ...profile, memberLevel: profile.memberLevel || profile.level }
     // 后端若返回了图标字段，只接受已登记的图标名，否则保留本地图标
     benefits.value = rows.map((row, index) => ({
@@ -164,12 +207,29 @@ function openPointsLog() {
  * 用标题前缀匹配而不是下标，是因为礼遇列表来自后端（管理端可增删改）。
  */
 function openBenefit(benefit) {
-  if (String(benefit?.title || '').includes('积分')) {
+  const title = String(benefit?.title || '')
+  if (title.includes('积分')) {
     openRedeem()
+    return
+  }
+  if (title.includes('生日')) {
+    if (!isLoggedIn.value) {
+      openPage('auth', { redirect: 'member' })
+      return
+    }
+    emit('open-birthday')
     return
   }
   showFeature(benefit.title)
 }
+
+/** 领取成功后重拉资料，让「当前积分」跟着跳一下——加了分要看得见。 */
+watch(
+  () => birthday.claimedTick,
+  (tick) => {
+    if (tick > 0) activate()
+  }
+)
 
 defineExpose({ activate })
 </script>
@@ -378,6 +438,7 @@ defineExpose({ activate })
 }
 
 .benefit-card {
+  position: relative;
   display: flex;
   width: calc(50% - #{$sp-2});
   min-width: 0;
@@ -397,6 +458,26 @@ defineExpose({ activate })
 
 .benefit-card--press {
   transform: scale(0.977);
+}
+
+/* 可领取：金色描边 + 极浅金底。整屏只有这一张卡允许出现强调色 */
+.benefit-card--active {
+  border-color: $c-gold-line;
+  background: $c-gold-soft;
+}
+
+.benefit-badge {
+  position: absolute;
+  top: $sp-3;
+  right: $sp-3;
+  padding: 2rpx $sp-2;
+  border-radius: $r-pill;
+  background: $c-gold;
+  color: $c-dark;
+  font-size: 20rpx;
+  font-weight: 600;
+  letter-spacing: 0.5rpx;
+  line-height: 1.6;
 }
 
 /* 图标底：44rpx 的浅金方块，四个礼遇卡的图标视觉重量因此完全一致 */

@@ -19,7 +19,7 @@
     "chevron-right": ["faint", "muted", "gold", "gold-on-dark"],
     "close": ["muted", "ink"],
     "cup": ["decor", "gold"],
-    "gift": ["gold"],
+    "gift": ["gold", "gold-on-dark"],
     "help": ["gold", "muted"],
     "home": ["muted", "gold-on-dark"],
     "minus": ["ink"],

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { Field, Tag, TextInput, type Column } from '@/components/ui'
+import { computed, reactive, ref } from 'vue'
+import { Field, Select, Tag, TextInput, type Column } from '@/components/ui'
 import { FormDialog, ListPage, PermissionButton } from '@/components/business'
 import { coffeeApi, type CoffeeMemberRow } from '@/api'
 import { useListPage } from '@/composables/list'
@@ -20,20 +20,62 @@ const columns: Column[] = [
   { key: 'points', title: '积分', width: 90 },
   { key: 'coupons', title: '优惠券', width: 90 },
   { key: 'growthValue', title: '成长值', width: 90 },
+  { key: 'birthday', title: '生日', width: 90 },
   { key: 'cardNumber', title: '会员卡号', width: 140 },
   { key: 'actions', title: '操作', width: 90, className: 'col-actions' },
 ]
 
-interface MemberForm { displayName: string; level: string; points: number | null; coupons: number | null; growthValue: number | null }
+interface MemberForm {
+  displayName: string
+  level: string
+  points: number | null
+  coupons: number | null
+  growthValue: number | null
+  /** 生日月/日：null 表示未填写；只采集月日，不采集出生年份 */
+  birthdayMonth: number | null
+  birthdayDay: number | null
+}
 const dialog = ref(false)
 const saving = ref(false)
 const editingId = ref('')
-const form = reactive<MemberForm>({ displayName: '', level: '', points: 0, coupons: 0, growthValue: 0 })
+const form = reactive<MemberForm>({
+  displayName: '', level: '', points: 0, coupons: 0, growthValue: 0,
+  birthdayMonth: null, birthdayDay: null,
+})
 const errors = ref<Partial<Record<keyof MemberForm, string>>>({})
+
+const monthOptions = Array.from({ length: 12 }, (_, index) => ({ label: `${index + 1} 月`, value: index + 1 }))
+/** 2 月给 29 天：闰年出生的人不该在管理端就被挡掉，平年由服务端归一 */
+const dayOptions = computed(() => {
+  const month = form.birthdayMonth
+  if (!month) return []
+  const total = month === 2 ? 29 : [4, 6, 9, 11].includes(month) ? 30 : 31
+  return Array.from({ length: total }, (_, index) => ({ label: `${index + 1} 日`, value: index + 1 }))
+})
+
+function onMonthChange(value: string | number | null | undefined) {
+  const month = typeof value === 'number' ? value : null
+  form.birthdayMonth = month
+  const total = dayOptions.value.length
+  if (!month) {
+    form.birthdayDay = null
+  } else if (form.birthdayDay && form.birthdayDay > total) {
+    // 1 月 31 日切到 2 月：日不能被悬空
+    form.birthdayDay = total
+  }
+}
 
 function openEdit(row: CoffeeMemberRow) {
   editingId.value = row.id
-  Object.assign(form, { displayName: row.displayName, level: row.level, points: row.points, coupons: row.coupons, growthValue: row.growthValue })
+  Object.assign(form, {
+    displayName: row.displayName,
+    level: row.level,
+    points: row.points,
+    coupons: row.coupons,
+    growthValue: row.growthValue,
+    birthdayMonth: row.birthdayMonth ?? null,
+    birthdayDay: row.birthdayDay ?? null,
+  })
   errors.value = {}
   dialog.value = true
 }
@@ -52,6 +94,8 @@ async function submit() {
       points: Number(form.points) || 0,
       coupons: Number(form.coupons) || 0,
       growthValue: Number(form.growthValue) || 0,
+      birthdayMonth: form.birthdayMonth,
+      birthdayDay: form.birthdayDay,
     })
     pushToast('会员资料已更新')
     dialog.value = false
@@ -106,6 +150,10 @@ async function remove(row: CoffeeMemberRow) {
     <template #cell-points="{ row }"><span class="mono tnum">{{ row.points }}</span></template>
     <template #cell-coupons="{ row }"><span class="mono tnum">{{ row.coupons }}</span></template>
     <template #cell-growthValue="{ row }"><span class="mono tnum">{{ row.growthValue }}</span></template>
+    <template #cell-birthday="{ row }">
+      <span v-if="row.birthdayMonth" class="mono">{{ row.birthdayMonth }}-{{ String(row.birthdayDay).padStart(2, '0') }}</span>
+      <span v-else class="muted">未填写</span>
+    </template>
     <template #cell-cardNumber="{ row }"><span class="mono muted">{{ row.cardNumber }}</span></template>
     <template #cell-actions="{ row }">
       <div class="row-actions">
@@ -130,6 +178,33 @@ async function remove(row: CoffeeMemberRow) {
       <Field label="成长值">
         <TextInput v-model="form.growthValue" type="number" min="0" />
       </Field>
+      <Field label="生日" hint="只记月/日，不采集出生年份；会员本人一年可改一次，管理端修改同样刷新计时">
+        <div class="birthday-row">
+          <Select
+            :model-value="form.birthdayMonth"
+            :options="monthOptions"
+            placeholder="月份"
+            clearable
+            @update:model-value="onMonthChange"
+          />
+          <Select
+            v-model="form.birthdayDay"
+            :options="dayOptions"
+            :disabled="!form.birthdayMonth"
+            placeholder="日期"
+            clearable
+          />
+        </div>
+      </Field>
     </FormDialog>
   </ListPage>
 </template>
+
+<style scoped>
+/* 月 / 日两个下拉并排：单列下拉会让生日这一项占掉整行高度 */
+.birthday-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+</style>

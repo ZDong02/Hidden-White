@@ -71,6 +71,19 @@ public class GlobalExceptionHandler {
         return response(exception.status(), exception.getMessage(), request, List.of());
     }
 
+    /**
+     * 生日礼遇的业务失败。
+     *
+     * <p>窗口未开放 / 已领取 / 生日一年内已改过都是「当前状态不允许」，用 409；
+     * 与 {@link com.hiddenwhite.common.points.PointsException} 同一套处理理由：
+     * 该包被两端共用，自己带状态码，这里只负责转成各端的响应结构。
+     */
+    @ExceptionHandler(com.hiddenwhite.common.birthday.BirthdayException.class)
+    public ResponseEntity<Object> birthday(com.hiddenwhite.common.birthday.BirthdayException exception,
+                                           HttpServletRequest request) {
+        return response(exception.status(), exception.getMessage(), request, List.of());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Object> accessDenied(AccessDeniedException exception, HttpServletRequest request) {
         if (isAdmin(request)) {

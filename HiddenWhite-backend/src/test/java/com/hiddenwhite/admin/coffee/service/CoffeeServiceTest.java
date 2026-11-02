@@ -84,7 +84,9 @@ class CoffeeServiceTest {
     @Test
     void updateMemberRecordsOnlyTheDeltaThroughLedger() {
         when(mapper.memberPoints("demo")).thenReturn(1280);
-        when(mapper.updateMember(eq("demo"), anyString(), anyString(), anyInt(), anyInt())).thenReturn(1);
+        when(mapper.memberBirthday("demo")).thenReturn(java.util.Map.of());
+        when(mapper.updateMember(eq("demo"), anyString(), anyString(), anyInt(), anyInt(),
+                any(), any(), anyBoolean())).thenReturn(1);
 
         service.updateMember("demo", memberRequest("隐白客人", "金卡会员", 1000, 5, 1280));
 
@@ -96,7 +98,9 @@ class CoffeeServiceTest {
     @Test
     void updateMemberWithoutPointsChangeWritesNoLedgerEntry() {
         when(mapper.memberPoints("demo")).thenReturn(1280);
-        when(mapper.updateMember(eq("demo"), anyString(), anyString(), anyInt(), anyInt())).thenReturn(1);
+        when(mapper.memberBirthday("demo")).thenReturn(java.util.Map.of());
+        when(mapper.updateMember(eq("demo"), anyString(), anyString(), anyInt(), anyInt(),
+                any(), any(), anyBoolean())).thenReturn(1);
 
         service.updateMember("demo", memberRequest("新昵称", "金卡会员", 1280, 5, 1280));
 
@@ -114,6 +118,37 @@ class CoffeeServiceTest {
                 .hasMessageContaining("会员不存在");
 
         verify(ledger, never()).adjust(anyString(), anyInt(), any(), any(), anyString(), anyString());
+    }
+
+    @Test
+    void changedBirthdayRefreshesTheYearlyQuota() {
+        when(mapper.memberPoints("demo")).thenReturn(100);
+        when(mapper.memberBirthday("demo")).thenReturn(java.util.Map.of("birthdayMonth", 5, "birthdayDay", 20));
+        when(mapper.updateMember(eq("demo"), anyString(), anyString(), anyInt(), anyInt(),
+                eq(11), eq(2), eq(true))).thenReturn(1);
+
+        MemberWriteRequest request = memberRequest("隐白客人", "金卡会员", 100, 5, 100);
+        request.setBirthdayMonth(11);
+        request.setBirthdayDay(2);
+        service.updateMember("demo", request);
+
+        verify(mapper).updateMember("demo", "隐白客人", "金卡会员", 5, 100, 11, 2, true);
+    }
+
+    @Test
+    void unchangedBirthdayKeepsTheYearlyQuotaUntouched() {
+        when(mapper.memberPoints("demo")).thenReturn(100);
+        when(mapper.memberBirthday("demo")).thenReturn(java.util.Map.of("birthdayMonth", 11, "birthdayDay", 2));
+        when(mapper.updateMember(eq("demo"), anyString(), anyString(), anyInt(), anyInt(),
+                eq(11), eq(2), eq(false))).thenReturn(1);
+
+        MemberWriteRequest request = memberRequest("改了昵称", "金卡会员", 100, 5, 100);
+        request.setBirthdayMonth(11);
+        request.setBirthdayDay(2);
+        service.updateMember("demo", request);
+
+        // 管理员顺手保存一次不该把会员自己的一年一改额度消耗掉
+        verify(mapper).updateMember("demo", "改了昵称", "金卡会员", 5, 100, 11, 2, false);
     }
 
     private static MemberWriteRequest memberRequest(String displayName, String level, int points, int coupons, int growth) {

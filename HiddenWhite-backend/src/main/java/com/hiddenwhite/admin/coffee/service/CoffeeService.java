@@ -234,9 +234,28 @@ public class CoffeeService {
         Integer currentPoints = mapper.memberPoints(id);
         if (currentPoints == null) throw new BusinessException(404, "会员不存在: " + id);
 
+        Integer month = request.getBirthdayMonth();
+        Integer day = request.getBirthdayDay();
+        if ((month == null) != (day == null)) {
+            throw new BusinessException("请同时选择生日月份与日期，或两者都留空");
+        }
+        if (month != null) {
+            if (month < 1 || month > 12) throw new BusinessException("生日月份必须在 1-12 之间");
+            // 闰年上界：允许 2 月 29 日
+            int maxDay = java.time.YearMonth.of(2000, month).lengthOfMonth();
+            if (day < 1 || day > maxDay) throw new BusinessException("生日日期超出当月天数");
+        }
+
+        // 只有生日真的变了才刷新 birthday_updated_at：
+        // 否则管理员顺手点一次保存，就把会员自己的一年一改额度消耗掉了
+        Map<String, Object> currentBirthday = mapper.memberBirthday(id);
+        boolean birthdayChanged = currentBirthday == null
+                || !java.util.Objects.equals(toInt(currentBirthday.get("birthdayMonth")), month)
+                || !java.util.Objects.equals(toInt(currentBirthday.get("birthdayDay")), day);
+
         int delta = request.getPoints() - currentPoints;
         int rows = mapper.updateMember(id, request.getDisplayName().trim(), request.getLevel().trim(),
-                request.getCoupons(), request.getGrowthValue());
+                request.getCoupons(), request.getGrowthValue(), month, day, birthdayChanged);
         if (rows == 0) throw new BusinessException(404, "会员不存在: " + id);
         if (delta != 0) {
             pointsLedger.adjust(id, delta, PointsBizType.ADMIN_ADJUST, PointsRefType.ADMIN, id,
@@ -399,6 +418,11 @@ public class CoffeeService {
 
     private void requireText(String value, String field) {
         if (value == null || value.isBlank()) throw new BusinessException(field + "不能为空");
+    }
+
+    /** TINYINT 列在 JDBC 里可能是 Integer，也可能是 Short/Long，统一收成 Integer 再比较。 */
+    private Integer toInt(Object value) {
+        return value instanceof Number number ? Integer.valueOf(number.intValue()) : null;
     }
 
     /** 长度上界与列宽一致：超长在 MySQL 严格模式下会抛 1406，转成可读的字段级提示。 */

@@ -28,7 +28,10 @@ public enum PointsBizType {
     POINTS_REFUND,
 
     /** 管理端直接调整积分。 */
-    ADMIN_ADJUST;
+    ADMIN_ADJUST,
+
+    /** 生日礼遇发放（每年一次，`member_birthday_gifts` 唯一键兜住重复发放）。 */
+    BIRTHDAY_GIFT;
 
     /** 是否为「消耗」方向：流水的正负号应与之一致，便于对账时快速自检。 */
     public boolean isSpend() {

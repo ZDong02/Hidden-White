@@ -17,6 +17,9 @@ public enum PointsRefType {
     /** 关联管理端操作（当前用会员 id 定位）。 */
     ADMIN,
 
+    /** 关联生日礼遇领取记录（member_birthday_gifts.id）。 */
+    BIRTHDAY_GIFT,
+
     /** 无关联对象（如系统补偿）。 */
     NONE
 }

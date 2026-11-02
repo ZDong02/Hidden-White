@@ -17,7 +17,7 @@
         <OrdersPanel ref="ordersPanel" @show-voucher="voucherOpen = true" />
       </swiper-item>
       <swiper-item>
-        <MemberPanel ref="memberPanel" />
+        <MemberPanel ref="memberPanel" @open-birthday="openBirthday" />
       </swiper-item>
       <swiper-item>
         <ProfilePanel ref="profilePanel" @switch-tab="switchTo" />
@@ -130,6 +130,9 @@
       </view>
     </view>
 
+    <!-- 生日礼遇弹层：入口在「会员」面板的礼遇卡，主体留在页面层（见 openBirthday 注释） -->
+    <BirthdaySheet v-model:visible="birthdayOpen" />
+
     <!--
       开屏动画：冷启动第一次进首页才放（consumeSplash 只发一次票）。
       放在页面层而不是独立启动页，首页在它下面就能完成渲染与首屏请求，
@@ -150,6 +153,7 @@ import OrdersPanel from '../../components/tabs/OrdersPanel.vue'
 import MemberPanel from '../../components/tabs/MemberPanel.vue'
 import ProfilePanel from '../../components/tabs/ProfilePanel.vue'
 import Modal from '../../components/ui/Modal.vue'
+import BirthdaySheet from '../../components/BirthdaySheet.vue'
 import Stepper from '../../components/ui/Stepper.vue'
 import UiButton from '../../components/ui/Button.vue'
 import SlideConfirm from '../../components/ui/SlideConfirm.vue'
@@ -160,6 +164,7 @@ import { consumeSplash } from '../../store/splash'
 import { STORE } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
 import { isLoggedIn } from '../../store/auth'
+import { loadBirthday } from '../../store/birthday'
 import { showInfo } from '../../utils/toast'
 
 const TAB_IDS = ['home', 'orders', 'member', 'profile']
@@ -168,6 +173,7 @@ const activeIndex = ref(0)
 const activeTab = computed(() => TAB_IDS[activeIndex.value])
 const bagOpen = ref(false)
 const voucherOpen = ref(false)
+const birthdayOpen = ref(false)
 
 // 在 setup 里同步取票：早于首帧，不会先闪一下首页再盖上开屏
 const splashVisible = ref(consumeSplash())
@@ -181,6 +187,18 @@ const menuPanel = ref(null)
 const ordersPanel = ref(null)
 const memberPanel = ref(null)
 const profilePanel = ref(null)
+
+/**
+ * 生日礼遇弹层。
+ *
+ * 弹层挂在页面层而不是会员面板内：swiper-item 带 transform，
+ * fixed 定位会相对它错位（取餐凭证弹窗同理）。
+ * 打开时强制刷新一次状态——用户在别的设备上领过，这里必须立刻反映。
+ */
+function openBirthday() {
+  birthdayOpen.value = true
+  loadBirthday(true)
+}
 
 const panelRefs = computed(() => ({
   home: menuPanel.value,

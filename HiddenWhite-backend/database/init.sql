@@ -1120,3 +1120,108 @@ SELECT 1, id FROM sys_menu WHERE id = 407 OR parent_id = 407;
 SELECT COUNT(*) AS recommend_rows FROM recommend_products;
 SELECT COUNT(*) AS recommend_menus_rows FROM sys_menu WHERE id = 407 OR parent_id = 407;
 
+
+-- =====================================================================
+-- 九、会员生日礼遇
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) members 表追加生日字段
+--    只存月/日，不存年份：
+--      · 咖啡店做生日礼遇只需要「哪个月哪一天」，收集出生年份属于超范围采集；
+--      · DATE 列必须带年份，塞 1900 之类的假值会让「年龄」这类派生统计出错，
+--        也会诱使后来的人把假年份当真数据用。
+--    birthday_updated_at 是「一年一改」的判定依据：没有它，改生日刷礼遇无法收敛。
+-- ---------------------------------------------------------------------
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'birthday_month');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE members ADD COLUMN birthday_month TINYINT NULL COMMENT ''生日月份 1-12，NULL=未填写'' AFTER growth_value',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'birthday_day');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE members ADD COLUMN birthday_day TINYINT NULL COMMENT ''生日日 1-31，NULL=未填写'' AFTER birthday_month',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col := (SELECT COUNT(*) FROM information_schema.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'members' AND COLUMN_NAME = 'birthday_updated_at');
+SET @sql := IF(@has_col = 0,
+    'ALTER TABLE members ADD COLUMN birthday_updated_at DATETIME NULL COMMENT ''生日最近修改时间（一年一改的判定依据）'' AFTER birthday_day',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- ---------------------------------------------------------------------
+-- 2) birthday_gift_config：礼遇配置（单行表，id 恒为 1）
+--    为什么不做成 sys_config 的键值对：这里是「一个对象的一组属性」，
+--    键值对存法会让运营在通用配置页看到 8 个孤立的 key，且没有类型与默认值兜底。
+--    gift_type 取值由 BirthdayGiftService 锁定：
+--      POINTS = 发放积分（V1，默认）
+--      DRINK  = 生成 0 元兑换单（V2，走既有核销链路）
+--    window_mode：
+--      MONTH  = 生日所在自然月整月可领（默认，客诉最少）
+--      AROUND = 生日当天 ± window_days 天（跨月按自然日推算）
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS birthday_gift_config (
+    id TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    gift_type VARCHAR(16) NOT NULL DEFAULT 'POINTS' COMMENT 'POINTS / DRINK',
+    points_amount INT NOT NULL DEFAULT 200 COMMENT 'gift_type=POINTS 时发放的积分数',
+    redeem_product_id VARCHAR(40) NULL COMMENT 'gift_type=DRINK 时对应的 0 元兑换品',
+    window_mode VARCHAR(16) NOT NULL DEFAULT 'MONTH' COMMENT 'MONTH / AROUND',
+    window_days SMALLINT NOT NULL DEFAULT 3 COMMENT 'AROUND 模式的半径天数',
+    title VARCHAR(40) NOT NULL DEFAULT '生日礼遇',
+    subtitle VARCHAR(60) NOT NULL DEFAULT '生日专属惊喜',
+    description VARCHAR(200) NOT NULL DEFAULT '生日当月可领取一次，积分即时到账。',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB COMMENT='生日礼遇配置（单行）';
+
+INSERT IGNORE INTO birthday_gift_config
+    (id, enabled, gift_type, points_amount, window_mode, window_days, title, subtitle, description)
+VALUES
+    (1, TRUE, 'POINTS', 200, 'MONTH', 3, '生日礼遇', '生日专属惊喜', '生日当月可领取一次，积分即时到账。');
+
+-- ---------------------------------------------------------------------
+-- 3) member_birthday_gifts：领取记录
+--    唯一键 (member_id, gift_year) 就是幂等锁：并发/连点只可能插入一条，
+--    冲突方由服务捕获后返回「已领取」而不是报错 —— 用户连点两下不该看到红色提示。
+--    points_log_id 回填积分流水，客诉时可从礼遇记录直接跳到账本核对。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_birthday_gifts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    member_id VARCHAR(64) NOT NULL,
+    gift_year SMALLINT NOT NULL COMMENT '归属自然年，跨年重置',
+    gift_type VARCHAR(16) NOT NULL COMMENT 'POINTS / DRINK（快照，配置后续改动不影响历史）',
+    amount INT NOT NULL DEFAULT 0 COMMENT '发放数量：积分数或赠饮张数',
+    points_log_id BIGINT UNSIGNED NULL COMMENT '积分流水 id（gift_type=POINTS）',
+    ref_id VARCHAR(64) NOT NULL DEFAULT '' COMMENT 'gift_type=DRINK 时的兑换单 id',
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_birthday_gift_member_year (member_id, gift_year),
+    KEY idx_birthday_gift_year (gift_year, created_at),
+    CONSTRAINT fk_birthday_gift_member FOREIGN KEY (member_id) REFERENCES members(id)
+) ENGINE=InnoDB COMMENT='会员生日礼遇领取记录';
+
+-- ---------------------------------------------------------------------
+-- 4) 管理端菜单：生日礼遇（挂在咖啡运营 400 下，排在推荐商品之后）
+--    页面组件路径对应 HiddenWhite-admin/src/views/coffee/Birthday.vue；
+--    权限码前缀 coffee:birthday:，对应 admin/birthday 包的两个端点。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
+VALUES
+    (408, 400, '生日礼遇', 'menu', 'gift', '/coffee/birthday', 'coffee/birthday/index', 'coffee:birthday:list', 8, 1, 1, 'system', 'system'),
+    (4081, 408, '礼遇配置', 'btn', '', '', '', 'coffee:birthday:edit', 1, 1, 1, 'system', 'system'),
+    (4082, 408, '领取记录', 'btn', '', '', '', 'coffee:birthday:gifts', 2, 1, 1, 'system', 'system');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE id = 408 OR parent_id = 408;
+
+-- ---------------------------------------------------------------------
+-- 5) 只读检查
+-- ---------------------------------------------------------------------
+SELECT COUNT(*) AS birthday_config_rows FROM birthday_gift_config;
+SELECT COUNT(*) AS birthday_menus_rows FROM sys_menu WHERE id = 408 OR parent_id = 408;

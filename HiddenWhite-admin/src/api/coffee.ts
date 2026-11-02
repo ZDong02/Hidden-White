@@ -103,6 +103,11 @@ export interface CoffeeMemberRow {
   points: number
   coupons: number
   growthValue: number
+  /** 生日只存月/日（不采集出生年份），未填写为 null */
+  birthdayMonth: number | null
+  birthdayDay: number | null
+  /** 生日最近修改日期（yyyy-MM-dd），一年一改的判定依据 */
+  birthdayUpdatedAt: string | null
   createdAt: string
 }
 
@@ -112,6 +117,9 @@ export interface CoffeeMemberWrite {
   points?: number
   coupons?: number
   growthValue?: number
+  /** 与 birthdayDay 同为 null 表示清空生日 */
+  birthdayMonth?: number | null
+  birthdayDay?: number | null
 }
 
 export interface CoffeeBenefitRow {

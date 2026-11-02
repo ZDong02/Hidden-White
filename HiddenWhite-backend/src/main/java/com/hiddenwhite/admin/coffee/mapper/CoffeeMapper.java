@@ -272,6 +272,8 @@ public interface CoffeeMapper {
             <script>
             SELECT id, display_name AS displayName, phone, member_level AS level,
                    card_number AS cardNumber, points, coupons, growth_value AS growthValue,
+                   birthday_month AS birthdayMonth, birthday_day AS birthdayDay,
+                   DATE_FORMAT(birthday_updated_at, '%Y-%m-%d') AS birthdayUpdatedAt,
                    DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS createdAt
             FROM ${coffeeDb}.members
             WHERE (#{keyword} IS NULL OR #{keyword} = ''
@@ -291,6 +293,13 @@ public interface CoffeeMapper {
     @Select("SELECT points FROM ${coffeeDb}.members WHERE id = #{id}")
     Integer memberPoints(@Param("id") String id);
 
+    /** 读取当前生日，供管理端判断「是否真的改了」——只有真改才刷新一年一改的计时。 */
+    @Select("""
+            SELECT birthday_month AS birthdayMonth, birthday_day AS birthdayDay
+            FROM ${coffeeDb}.members WHERE id = #{id}
+            """)
+    Map<String, Object> memberBirthday(@Param("id") String id);
+
     /**
      * 更新会员资料。
      *
@@ -301,14 +310,19 @@ public interface CoffeeMapper {
     @Update("""
             UPDATE ${coffeeDb}.members
             SET display_name = #{displayName}, member_level = #{level},
-                coupons = #{coupons}, growth_value = #{growthValue}
+                coupons = #{coupons}, growth_value = #{growthValue},
+                birthday_month = #{birthdayMonth}, birthday_day = #{birthdayDay},
+                birthday_updated_at = IF(#{birthdayChanged}, NOW(), birthday_updated_at)
             WHERE id = #{id}
             """)
     int updateMember(@Param("id") String id,
                      @Param("displayName") String displayName,
                      @Param("level") String level,
                      @Param("coupons") int coupons,
-                     @Param("growthValue") int growthValue);
+                     @Param("growthValue") int growthValue,
+                     @Param("birthdayMonth") Integer birthdayMonth,
+                     @Param("birthdayDay") Integer birthdayDay,
+                     @Param("birthdayChanged") boolean birthdayChanged);
 
     @Delete("DELETE FROM ${coffeeDb}.members WHERE id = #{id}")
     int deleteMember(@Param("id") String id);
