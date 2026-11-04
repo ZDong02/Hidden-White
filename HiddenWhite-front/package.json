@@ -20,7 +20,7 @@
     "vue": "3.4.21"
   },
   "devDependencies": {
-    "@dcloudio/types": "^3.4.15",
+    "@dcloudio/types": "^3.4.32",
     "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5030120260930001",
     "@eslint/js": "^10.0.1",
     "@resvg/resvg-js": "^2.6.2",
