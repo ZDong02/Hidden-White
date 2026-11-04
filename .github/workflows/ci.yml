@@ -19,7 +19,7 @@ jobs:
     name: 后端 · 单元测试
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 缓存 Maven 依赖
         uses: actions/cache@v4
@@ -49,7 +49,7 @@ jobs:
       run:
         working-directory: HiddenWhite-admin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
@@ -73,7 +73,7 @@ jobs:
       run:
         working-directory: HiddenWhite-front
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
