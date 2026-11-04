@@ -122,6 +122,7 @@
 import { computed, ref } from 'vue'
 import Icon from '../ui/Icon.vue'
 import { shop, refreshOrders, invalidateCatalog, clearOrderState } from '../../store/index'
+import { resetCoupons } from '../../store/coupons'
 import { currentUser, isLoggedIn, logout } from '../../store/auth'
 import { openPage, showStoreInfo } from '../../utils/navigation'
 import { showNotice } from '../../utils/toast'
@@ -219,6 +220,8 @@ function handleAuth() {
       // 只清内存不够：上一账号的订单还留在 storage 里，
       // 下次冷启动会被读回来，连带把新会员的首单减免判掉
       clearOrderState()
+      // 券包同理：不清的话，下一位登录者会先看到上一个人的券，再被接口结果覆盖
+      resetCoupons()
       uni.showToast({ title: '已退出登录', icon: 'none' })
     }
   })

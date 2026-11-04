@@ -53,6 +53,15 @@
         "backgroundColorTop": "#fbfaf7",
         "backgroundColorBottom": "#fbfaf7"
       }
+    },
+    {
+      "path": "pages/coupons/index",
+      "style": {
+        "navigationBarTitleText": "优惠券",
+        "navigationStyle": "custom",
+        "backgroundColorTop": "#fbfaf7",
+        "backgroundColorBottom": "#fbfaf7"
+      }
     }
   ],
   "globalStyle": {

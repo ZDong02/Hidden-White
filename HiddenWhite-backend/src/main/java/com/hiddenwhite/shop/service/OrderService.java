@@ -1,5 +1,7 @@
 package com.hiddenwhite.shop.service;
 
+import com.hiddenwhite.common.coupon.Coupon;
+import com.hiddenwhite.common.coupon.CouponService;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderItem;
@@ -13,6 +15,7 @@ import com.hiddenwhite.shop.pay.PayDevModeProperties;
 import com.hiddenwhite.shop.repository.ShopRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -29,6 +32,8 @@ public class OrderService {
     public static final String GUEST = "guest";
     private static final BigDecimal PACKAGING_FEE = BigDecimal.ZERO;
     private static final BigDecimal FIRST_ORDER_DISCOUNT = BigDecimal.valueOf(6);
+    /** 账单行上的优惠名称：首单礼遇与优惠券互斥，前端靠它显示「减的是哪一笔」。 */
+    private static final String FIRST_ORDER_LABEL = "首单礼遇";
     private static final int PREPARATION_MINUTES = 5;
 
     /** 开发模式下的支付渠道标记。对账时一眼可辨不是真实微信支付。 */
@@ -37,11 +42,14 @@ public class OrderService {
     private final CatalogService catalog;
     private final ShopRepository repository;
     private final PayDevModeProperties devMode;
+    private final CouponService coupons;
 
-    public OrderService(CatalogService catalog, ShopRepository repository, PayDevModeProperties devMode) {
+    public OrderService(CatalogService catalog, ShopRepository repository, PayDevModeProperties devMode,
+                        CouponService coupons) {
         this.catalog = catalog;
         this.repository = repository;
         this.devMode = devMode;
+        this.coupons = coupons;
     }
 
     public List<Order> findAll(String memberId) {
@@ -81,7 +89,14 @@ public class OrderService {
      *
      * <p><b>已知边界</b>：多实例部署时该锁不跨进程，取号需改为数据库序列或
      * 「唯一索引 + 重试」。当前为单店单实例，暂不需要。
+     *
+     * <p><b>优惠券为什么在这里核销，而不是下单前</b>：券必须挂在订单号上
+     * （{@code member_coupons.order_id}），而订单 id 要到这里才生成。
+     * 方法加了 {@code @Transactional}，订单落库与券核销同一事务：
+     * 核销失败（券刚好被别处用掉）会连订单一起回滚，不会出现
+     * 「钱按优惠算了、券却没扣」的资损。取消时由 {@link CouponService#releaseForOrder} 退回。
      */
+    @Transactional
     public synchronized Order create(CreateOrderRequest request, String callerId) {
         String closedReason = repository.closedReason();
         if (closedReason != null) {
@@ -93,7 +108,10 @@ public class OrderService {
             throw new BusinessException(HttpStatus.CONFLICT, "当前有订单待支付或待取餐，请先处理或等待订单超时");
         }
         List<OrderItem> items = buildItems(request.items());
-        PriceSummary summary = calculate(items, owner);
+        // 先算商品金额：券的门槛按商品金额判定（不含包装费），且解析券本身也需要它
+        BigDecimal subtotal = subtotalOf(items);
+        Coupon coupon = coupons.resolveForOrder(owner, request.couponId(), subtotal);
+        PriceSummary summary = calculate(subtotal, items, owner, coupon);
         OffsetDateTime created = OffsetDateTime.now(ZONE);
         OffsetDateTime ready = created.plusMinutes(PREPARATION_MINUTES);
         LocalDate orderDate = LocalDate.ofInstant(created.toInstant(), ZONE);
@@ -110,6 +128,11 @@ public class OrderService {
                 null, null, null, null, null, null, null, null, null);
         Order saved = repository.saveOrder(order);
 
+        // 只有「券真的被采用」时才核销。首单礼遇更划算时 couponId 为 null，券原样保留到下次。
+        if (summary.couponId() != null) {
+            coupons.markUsed(summary.couponId(), owner, saved.id().toString(), summary.couponDiscount());
+        }
+
         // 开发模式：跳过真实支付，直接推进到 PAID，
         // 让「下单 → 制作中 → 已取餐」的完整流程在没有支付凭据时也能跑通。
         if (devMode.isDevMode()) {
@@ -122,10 +145,17 @@ public class OrderService {
     /**
      * 报价。首单减免依赖「该会员是否已有订单」，归属以 token 判定，
      * 忽略请求体中的 memberId，避免被用来探测他人是否下过单。
+     *
+     * <p>报价<b>不核销优惠券</b>：只要不落单就不该消耗券。
+     * 这里走的是同一套 {@link CouponService#resolveForOrder} 校验，
+     * 所以「报价能减、下单却报错」这类不一致不会发生。
      */
     public PriceSummary quote(CreateOrderRequest request, String callerId) {
         String owner = normalizeMemberId(callerId);
-        return calculate(buildItems(request.items()), owner);
+        List<OrderItem> items = buildItems(request.items());
+        BigDecimal subtotal = subtotalOf(items);
+        Coupon coupon = coupons.resolveForOrder(owner, request.couponId(), subtotal);
+        return calculate(subtotal, items, owner, coupon);
     }
 
     /**
@@ -175,7 +205,11 @@ public class OrderService {
                     "订单已支付，请联系门店协助取消与退款");
         }
         existing.status().assertCanTransitionTo(OrderStatus.CANCELLED);
-        return repository.cancel(existing.id(), OrderCancelReason.MANUAL, OffsetDateTime.now(ZONE));
+        Order cancelled = repository.cancel(existing.id(), OrderCancelReason.MANUAL, OffsetDateTime.now(ZONE));
+        // 下单即核销的模型下，取消必须把券退回，否则顾客点一下取消就白丢 6 元，
+        // 且账面上看不出任何痕迹。releaseForOrder 自带幂等与有效期重判。
+        coupons.releaseForOrder(cancelled.id().toString());
+        return cancelled;
     }
 
     /** 归属校验：订单必须属于当前登录会员。 */
@@ -230,14 +264,46 @@ public class OrderService {
         return items;
     }
 
-    private PriceSummary calculate(List<OrderItem> items, String owner) {
-        BigDecimal subtotal = items.stream().map(OrderItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
-        // 首单判定只需一个布尔值；`LIMIT 1` 探测与历史订单量无关，
-        // 而原先的 findAll(owner).isEmpty() 会把历史订单与明细全量读回再丢掉。
-        BigDecimal discount = repository.hasOrders(owner) ? BigDecimal.ZERO : FIRST_ORDER_DISCOUNT.min(subtotal);
-        return new PriceSummary(subtotal, discount, PACKAGING_FEE,
-                subtotal.subtract(discount).add(PACKAGING_FEE),
-                items.stream().mapToInt(OrderItem::quantity).sum());
+    /**
+     * 计算报价。
+     *
+     * <p><b>首单礼遇与优惠券互斥，取更大的一边</b>：两者都是 6 元级别的见面礼，
+     * 叠加会让一杯 22 元的咖啡落到 10 元，既没有商业意义，也会让「首单」这个钩子失效。
+     *
+     * <p>取「更大」而不是「有券就用券」，是为了不让顾客吃亏：
+     * 新客手上同时有首单礼遇和一张券时，如果无条件用券，他就会失去本可以白拿的首单减免。
+     * 反向的代价是「券没用上」，所以返回的 {@code couponId} 只有真正采用时才非空，
+     * 前端据此提示「本单首单礼遇更划算，券已保留」，并且这笔订单不会核销券。
+     *
+     * <p>首单判定只需一个布尔值，走 {@code LIMIT 1} 探测（见 {@code ShopRepository#hasOrders}），
+     * 不再把整段订单历史连同明细读回来。
+     */
+    private PriceSummary calculate(BigDecimal subtotal, List<OrderItem> items, String owner, Coupon coupon) {
+        int count = items.stream().mapToInt(OrderItem::quantity).sum();
+        BigDecimal firstOrder = repository.hasOrders(owner)
+                ? BigDecimal.ZERO
+                : FIRST_ORDER_DISCOUNT.min(subtotal);
+
+        if (coupon == null) {
+            return new PriceSummary(subtotal, firstOrder, PACKAGING_FEE,
+                    subtotal.subtract(firstOrder).add(PACKAGING_FEE), count,
+                    firstOrder.signum() > 0 ? FIRST_ORDER_LABEL : "", null, BigDecimal.ZERO);
+        }
+
+        BigDecimal couponDiscount = coupon.discountFor(subtotal);
+        if (couponDiscount.compareTo(firstOrder) > 0) {
+            return new PriceSummary(subtotal, couponDiscount, PACKAGING_FEE,
+                    subtotal.subtract(couponDiscount).add(PACKAGING_FEE), count,
+                    coupon.title(), coupon.id(), couponDiscount);
+        }
+        // 首单礼遇不低于券面额：本单走首单礼遇，券不核销，留到下次用
+        return new PriceSummary(subtotal, firstOrder, PACKAGING_FEE,
+                subtotal.subtract(firstOrder).add(PACKAGING_FEE), count,
+                firstOrder.signum() > 0 ? FIRST_ORDER_LABEL : "", null, BigDecimal.ZERO);
+    }
+
+    private static BigDecimal subtotalOf(List<OrderItem> items) {
+        return items.stream().map(OrderItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private String normalizeMemberId(String memberId) {

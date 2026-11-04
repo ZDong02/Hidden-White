@@ -84,6 +84,19 @@ public class GlobalExceptionHandler {
         return response(exception.status(), exception.getMessage(), request, List.of());
     }
 
+    /**
+     * 优惠券的业务失败。
+     *
+     * <p>已领取 / 已使用 / 已过期 / 不满足门槛都是 409「当前状态不允许」，
+     * 券不存在或不属于本人是 404。与 {@code PointsException}、{@code BirthdayException}
+     * 同一套路：该包被点单端与管理端共用，自己带状态码，这里只做响应结构转换。
+     */
+    @ExceptionHandler(com.hiddenwhite.common.coupon.CouponException.class)
+    public ResponseEntity<Object> coupon(com.hiddenwhite.common.coupon.CouponException exception,
+                                         HttpServletRequest request) {
+        return response(exception.status(), exception.getMessage(), request, List.of());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Object> accessDenied(AccessDeniedException exception, HttpServletRequest request) {
         if (isAdmin(request)) {

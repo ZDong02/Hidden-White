@@ -40,8 +40,12 @@
         <text class="stat-label">积分明细</text>
       </view>
       <view class="stat-sep" />
-      <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="showFeature('我的优惠券')">
-        <text class="stat-value">{{ member.coupons ?? 0 }}</text>
+      <view class="stat-cell" hover-class="stat-cell--press" :hover-stay-time="60" @tap="openCoupons">
+        <view class="stat-value-line">
+          <text class="stat-value">{{ member.coupons ?? 0 }}</text>
+          <!-- 本周可领时给一个小标记：券包是二级页，不给提示没人会点进去 -->
+          <text v-if="couponClaimable" class="stat-claim">可领</text>
+        </view>
         <text class="stat-label">优惠券</text>
       </view>
       <view class="stat-sep" />
@@ -100,6 +104,7 @@ import { computed, ref, watch } from 'vue'
 import Icon from '../ui/Icon.vue'
 import { currentUser, isLoggedIn } from '../../store/auth'
 import { birthday, loadBirthday, resetBirthday } from '../../store/birthday'
+import { coupons, loadCoupons, resetCoupons } from '../../store/coupons'
 import { requestApi } from '../../config/backend'
 import { showNotice } from '../../utils/toast'
 import { openPage } from '../../utils/navigation'
@@ -151,11 +156,15 @@ const benefitCards = computed(() =>
   })
 )
 
+/** 本周有可领的券时在格子上打标：券包是二级页，不给提示没人会点进去。 */
+const couponClaimable = computed(() => isLoggedIn.value && coupons.data?.weekState === 'CLAIMABLE')
+
 // 壳页面在切到本面板 / 页面 onShow 时调用
 async function activate() {
   if (!isLoggedIn.value) {
     member.value = { memberLevel: '游客', cardNumber: '登录后查看', points: 0, coupons: 0, growthValue: 0 }
     resetBirthday()
+    resetCoupons()
     return
   }
 
@@ -166,6 +175,8 @@ async function activate() {
     ])
     // 生日状态单独失败不连累上面两块：会员页的首要信息是积分与礼遇清单
     await loadBirthday()
+    // 券包同理，且它是「本周能不能领」的唯一来源，不阻塞首屏
+    loadCoupons()
     member.value = { ...profile, memberLevel: profile.memberLevel || profile.level }
     // 后端若返回了图标字段，只接受已登记的图标名，否则保留本地图标
     benefits.value = rows.map((row, index) => ({
@@ -178,7 +189,7 @@ async function activate() {
 }
 
 function showFeature(title) {
-  showNotice(title, '该会员服务当前仅展示权益说明，优惠券核销尚未开放。')
+  showNotice(title, '该会员服务正在筹备中，敬请期待。')
 }
 
 /**
@@ -200,6 +211,20 @@ function openPointsLog() {
     return
   }
   openPage('pointsLog')
+}
+
+/**
+ * 优惠券入口：格子点击进入券包。
+ *
+ * <p>领取、查看、过期状态全部收敛在券包页，会员面板不复制一份「领了没」的判断 ——
+ * 两处各算一次必然出现「面板说可领、点进去说已领」。
+ */
+function openCoupons() {
+  if (!isLoggedIn.value) {
+    openPage('auth', { redirect: 'coupons' })
+    return
+  }
+  openPage('coupons')
 }
 
 /**
@@ -226,6 +251,14 @@ function openBenefit(benefit) {
 /** 领取成功后重拉资料，让「当前积分」跟着跳一下——加了分要看得见。 */
 watch(
   () => birthday.claimedTick,
+  (tick) => {
+    if (tick > 0) activate()
+  }
+)
+
+/** 领券成功同理：会员卡上的「优惠券」张数必须立刻反映，否则顾客会以为没领到。 */
+watch(
+  () => coupons.claimedTick,
   (tick) => {
     if (tick > 0) activate()
   }
@@ -378,6 +411,24 @@ defineExpose({ activate })
 
 .stat-cell--press {
   background: $c-surface-2;
+}
+
+/* 数值 + 「可领」小标：用一层 flex 行承载，不破坏 .stat-cell 的纵向布局 */
+.stat-value-line {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+}
+
+.stat-claim {
+  flex-shrink: 0;
+  padding: 0 8rpx;
+  border-radius: $r-pill;
+  background: $c-gold-soft;
+  color: $c-gold-text;
+  font-size: 18rpx;
+  font-weight: 600;
+  line-height: 1.8;
 }
 
 .growth-track {

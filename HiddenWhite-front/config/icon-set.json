@@ -29,6 +29,7 @@
     "receipt": ["muted", "gold-on-dark"],
     "sparkle": ["gold", "gold-on-dark", "decor", "muted"],
     "store": ["gold", "muted"],
+    "ticket": ["gold", "gold-on-dark", "muted"],
     "user": ["muted", "gold-on-dark"],
     "wallet": ["ink"],
     "wifi": ["ink"]

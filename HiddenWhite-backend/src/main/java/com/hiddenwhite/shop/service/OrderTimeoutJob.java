@@ -1,5 +1,6 @@
 package com.hiddenwhite.shop.service;
 
+import com.hiddenwhite.common.coupon.CouponService;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderStatus;
@@ -45,9 +46,11 @@ public class OrderTimeoutJob {
     public static final String REASON_UNPICKED = OrderCancelReason.TIMEOUT_UNPICKED;
 
     private final ShopRepository repository;
+    private final CouponService coupons;
 
-    public OrderTimeoutJob(ShopRepository repository) {
+    public OrderTimeoutJob(ShopRepository repository, CouponService coupons) {
         this.repository = repository;
+        this.coupons = coupons;
     }
 
     /**
@@ -108,7 +111,11 @@ public class OrderTimeoutJob {
      */
     private boolean cancelOne(UUID orderId, boolean wasPaid, OffsetDateTime cancelledAt) {
         try {
-            repository.cancel(orderId, wasPaid ? REASON_UNPICKED : REASON_UNPAID, cancelledAt);
+            Order cancelled = repository.cancel(orderId,
+                    wasPaid ? REASON_UNPICKED : REASON_UNPAID, cancelledAt);
+            // 超时取消也要退券：顾客什么都没拿到，券不该跟着订单一起作废。
+            // 券若已过有效期，releaseForOrder 内部会落成 EXPIRED，不会让过期券复活。
+            coupons.releaseForOrder(cancelled.id().toString());
             return true;
         } catch (IllegalStateException e) {
             // 已被店员或另一轮任务处理，属正常并发，不记 error

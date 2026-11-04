@@ -1225,3 +1225,103 @@ SELECT 1, id FROM sys_menu WHERE id = 408 OR parent_id = 408;
 -- ---------------------------------------------------------------------
 SELECT COUNT(*) AS birthday_config_rows FROM birthday_gift_config;
 SELECT COUNT(*) AS birthday_menus_rows FROM sys_menu WHERE id = 408 OR parent_id = 408;
+
+-- =====================================================================
+-- 每周优惠券（2026-11-04 新增）
+-- ---------------------------------------------------------------------
+-- 业务规则（与服务端实现一一对应，改动请同步 CouponWeek / CouponService）：
+--   1) 周期：自然周（周一 00:00 – 周日 24:00，Asia/Shanghai），每周一重置；
+--   2) 额度：每名会员每自然周限领 1 张；
+--   3) 有效期：领取时刻起 valid_days 天（默认 7 天），精确到分钟；
+--   4) 门槛：订单商品金额（subtotal，不含包装费）≥ min_spend 才能用；
+--   5) 叠加：单笔订单最多用 1 张券，且与首单礼遇互斥（系统自动取更优的一边）。
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) coupon_config：全局配置（单行表，id 恒为 1）
+--
+--    为什么是单行表而不是券模板表：当前只有一种券，模板表会引入
+--    「模板 id / 排序 / 优先级 / 叠加规则」一堆用不上的结构，
+--    而每多一个字段就要同步改四处（表、DTO、服务端校验、管理端表单）。
+--
+--    total_stock 允许 NULL = 不限量；issued_count 由
+--    「UPDATE ... SET issued_count = issued_count + 1 WHERE issued_count < total_stock」
+--    自增，绝不先读再写（并发下会超发）。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS coupon_config (
+    id TINYINT NOT NULL DEFAULT 1,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否开放领取',
+    amount DECIMAL(10,2) NOT NULL DEFAULT 6.00 COMMENT '券面额（元）',
+    min_spend DECIMAL(10,2) NOT NULL DEFAULT 20.00 COMMENT '使用门槛：订单商品金额下限（元）',
+    valid_days INT NOT NULL DEFAULT 7 COMMENT '领取后有效天数',
+    max_held INT NOT NULL DEFAULT 2 COMMENT '同时持有上限（未使用张数），0 表示不限',
+    total_stock INT NULL DEFAULT NULL COMMENT '总发行量，NULL 表示不限量',
+    issued_count INT NOT NULL DEFAULT 0 COMMENT '已发行数量',
+    title VARCHAR(40) NOT NULL DEFAULT '每周好券' COMMENT '券标题',
+    subtitle VARCHAR(60) NOT NULL DEFAULT '满 20 元减 6 元' COMMENT '券副标题',
+    description VARCHAR(200) NOT NULL DEFAULT '每周可领一张，领取后 7 天内有效，单笔订单限用一张。' COMMENT '使用说明',
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB COMMENT='每周优惠券全局配置（单行）';
+
+-- 只补主键行，不覆盖运营已改的配置：重复执行 init.sql 不会把面额重置回 6 元
+INSERT IGNORE INTO coupon_config (id) VALUES (1);
+
+-- ---------------------------------------------------------------------
+-- 2) member_coupons：领取记录 = 券本身，也是使用记录
+--
+--    (member_id, week_key) 唯一索引就是「每周限领一张」的锁：
+--    并发 / 连点只可能插入一条，冲突方由服务捕获后返回「已领取」，
+--    而不是先查后写 —— 后者在并发下会双发，等于白送 6 元。
+--
+--    week_key 取「本周周一的日期」而不是 ISO 周号：
+--    2026-W53 这类编号跨年时反直觉，而 2026-12-28 一眼能看出是哪一周。
+--
+--    amount / min_spend / title 是领取时的快照，运营改配置不影响已发出的券，
+--    否则顾客截图里是 6 元、结算时扣 8 元，是对账事故。
+--
+--    order_id + used_at + discount_amount 就是「使用记录」：
+--    从这张表既能回答「谁在哪周领了券」，也能回答「这张券用在哪笔订单、抵扣多少」。
+--    取消订单时由 CouponService.releaseForOrder 按 order_id 回退状态。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_coupons (
+    id CHAR(36) NOT NULL,
+    member_id VARCHAR(64) NOT NULL,
+    week_key CHAR(10) NOT NULL COMMENT '领取归属自然周的周一日期 yyyy-MM-dd',
+    title VARCHAR(40) NOT NULL COMMENT '标题快照',
+    amount DECIMAL(10,2) NOT NULL COMMENT '面额快照（元）',
+    min_spend DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '门槛快照（元）',
+    status ENUM('UNUSED','USED','EXPIRED') NOT NULL DEFAULT 'UNUSED',
+    claimed_at DATETIME(6) NOT NULL,
+    expires_at DATETIME(6) NOT NULL,
+    used_at DATETIME(6) NULL,
+    order_id CHAR(36) NULL COMMENT '核销到的订单；未使用为 NULL',
+    discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '实际抵扣金额（可能被订单金额截断）',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_coupon_member_week (member_id, week_key),
+    KEY idx_coupon_member_status (member_id, status, expires_at),
+    KEY idx_coupon_order (order_id),
+    KEY idx_coupon_claimed (claimed_at),
+    CONSTRAINT fk_coupon_member FOREIGN KEY (member_id) REFERENCES members(id)
+) ENGINE=InnoDB COMMENT='会员优惠券（领取记录 + 使用记录）';
+
+-- ---------------------------------------------------------------------
+-- 3) 管理端菜单：优惠券（挂在咖啡运营 400 下，排在生日礼遇之后）
+--    页面组件路径 coffee/coupon/index 必须在
+--    HiddenWhite-admin/src/composables/auth.ts 的 COMPONENT_MAP 登记，
+--    漏登记的表现是「菜单点得开、内容区空白」。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
+VALUES
+    (409, 400, '优惠券', 'menu', 'ticket', '/coffee/coupon', 'coffee/coupon/index', 'coffee:coupon:list', 9, 1, 1, 'system', 'system'),
+    (4091, 409, '券配置', 'btn', '', '', '', 'coffee:coupon:edit', 1, 1, 1, 'system', 'system'),
+    (4092, 409, '发放记录', 'btn', '', '', '', 'coffee:coupon:records', 2, 1, 1, 'system', 'system');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE id = 409 OR parent_id = 409;
+
+-- ---------------------------------------------------------------------
+-- 4) 只读检查
+-- ---------------------------------------------------------------------
+SELECT COUNT(*) AS coupon_config_rows FROM coupon_config;
+SELECT COUNT(*) AS coupon_menus_rows FROM sys_menu WHERE id = 409 OR parent_id = 409;

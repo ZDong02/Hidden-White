@@ -29,7 +29,14 @@ export const shop = reactive({
   cart: Array.isArray(cart) ? cart : [],
   order: order,
   orderHistory: Array.isArray(orderHistory) ? orderHistory.slice(0, MAX_ORDER_HISTORY) : [],
-  note: ''
+  note: '',
+  /**
+   * 本次结算选中的优惠券 id，空串表示不用券。
+   *
+   * <p>放在 store 而不是结算页局部状态：{@code createOrder} 也要读它，
+   * 报价与下单必须是同一张券，否则会出现「按券算的价、下单时没带券」而多扣钱。
+   */
+  couponId: ''
 })
 
 export const products = apiProducts
@@ -275,7 +282,9 @@ function toBackendPayload() {
       milk: item.milk,
       quantity: item.quantity
     })),
-    note: shop.note || ''
+    note: shop.note || '',
+    // 服务端会校验这张券的归属 / 状态 / 门槛；空值等价于「不用券」
+    couponId: shop.couponId || null
   }
 }
 
@@ -351,13 +360,21 @@ function assertCart() {
 export function clearOrderState() {
   shop.order = null
   shop.orderHistory = []
+  shop.couponId = ''
   setStorageImmediate(ORDER_KEY, null)
   setStorageImmediate(ORDER_HISTORY_KEY, [])
 }
 
-export async function quoteCart() {
+/**
+ * 报价。
+ *
+ * <p>传入的券只影响这一次报价与随后的下单：选中即写回 store，
+ * 保证「算钱用的券」和「提交时带的券」是同一张。
+ */
+export async function quoteCart(couponId) {
   if (!isLoggedIn.value) throw new Error('请先登录后再下单')
   assertCart()
+  shop.couponId = couponId || ''
   return requestApi('/cart/quote', { method: 'POST', data: toBackendPayload() })
 }
 
@@ -380,6 +397,8 @@ export async function createOrder() {
   setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
   shop.cart = []
   shop.note = ''
+  // 券已随订单核销，下一次结算必须重新选，不能把上一单的券带过去
+  shop.couponId = ''
   saveCartNow()
   return shop.order
 }

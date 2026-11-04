@@ -52,10 +52,11 @@
 | `components/tabs/MemberPanel.vue` | `GET /api/members/{id}`、`GET /api/members/benefits` | `members`、`member_benefits` | 需登录 / 公开 |
 | `components/tabs/ProfilePanel.vue` | 无（本地会话 + 后端地址诊断） | — | — |
 | `pages/detail/detail.vue` | `GET /api/products/options` | `product_options` | 公开 |
-| `pages/checkout/checkout.vue` | `POST /api/cart/quote`、`POST /api/orders` | `orders`、`order_items` | 需登录 |
+| `pages/checkout/checkout.vue` | `POST /api/cart/quote`、`POST /api/orders`（两者都可带 `couponId`）、`GET /api/coupons/usable` | `orders`、`order_items`、`member_coupons` | 需登录 |
 | `pages/auth/auth.vue` | `POST /api/auth/login`、`/api/auth/register`、`/api/auth/logout` | `members`、`users` | 公开 |
 | `pages/redeem/index.vue` | `GET /api/redeem/products`、`POST /api/redeem/products/{id}/exchange`、`GET /api/redeem/orders`、`POST /api/redeem/orders/{id}/cancel` | `redeem_products`、`redemptions`、`members` | 需登录（拒绝 `guest`） |
 | `pages/points-log/index.vue` | `GET /api/members/points-log` | `member_points_log` | 需登录（拒绝 `guest`） |
+| `pages/coupons/index.vue` | `GET /api/coupons`、`POST /api/coupons/claim` | `member_coupons`、`coupon_config` | 需登录（拒绝 `guest`） |
 
 **价格、取餐号、首单减免一律由后端计算**，不信任客户端传入的价格字段。
 
@@ -67,7 +68,7 @@
 
 ## 四、管理端（HiddenWhite-admin）
 
-`COMPONENT_MAP` 共 23 项，与 `views/` 下 23 个菜单页面一一对应
+`COMPONENT_MAP` 共 25 项，与 `views/` 下 25 个菜单页面一一对应
 （`Login` / `NoAccess` / `NotFound` 三个非菜单页不在映射内）。
 
 ### 4.1 咖啡运营
@@ -81,6 +82,8 @@
 | `coffee/Benefits.vue` | `coffee/benefit/index` | `/api/admin/coffee/benefits` | `coffee:benefit:*` |
 | `coffee/Store.vue` | `coffee/store/index` | `/api/admin/coffee/store` | `coffee:store:*` |
 | `coffee/Recommend.vue` | `coffee/recommend/index` | `/api/admin/coffee/recommendations` | `coffee:recommend:*` |
+| `coffee/Birthday.vue` | `coffee/birthday/index` | `/api/admin/birthday` | `coffee:birthday:*` |
+| `coffee/Coupons.vue` | `coffee/coupon/index` | `/api/admin/coupons` | `coffee:coupon:*` |
 
 **首页轮播推荐位**：管理端配置「推荐池」，点单端从池中随机抽最多 3 款做首屏轮播
 （`GET /api/recommendations`，免登录）。
@@ -190,6 +193,10 @@
 | `member_points_log` | **积分流水**。`change_amount` 正负记方向，`balance_after` 为同事务回读余额；`biz_type` 取值由 `PointsBizType` 锁定 |
 | `redeem_products` | **兑换品目录**（独立于 `products`，纯积分为价；`stock=NULL` 不限量） |
 | `redemptions` | **兑换单（核销凭证）**。8 位唯一核销码、30 天有效期、商品名/图/积分价快照 |
+| `coupon_config` | **每周优惠券配置**（单行 `id=1`）。面额/门槛/有效期/持有上限/发行量 + `issued_count` 计数器（自增 + 条件更新防超发） |
+| `member_coupons` | **会员券 = 领取记录 = 使用记录**。`uk_coupon_member_week(member_id, week_key)` 是每周限领一张的唯一锁；`order_id`/`used_at`/`discount_amount` 即使用记录；面额门槛为领取时快照 |
+| `birthday_gift_config` | 生日礼遇配置（单行）：发放物 / 积分 / 窗口模式 / 文案 |
+| `member_birthday_gifts` | 生日礼遇领取记录。`uk(member_id, gift_year)` 保证年度一次 |
 | `store_hours` | 按星期运营时段，恰好 7 行 |
 | `store_daily_traffic` | 日客流量，打烊时结算 |
 
@@ -213,7 +220,7 @@
 | 项 | 说明 | 阶段 |
 |---|---|---|
 | 无支付 | `orders` 已有完整支付字段，微信支付通道未接入（`pay.enabled=false`），演示模式直接置 `PAID` | Ⅲ |
-| 券无流水 | `members.coupons` 仍是数量计数，优惠券实体化另立方案（积分已于 2026-10-28 接入流水） | Ⅲ |
+| 券无流水 | ~~`members.coupons` 仍是数量计数，优惠券实体化另立方案~~ → 2026-11-04 已实体化：`member_coupons` 为唯一真源，`members.coupons` 列仍在但展示已改用券表真值（见 `docs/优惠券方案.md` §15.1） | ✅ |
 | 积分抵现未接入 | 结算尚未接入积分抵扣（方案阶段 C），当前只有「兑换」这一条消耗出口 | Ⅲ |
 | 跨日结算无定时任务 | `@Scheduled` 零命中，跨日客流不会自动结算 | Ⅲ |
 | 单店硬编码 | `OperationMapper` 6 处 `store_id = 1` | Ⅳ |

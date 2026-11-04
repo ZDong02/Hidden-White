@@ -1,5 +1,6 @@
 package com.hiddenwhite.shop.service;
 
+import com.hiddenwhite.common.coupon.CouponService;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderItem;
 import com.hiddenwhite.shop.domain.OrderStatus;
@@ -54,7 +55,7 @@ class OrderTimeoutJobTest {
     @BeforeEach
     void setUp() {
         repository = mock(ShopRepository.class);
-        job = new OrderTimeoutJob(repository);
+        job = new OrderTimeoutJob(repository, mock(CouponService.class));
     }
 
     @Test

@@ -1,5 +1,8 @@
 package com.hiddenwhite.shop.service;
 
+import com.hiddenwhite.common.coupon.Coupon;
+import com.hiddenwhite.common.coupon.CouponService;
+import com.hiddenwhite.common.coupon.CouponStatus;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderItem;
@@ -19,6 +22,7 @@ import org.springframework.http.HttpStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -49,11 +53,13 @@ class OrderServiceTest {
 
     private ShopRepository repository;
     private PayDevModeProperties devMode;
+    private CouponService coupons;
     private OrderService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(ShopRepository.class);
+        coupons = mock(CouponService.class);
         // CatalogService 的 size()/milk()/temperature() 都经 repository.options(type) 解析，
         // 因此只需桩这一个入口，就能让整条规格解析与价格计算路径真实跑通。
         when(repository.options("SIZE")).thenReturn(List.of(
@@ -72,14 +78,14 @@ class OrderServiceTest {
 
         // 默认关闭支付开发模式：绝大多数用例应走真实下单路径（停在 CREATED）
         devMode = new PayDevModeProperties();
-        service = new OrderService(new CatalogService(repository), repository, devMode);
+        service = new OrderService(new CatalogService(repository), repository, devMode, coupons);
     }
 
     /** 打开支付开发模式并重建 service，用于验证「下单即PAID」的分支。 */
     private void enableDevMode() {
         devMode = new PayDevModeProperties();
         devMode.setDevMode(true);
-        service = new OrderService(new CatalogService(repository), repository, devMode);
+        service = new OrderService(new CatalogService(repository), repository, devMode, coupons);
     }
 
     private static Product latte() {
@@ -98,7 +104,7 @@ class OrderServiceTest {
 
     private static CreateOrderRequest request(String memberIdInBody) {
         return new CreateOrderRequest(memberIdInBody,
-                List.of(new OrderItemRequest("latte", "标准杯 240 毫升", "热", "全脂奶", 1)), "");
+                List.of(new OrderItemRequest("latte", "标准杯 240 毫升", "热", "全脂奶", 1)), "", null);
     }
 
     // ---- 归属校验：本次安全加固的核心 ----
@@ -384,5 +390,76 @@ class OrderServiceTest {
 
         assertThat(created.status()).isEqualTo(OrderStatus.CREATED);
         verify(repository, never()).markPaid(any(), anyString(), anyString(), any());
+    }
+    // ---- 优惠券：与首单礼遇互斥，取更优的一边 ----
+
+    /** 构造一张待使用的券：面额可调，门槛 20 元（订单 32 元刚好过线）。 */
+    private static Coupon coupon(String id, String amount) {
+        LocalDateTime now = LocalDateTime.parse("2026-11-04T10:00:00");
+        return new Coupon(id, ALICE, "2026-11-02", "每周好券",
+                new BigDecimal(amount), new BigDecimal("20"), CouponStatus.UNUSED,
+                now, now.plusDays(7), null, null, BigDecimal.ZERO);
+    }
+
+    private static CreateOrderRequest couponRequest(String couponId) {
+        return new CreateOrderRequest(null,
+                List.of(new OrderItemRequest("latte", "标准杯 240 毫升", "热", "全脂奶", 1)), "", couponId);
+    }
+
+    /**
+     * 新客同时有首单礼遇与券时，券面额与首单减免相等 → 走首单礼遇，<b>券不核销</b>。
+     *
+     * <p>这是「不让顾客吃亏」的落点：无条件用券会让新客白丢一张本可以留到下次的券。
+     */
+    @Test
+    void firstOrderBonusWinsTieAndCouponIsKept() {
+        when(repository.hasOrders(ALICE)).thenReturn(false);
+        when(coupons.resolveForOrder(eq(ALICE), eq("cp-1"), any())).thenReturn(coupon("cp-1", "6"));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(couponRequest("cp-1"), ALICE);
+
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("6"));
+        verify(coupons, never()).markUsed(anyString(), anyString(), anyString(), any());
+    }
+
+    /** 老客没有首单礼遇，券被采用 → 核销一次，抵扣金额写进订单。 */
+    @Test
+    void couponIsConsumedWhenItBeatsFirstOrderBonus() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(coupons.resolveForOrder(eq(ALICE), eq("cp-2"), any())).thenReturn(coupon("cp-2", "6"));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(couponRequest("cp-2"), ALICE);
+
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("6"));
+        assertThat(created.total()).isEqualByComparingTo(new BigDecimal("26"));
+        verify(coupons).markUsed(eq("cp-2"), eq(ALICE), anyString(), any(BigDecimal.class));
+    }
+
+    /** 券面额大于首单减免时，券胜出并核销（面额配置调到 8 元的场景）。 */
+    @Test
+    void largerCouponBeatsFirstOrderBonus() {
+        when(repository.hasOrders(ALICE)).thenReturn(false);
+        when(coupons.resolveForOrder(eq(ALICE), eq("cp-3"), any())).thenReturn(coupon("cp-3", "8"));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(couponRequest("cp-3"), ALICE);
+
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("8"));
+        verify(coupons).markUsed(eq("cp-3"), eq(ALICE), anyString(), any(BigDecimal.class));
+    }
+
+    /** 取消订单必须把券退回：下单即核销的模型下，不退等于「点一下白丢 6 元」。 */
+    @Test
+    void cancellingOrderReleasesCoupon() {
+        Order created = orderOf(ALICE, OrderStatus.CREATED);
+        when(repository.order(created.id())).thenReturn(created);
+        // 桩返回同一张订单即可：OrderService 只用返回值里的 id 去退券
+        when(repository.cancel(eq(created.id()), any(), any())).thenReturn(created);
+
+        service.cancel(created.id(), ALICE);
+
+        verify(coupons).releaseForOrder(created.id().toString());
     }
 }

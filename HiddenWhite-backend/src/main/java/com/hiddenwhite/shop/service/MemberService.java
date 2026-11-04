@@ -1,5 +1,6 @@
 package com.hiddenwhite.shop.service;
 
+import com.hiddenwhite.common.coupon.CouponService;
 import com.hiddenwhite.common.domain.PageQuery;
 import com.hiddenwhite.common.domain.PageResult;
 import com.hiddenwhite.shop.domain.Member;
@@ -17,14 +18,26 @@ import java.util.List;
 public class MemberService {
     private final ShopRepository repository;
     private final RedeemService redeemService;
+    private final CouponService couponService;
 
-    public MemberService(ShopRepository repository, RedeemService redeemService) {
+    public MemberService(ShopRepository repository, RedeemService redeemService, CouponService couponService) {
         this.repository = repository;
         this.redeemService = redeemService;
+        this.couponService = couponService;
     }
 
+    /**
+     * 会员资料。
+     *
+     * <p><b>券数一律以券表为准</b>：{@code members.coupons} 是早期没有券表时留下的计数列，
+     * 它从来没有被任何业务流程维护过，恒为 0。会员卡上的「优惠券」如果读它，
+     * 就会出现「会员卡显示 0 张、券包里躺着 2 张」这种自相矛盾。
+     * 这里用未使用且未过期的真实张数覆盖它，前端零改动。
+     */
     public Member get(String id) {
-        return repository.member(id);
+        Member member = repository.member(id);
+        return new Member(member.id(), member.displayName(), member.phone(), member.level(),
+                member.cardNumber(), member.points(), couponService.unusedCount(id), member.growthValue());
     }
 
     public Member register(MemberRegistrationRequest request) {
