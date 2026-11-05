@@ -139,6 +139,7 @@ import {
 } from '../../store/index'
 import { STORE, CATEGORY_NAMES } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
+import { isLoggedIn } from '../../store/auth'
 
 defineEmits(['switch-tab'])
 
@@ -191,7 +192,8 @@ async function refreshAll(force = false) {
   // 只有商品列表失败才算致命：订单 / 门店 / 推荐位失败仍可展示缓存或隐藏该区块
   loadError.value = results[0].status === 'rejected'
   loading.value = false
-  if (failed) {
+  // 会话失效（401）由统一处理器提示；这里只在仍处于登录态时报告真实故障
+  if (failed && isLoggedIn.value) {
     uni.showToast({ title: failed.reason?.message || '无法读取服务器数据', icon: 'none' })
   }
 }

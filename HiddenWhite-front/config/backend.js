@@ -275,13 +275,50 @@ function ensureBaseUrl() {
 }
 
 /**
+ * 登录态失效的统一处理者。
+ *
+ * <p>由 `store/auth` 注册，而不是在这里直接 import 它 —— 请求封装是底层，
+ * 反向依赖业务 store 会形成循环（auth 需要 requestApi）。
+ */
+let unauthorizedHandler = null
+
+/** 上次处理的时间：并发请求同时 401 时只处理一次，否则会连弹好几条「登录已过期」 */
+let unauthorizedHandledAt = 0
+const UNAUTHORIZED_COOLDOWN = 3000
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler
+}
+
+/**
+ * 401 处理。
+ *
+ * <p><b>为什么必须清整个会话而不只是 token</b>：`isLoggedIn` 由 `currentUser` 决定。
+ * 只清 token 的话，界面仍然认为「已登录」，于是每个面板照常发请求、各自失败一次 ——
+ * 一次 token 失效会变成一串 401 加一串报错（真实踩过：后端重启后满屏 401）。
+ */
+function notifyUnauthorized() {
+  clearToken()
+  const now = Date.now()
+  if (now - unauthorizedHandledAt < UNAUTHORIZED_COOLDOWN) return
+  unauthorizedHandledAt = now
+  try {
+    unauthorizedHandler?.()
+  } catch (error) {
+    console.error('处理登录失效失败', error)
+  }
+}
+
+/**
  * 统一请求封装。
  *
  * 自动携带会员 token（Authorization: Bearer <token>）：
  * 后端 /api/orders/** 与 /api/members/{id} 依据 token 判定会员归属，
  * 不再信任客户端传入的 memberId。公开接口（菜单 / 门店 / 权益）带上 token 也无副作用。
  *
- * 同时统一处理 401：登录态失效时清除本地 token，避免后续请求持续失败。
+ * 同时统一处理 401：登录态失效时清除本地会话并提示一次，避免后续请求持续失败。
+ * 主动登出（{@code /auth/logout}）用 {@code ignoreUnauthorized} 关掉这套处理 ——
+ * 那时 401 是预期结果，不该再弹一句「登录已过期」。
  */
 export async function requestApi(path, options = {}) {
   const base = await ensureBaseUrl()
@@ -304,9 +341,9 @@ export async function requestApi(path, options = {}) {
           resolve(response.data)
           return
         }
-        // 登录态失效：清掉本地 token，让上层重新走登录流程
-        if (response.statusCode === 401) {
-          clearToken()
+        // 登录态失效：清会话并提示一次，让上层重新走登录流程
+        if (response.statusCode === 401 && options.ignoreUnauthorized !== true) {
+          notifyUnauthorized()
         }
         const message = response.data?.message || `请求失败（${response.statusCode}）`
         reject(new Error(message))

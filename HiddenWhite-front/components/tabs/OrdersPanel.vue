@@ -128,6 +128,7 @@ import Icon from '../ui/Icon.vue'
 import StoreLine from '../StoreLine.vue'
 import OrderItem from '../OrderItem.vue'
 import { shop, storeInfo, refreshOrders } from '../../store/index'
+import { isLoggedIn } from '../../store/auth'
 import { STORE } from '../../config/constants'
 import { navigateToStore, showStoreInfo } from '../../utils/navigation'
 
@@ -158,6 +159,8 @@ async function activate() {
   try {
     await refreshOrders()
   } catch (error) {
+    // 会话失效（401）由统一处理器提示，这里不再叠一条重复的
+    if (!isLoggedIn.value) return
     uni.showToast({ title: error.message || '无法读取订单', icon: 'none' })
   }
 }

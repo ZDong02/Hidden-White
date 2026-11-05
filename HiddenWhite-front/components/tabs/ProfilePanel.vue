@@ -123,6 +123,7 @@ import { computed, ref } from 'vue'
 import Icon from '../ui/Icon.vue'
 import { shop, refreshOrders, invalidateCatalog, clearOrderState } from '../../store/index'
 import { resetCoupons } from '../../store/coupons'
+import { resetLevelDiscount } from '../../store/levelDiscount'
 import { currentUser, isLoggedIn, logout } from '../../store/auth'
 import { openPage, showStoreInfo } from '../../utils/navigation'
 import { showNotice } from '../../utils/toast'
@@ -149,6 +150,8 @@ async function activate() {
   try {
     await refreshOrders()
   } catch (error) {
+    // 会话失效（401）由统一处理器提示，这里不再叠一条重复的
+    if (!isLoggedIn.value) return
     uni.showToast({ title: error.message || '订单信息加载失败', icon: 'none' })
   }
 }
@@ -222,6 +225,8 @@ function handleAuth() {
       clearOrderState()
       // 券包同理：不清的话，下一位登录者会先看到上一个人的券，再被接口结果覆盖
       resetCoupons()
+      // 等级折扣也是「谁登录就属于谁」的数据
+      resetLevelDiscount()
       uni.showToast({ title: '已退出登录', icon: 'none' })
     }
   })

@@ -122,6 +122,8 @@ async function loadLogs(reset = false) {
     rows.value = reset ? list : [...rows.value, ...list]
     total.value = Number(data?.total) || 0
   } catch (error) {
+    // 会话失效（401）已由统一处理器提示过
+    if (!isLoggedIn.value) return
     showError(error.message || '积分明细加载失败')
   } finally {
     loading.value = false

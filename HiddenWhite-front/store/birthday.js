@@ -1,6 +1,6 @@
-import { reactive, readonly } from 'vue'
+import { reactive, readonly, watch } from 'vue'
 import { requestApi } from '../config/backend'
-import { isLoggedIn } from './auth'
+import { currentUser, isLoggedIn } from './auth'
 
 /**
  * 生日礼遇状态。
@@ -72,3 +72,13 @@ export function resetBirthday() {
   state.loading = false
   state.claimedTick = 0
 }
+
+/**
+ * 会话失效（401 / 主动登出）时立刻清空。
+ *
+ * <p>不做这一步的话，界面在被重新进入之前会继续显示上一个账号的生日礼遇 ——
+ * 数据已经不属于当前用户了。
+ */
+watch(currentUser, (user) => {
+  if (!user) resetBirthday()
+})

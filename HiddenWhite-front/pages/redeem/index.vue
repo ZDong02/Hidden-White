@@ -241,6 +241,7 @@ async function loadCatalog() {
     points.value = Number(data?.points) || 0
     products.value = Array.isArray(data?.products) ? data.products : []
   } catch (error) {
+    if (!isLoggedIn.value) return
     showError(error.message || '兑换列表加载失败')
   } finally {
     loading.value = false

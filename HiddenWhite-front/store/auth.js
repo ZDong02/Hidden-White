@@ -1,8 +1,8 @@
 import { computed, ref } from 'vue'
-import { requestApi } from '../config/backend'
-import { getStorage, setStorageImmediate } from '../utils/storage'
-import { validatePhone, validatePassword, validateDisplayName } from '../utils/validators'
-import { clearToken, setToken } from './token'
+import { requestApi, setUnauthorizedHandler } from '../config/backend.js'
+import { getStorage, setStorageImmediate } from '../utils/storage.js'
+import { validatePhone, validatePassword, validateDisplayName } from '../utils/validators.js'
+import { clearToken, setToken } from './token.js'
 
 const USER_KEY = 'hidden-white-current-user'
 
@@ -91,7 +91,8 @@ function setCurrentUser(user) {
 /** 退出登录：通知后端使 token 失效（失败不阻塞本地清理），并清除本地会话。 */
 export async function logout() {
   try {
-    await requestApi('/auth/logout', { method: 'POST' })
+    // 主动登出时 401 是预期结果（token 可能已失效），不该再弹「登录已过期」
+    await requestApi('/auth/logout', { method: 'POST', ignoreUnauthorized: true })
   } catch {
     // token 可能已在服务端失效，本地照常清理即可
   }
@@ -99,3 +100,18 @@ export async function logout() {
   clearToken()
   setStorageImmediate(USER_KEY, null)
 }
+
+/**
+ * 401 统一处理：清会话 + 提示一次。
+ *
+ * <p>必须连 `currentUser` 一起清 —— 界面靠它判断「是否登录」，只清 token
+ * 会让每个面板继续发请求、各自失败一次，一次失效变成满屏 401。
+ *
+ * <p>不自动跳登录页：用户可能正在浏览菜单，被硬拽走比看一条提示更烦；
+ * 各页面都有自己的未登录态（会员页「登录后查看」、下单前引导），能接住下一步。
+ */
+setUnauthorizedHandler(() => {
+  currentUser.value = null
+  setStorageImmediate(USER_KEY, null)
+  uni.showToast({ title: '登录已过期，请重新登录', icon: 'none' })
+})
