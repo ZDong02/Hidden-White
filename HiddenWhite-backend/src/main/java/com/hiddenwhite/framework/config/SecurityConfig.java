@@ -3,6 +3,7 @@ package com.hiddenwhite.framework.config;
 import com.hiddenwhite.framework.security.JwtAuthenticationFilter;
 import com.hiddenwhite.framework.security.RestAccessDeniedHandler;
 import com.hiddenwhite.framework.security.RestAuthenticationEntryPoint;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -27,10 +28,24 @@ import static org.springframework.security.web.util.matcher.AntPathRequestMatche
  * </ul>
  *
  * <p>会员归属一律由 token 判定（subject 前缀 {@code member:}），不接受客户端传入的 memberId。
+ *
+ * <p><b>接口文档</b>：{@code /doc.html}、{@code /v3/api-docs/**} 等路径<b>默认不放行</b>，
+ * 只有显式配置 {@code hiddenwhite.api-docs.enabled=true} 时才 permitAll。
+ * 默认值取 false 是刻意的安全默认 —— 忘记配置只会让文档访问不到，不会把全部接口清单暴露到公网。
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    /**
+     * 是否放行 Swagger / Knife4j 文档路径。
+     * 默认关闭；application-dev.yml 显式开启，application-prod.yml 显式关闭。
+     */
+    private final boolean apiDocsEnabled;
+
+    public SecurityConfig(@Value("${hiddenwhite.api-docs.enabled:false}") boolean apiDocsEnabled) {
+        this.apiDocsEnabled = apiDocsEnabled;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(
@@ -46,51 +61,55 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler)
                 )
-                .authorizeHttpRequests(registry -> registry
-                        // 探活：点单端用它做后端地址自动探测，必须免登录
-                        .requestMatchers(antMatcher("/api/health"), antMatcher("/api/admin/health")).permitAll()
-                        // 认证入口：登录 / 注册需免登录；注销需登录才能定位 token
-                        .requestMatchers(antMatcher("/api/auth/login"), antMatcher("/api/auth/register")).permitAll()
-                        .requestMatchers(antMatcher("/api/admin/auth/captcha"), antMatcher("/api/admin/auth/login")).permitAll()
-                        .requestMatchers(antMatcher("/api/auth/logout")).authenticated()
+                .authorizeHttpRequests(registry -> {
+                    // 探活：点单端用它做后端地址自动探测，必须免登录
+                    registry.requestMatchers(antMatcher("/api/health"), antMatcher("/api/admin/health")).permitAll();
 
-                        // 点单端公开浏览：菜单 / 规格 / 门店 / 权益 / 首页推荐位
-                        .requestMatchers(
-                                antMatcher("/api/products"),
-                                antMatcher("/api/products/*"),
-                                antMatcher("/api/products/options"),
-                                antMatcher("/api/recommendations"),
-                                antMatcher("/api/store"),
-                                antMatcher("/api/members/benefits")
-                        ).permitAll()
+                    // 认证入口：登录 / 注册需免登录；注销需登录才能定位 token
+                    registry.requestMatchers(antMatcher("/api/auth/login"), antMatcher("/api/auth/register")).permitAll();
+                    registry.requestMatchers(antMatcher("/api/admin/auth/captcha"), antMatcher("/api/admin/auth/login")).permitAll();
+                    registry.requestMatchers(antMatcher("/api/auth/logout")).authenticated();
 
-                        // 点单端登录后才能访问：报价（首单减免需按本人订单判定）、订单、会员资料、积分兑换、优惠券
-                        .requestMatchers(
-                                antMatcher("/api/cart/**"),
-                                antMatcher("/api/orders/**"),
-                                antMatcher("/api/redeem/**"),
-                                antMatcher("/api/coupons/**"),
-                                antMatcher("/api/members/**")
-                        ).authenticated()
+                    // 点单端公开浏览：菜单 / 规格 / 门店 / 权益 / 首页推荐位
+                    registry.requestMatchers(
+                            antMatcher("/api/products"),
+                            antMatcher("/api/products/*"),
+                            antMatcher("/api/products/options"),
+                            antMatcher("/api/recommendations"),
+                            antMatcher("/api/store"),
+                            antMatcher("/api/members/benefits")
+                    ).permitAll();
 
-                        // 管理端统一要求登录，细粒度权限码由 @RequiresPermission 把关
-                        .requestMatchers(antMatcher("/api/admin/**")).authenticated()
+                    // 点单端登录后才能访问：报价（首单减免需按本人订单判定）、订单、会员资料、积分兑换、优惠券
+                    registry.requestMatchers(
+                            antMatcher("/api/cart/**"),
+                            antMatcher("/api/orders/**"),
+                            antMatcher("/api/redeem/**"),
+                            antMatcher("/api/coupons/**"),
+                            antMatcher("/api/members/**")
+                    ).authenticated();
 
-                        // 上传的商品图片：点单端（小程序 / H5）跨源读取，无需登录
-                        .requestMatchers(antMatcher("/uploads/**")).permitAll()
+                    // 管理端统一要求登录，细粒度权限码由 @RequiresPermission 把关
+                    registry.requestMatchers(antMatcher("/api/admin/**")).authenticated();
 
-                        // API 文档
-                        .requestMatchers(
+                    // 上传的商品图片：点单端（小程序 / H5）跨源读取，无需登录
+                    registry.requestMatchers(antMatcher("/uploads/**")).permitAll();
+
+                    // API 文档：仅 hiddenwhite.api-docs.enabled=true 时放行。
+                    // 未开启时不命中任何规则，落到下方 denyAll()，生产环境即返回 403。
+                    if (apiDocsEnabled) {
+                        registry.requestMatchers(
                                 antMatcher("/doc.html"),
                                 antMatcher("/webjars/**"),
                                 antMatcher("/v3/api-docs/**"),
                                 antMatcher("/swagger-ui/**"),
                                 antMatcher("/swagger-ui.html")
-                        ).permitAll()
+                        ).permitAll();
+                    }
 
-                        // 兜底拒绝：新增路径忘记配置时不会默认变成公开接口
-                        .anyRequest().denyAll()
-                )
+                    // 兜底拒绝：新增路径忘记配置时不会默认变成公开接口
+                    registry.anyRequest().denyAll();
+                })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

@@ -8,6 +8,10 @@
 #   CORS_ALLOWED_ORIGINS=https://admin.example.com
 # 留空 = 不放行任何跨域来源（同源部署时本就无需跨域）。
 hiddenwhite:
+  api-docs:
+    # 生产：不放行接口文档。SecurityConfig 里这些路径不再 permitAll，
+    # 会落到兜底 denyAll()，即使有人猜到 /doc.html 也只会拿到 403。
+    enabled: false
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   pay:
@@ -19,6 +23,14 @@ hiddenwhite:
 
 # log-impl 继承 application.yml 的 Slf4jImpl（由 logback 统一管控），
 # 不做 StdOutImpl 覆盖 —— StdOutImpl 绕过日志级别、无法关闭，禁止用于生产。
+
+# 接口文档双保险：SecurityConfig 已拒绝访问，这里再让 springdoc 根本不生成文档，
+# 避免接口清单常驻堆内存、也避免将来有人放宽鉴权规则时意外暴露。
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 
 logging:
   level:
