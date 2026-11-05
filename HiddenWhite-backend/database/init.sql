@@ -1325,3 +1325,111 @@ SELECT 1, id FROM sys_menu WHERE id = 409 OR parent_id = 409;
 -- ---------------------------------------------------------------------
 SELECT COUNT(*) AS coupon_config_rows FROM coupon_config;
 SELECT COUNT(*) AS coupon_menus_rows FROM sys_menu WHERE id = 409 OR parent_id = 409;
+
+-- =====================================================================
+-- 会员等级折扣（2026-11-05 新增）
+-- ---------------------------------------------------------------------
+-- 业务规则（与服务端实现对一一对应，改动请同步 LevelDiscountService）：
+--   1) 等级划分沿用 MemberLevels 的成长值阶梯（普通/白银/黄金/铂金/钻石）；
+--   2) 每个等级有「基准折扣率」，并可为周一~周日分别覆盖（会员日、周末价）；
+--   3) 折扣率 rate = 折后价 / 原价：0.850 = 8.5 折，1.000 = 不打折；
+--   4) 生效判定顺序：等级策略启用 → 当天取 daily 覆盖，无则用 base_rate
+--      → 订单商品金额达到 min_spend → 才计算折扣；
+--   5) 折扣与首单礼遇互斥（取优惠更大者），与优惠券叠加（券在折后金额上抵扣）。
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 1) member_level_policies：每个等级一行
+--
+--    为什么不用「等级表 + 策略表」两张：等级由 MemberLevels 代码维护（晋升规则、
+--    只升不降），表里再存一份等级定义就会有两处真源。这里只在策略行上冗余
+--    level_name / min_growth 用于展示与排序，权威仍是 MemberLevels。
+--
+--    rate 用 3 位小数：0.850 表示 8.5 折，0.875 表示 8.75 折（够用且不丢精度）。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_level_policies (
+    level_key VARCHAR(30) NOT NULL COMMENT '等级键，与 members.member_level 对齐',
+    level_name VARCHAR(30) NOT NULL COMMENT '展示名（快照自 MemberLevels）',
+    min_growth INT NOT NULL DEFAULT 0 COMMENT '该等级起点成长值（展示用）',
+    discount_enabled BOOLEAN NOT NULL DEFAULT FALSE COMMENT '是否参与会员折扣',
+    base_rate DECIMAL(4,3) NOT NULL DEFAULT 1.000 COMMENT '基准折扣率 = 折后价/原价，1.000 为不打折',
+    min_spend DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT '折扣门槛：商品金额下限，0 为无门槛',
+    note VARCHAR(120) NOT NULL DEFAULT '' COMMENT '点单端展示的一句话说明',
+    sort_order INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (level_key)
+) ENGINE=InnoDB COMMENT='会员等级折扣策略（每等级一行）';
+
+-- ---------------------------------------------------------------------
+-- 2) member_level_daily_rates：等级 × 星期的覆盖值
+--
+--    刻意「只存覆盖行」而不是预置 7×N 行：
+--    ① 未配置的那天自然回落到 base_rate，运营改基准价不必逐格同步；
+--    ② 矩阵页面上留空 = 继承，不会被误当成「这天不打折」。
+--    weekday 用 ISO 编号：1=周一 … 7=周日，与 CouponWeek/MemberLevels 同一口径。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_level_daily_rates (
+    level_key VARCHAR(30) NOT NULL,
+    weekday TINYINT NOT NULL COMMENT '1=周一 … 7=周日（ISO-8601）',
+    rate DECIMAL(4,3) NOT NULL COMMENT '当日折扣率 = 折后价/原价',
+    PRIMARY KEY (level_key, weekday),
+    CONSTRAINT fk_level_daily_policy FOREIGN KEY (level_key)
+        REFERENCES member_level_policies(level_key) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='会员等级按星期的折扣覆盖（留空则用基准）';
+
+-- ---------------------------------------------------------------------
+-- 3) order_discounts：订单优惠明细
+--
+--    为什么另立一张表而不是往 orders 加列：
+--    一单可能同时有「会员折扣 + 优惠券」，未来还会有积分抵现、活动立减。
+--    加列意味着每加一种优惠就改一次 orders 的 record（24 个构造参数）、
+--    改一次 RowMapper、改一次前端账单 —— 明细表让优惠类型成为数据而不是结构。
+--    orders.discount 仍是总优惠，用于快速查询；本表用于对账与展示明细。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS order_discounts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    order_id CHAR(36) NOT NULL,
+    type VARCHAR(20) NOT NULL COMMENT 'LEVEL（会员折扣）/ FIRST_ORDER（首单礼遇）/ COUPON（优惠券）',
+    label VARCHAR(60) NOT NULL COMMENT '账单上显示的名称，如「黄金会员 8.5 折」',
+    amount DECIMAL(10,2) NOT NULL COMMENT '本项抵扣金额',
+    ref_id VARCHAR(64) NULL COMMENT '关联对象：券 id 等',
+    created_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_order_discounts_order (order_id),
+    CONSTRAINT fk_order_discounts_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='订单优惠明细（一单多行）';
+
+-- ---------------------------------------------------------------------
+-- 4) 初始策略：与 MemberLevels 的阶梯一一对应
+--
+--    普通会员默认不打折（普通会员是默认等级，打折等于全场降价）；
+--    其余四档给出行业上常见的递进梯度，运营可在页面上改。
+--    用 INSERT IGNORE：重复执行 init.sql 不会把运营改过的折扣重置回去。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO member_level_policies
+    (level_key, level_name, min_growth, discount_enabled, base_rate, min_spend, note, sort_order)
+VALUES
+    ('普通会员', '普通会员', 0, FALSE, 1.000, 0.00, '', 0),
+    ('白银会员', '白银会员', 500, TRUE, 0.970, 0.00, '全场商品，不含包装费', 1),
+    ('黄金会员', '黄金会员', 1500, TRUE, 0.950, 0.00, '全场商品，不含包装费', 2),
+    ('铂金会员', '铂金会员', 4000, TRUE, 0.920, 0.00, '全场商品，不含包装费', 3),
+    ('钻石会员', '钻石会员', 10000, TRUE, 0.880, 0.00, '全场商品，不含包装费', 4);
+
+-- ---------------------------------------------------------------------
+-- 5) 管理端菜单：会员折扣（挂在咖啡运营 400 下，排在优惠券之后）
+--    组件路径 coffee/leveldiscount/index 必须在
+--    HiddenWhite-admin/src/composables/auth.ts 的 COMPONENT_MAP 登记。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
+VALUES
+    (410, 400, '会员折扣', 'menu', 'percent', '/coffee/level-discount', 'coffee/leveldiscount/index', 'coffee:leveldiscount:list', 10, 1, 1, 'system', 'system'),
+    (4101, 410, '折扣配置', 'btn', '', '', '', 'coffee:leveldiscount:edit', 1, 1, 1, 'system', 'system');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE id = 410 OR parent_id = 410;
+
+-- ---------------------------------------------------------------------
+-- 6) 只读检查
+-- ---------------------------------------------------------------------
+SELECT COUNT(*) AS level_policy_rows FROM member_level_policies;
+SELECT COUNT(*) AS level_discount_menus FROM sys_menu WHERE id = 410 OR parent_id = 410;

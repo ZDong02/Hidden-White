@@ -56,6 +56,7 @@ const COMPONENT_MAP: Record<string, () => Promise<{ default: Component }>> = {
   'coffee/recommend/index': () => import('@/views/coffee/Recommend.vue'),
   'coffee/birthday/index': () => import('@/views/coffee/Birthday.vue'),
   'coffee/coupon/index': () => import('@/views/coffee/Coupons.vue'),
+  'coffee/leveldiscount/index': () => import('@/views/coffee/LevelDiscounts.vue'),
   'operation/status/index': () => import('@/views/operation/Status.vue'),
   'operation/hours/index': () => import('@/views/operation/Hours.vue'),
   'operation/traffic/index': () => import('@/views/operation/Traffic.vue'),

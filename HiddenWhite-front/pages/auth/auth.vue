@@ -104,7 +104,7 @@ const redirect = ref('profile')
  * 登录成功后允许直接跳回的来源页（对应 utils/navigation.js 的 PAGES 键）。
  * 新增需要「登录后继续」的页面时在这里登记，否则会被当成未知来源回到「我的」。
  */
-const REDIRECT_PAGES = ['checkout', 'redeem', 'pointsLog', 'coupons', 'member']
+const REDIRECT_PAGES = ['checkout', 'redeem', 'pointsLog', 'coupons', 'levelDiscount', 'member']
 
 // 错误消息
 const phoneError = ref('')

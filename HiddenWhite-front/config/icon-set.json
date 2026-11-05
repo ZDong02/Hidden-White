@@ -23,7 +23,7 @@
     "help": ["gold", "muted"],
     "home": ["muted", "gold-on-dark"],
     "minus": ["ink"],
-    "percent": ["gold"],
+    "percent": ["gold", "muted"],
     "pin": ["ink", "gold"],
     "plus": ["ink", "gold-on-dark"],
     "receipt": ["muted", "gold-on-dark"],

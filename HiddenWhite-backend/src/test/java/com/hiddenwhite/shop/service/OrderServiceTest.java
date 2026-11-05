@@ -3,6 +3,8 @@ package com.hiddenwhite.shop.service;
 import com.hiddenwhite.common.coupon.Coupon;
 import com.hiddenwhite.common.coupon.CouponService;
 import com.hiddenwhite.common.coupon.CouponStatus;
+import com.hiddenwhite.common.discount.AppliedDiscount;
+import com.hiddenwhite.common.discount.LevelDiscountService;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderItem;
@@ -54,12 +56,17 @@ class OrderServiceTest {
     private ShopRepository repository;
     private PayDevModeProperties devMode;
     private CouponService coupons;
+    private LevelDiscountService levelDiscounts;
     private OrderService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(ShopRepository.class);
         coupons = mock(CouponService.class);
+        // 默认不打折（evaluate 返回 null）：绝大多数用例与会员折扣无关
+        levelDiscounts = mock(LevelDiscountService.class);
+        // 会员等级影响折扣判定，给一个默认值，免得每个用例都要 stub
+        when(repository.memberLevel(anyString())).thenReturn("黄金会员");
         // CatalogService 的 size()/milk()/temperature() 都经 repository.options(type) 解析，
         // 因此只需桩这一个入口，就能让整条规格解析与价格计算路径真实跑通。
         when(repository.options("SIZE")).thenReturn(List.of(
@@ -78,14 +85,14 @@ class OrderServiceTest {
 
         // 默认关闭支付开发模式：绝大多数用例应走真实下单路径（停在 CREATED）
         devMode = new PayDevModeProperties();
-        service = new OrderService(new CatalogService(repository), repository, devMode, coupons);
+        service = new OrderService(new CatalogService(repository), repository, devMode, coupons, levelDiscounts);
     }
 
     /** 打开支付开发模式并重建 service，用于验证「下单即PAID」的分支。 */
     private void enableDevMode() {
         devMode = new PayDevModeProperties();
         devMode.setDevMode(true);
-        service = new OrderService(new CatalogService(repository), repository, devMode, coupons);
+        service = new OrderService(new CatalogService(repository), repository, devMode, coupons, levelDiscounts);
     }
 
     private static Product latte() {
@@ -461,5 +468,81 @@ class OrderServiceTest {
         service.cancel(created.id(), ALICE);
 
         verify(coupons).releaseForOrder(created.id().toString());
+    }
+    // ---- 会员折扣：与首单礼遇互斥、与优惠券叠加 ----
+
+    /** 构造一次折扣结果：32 元单、rate 0.95 → 减 1.6 元。 */
+    private static AppliedDiscount levelDiscount(String amount, String rate, String label) {
+        return new AppliedDiscount("黄金会员", "黄金会员", new BigDecimal(rate), 3,
+                new BigDecimal(amount), label);
+    }
+
+    /** 折扣金额大于首单礼遇时，走折扣 —— 首单礼遇被挤掉，不再计入。 */
+    @Test
+    void levelDiscountBeatsFirstOrderBonus() {
+        when(repository.hasOrders(ALICE)).thenReturn(false);
+        when(levelDiscounts.evaluate(eq("黄金会员"), any(), any()))
+                .thenReturn(levelDiscount("9.60", "0.700", "黄金会员 7 折"));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(request(null), ALICE);
+
+        // 32 × 0.7 → 减 9.6，优于首单的 6 元
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("9.60"));
+        assertThat(created.total()).isEqualByComparingTo(new BigDecimal("22.40"));
+    }
+
+    /** 折扣金额小于首单礼遇时，走首单礼遇（新客不吃亏）。 */
+    @Test
+    void firstOrderBonusWinsWhenLevelDiscountIsSmaller() {
+        when(repository.hasOrders(ALICE)).thenReturn(false);
+        when(levelDiscounts.evaluate(eq("黄金会员"), any(), any()))
+                .thenReturn(levelDiscount("1.60", "0.950", "黄金会员 9.5 折"));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(request(null), ALICE);
+
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("6"));
+        assertThat(created.total()).isEqualByComparingTo(new BigDecimal("26"));
+    }
+
+    /**
+     * 老客 + 9.5 折 + 6 元券：折扣与券叠加。
+     *
+     * <p>32 → 30.4（9.5 折）→ 券再减 6 → 24.4，总优惠 7.6。
+     * 这条用例锁住「券在折后金额上抵扣」的顺序：反过来（先减券再打折）结果会不同，
+     * 且顾客会觉得自己被少算了。
+     */
+    @Test
+    void couponStacksOnTopOfLevelDiscount() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(levelDiscounts.evaluate(eq("黄金会员"), any(), any()))
+                .thenReturn(levelDiscount("1.60", "0.950", "黄金会员 9.5 折"));
+        when(coupons.resolveForOrder(eq(ALICE), eq("cp-9"), any())).thenReturn(coupon("cp-9", "6"));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(couponRequest("cp-9"), ALICE);
+
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("7.60"));
+        assertThat(created.total()).isEqualByComparingTo(new BigDecimal("24.40"));
+        verify(coupons).markUsed(eq("cp-9"), eq(ALICE), anyString(), eq(new BigDecimal("6")));
+    }
+
+    /** 报价要给出可逐行渲染的明细：账单不能只显示一个总数。 */
+    @Test
+    void quoteReturnsDiscountLinesForBill() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(levelDiscounts.evaluate(eq("黄金会员"), any(), any()))
+                .thenReturn(levelDiscount("1.60", "0.950", "黄金会员 9.5 折"));
+        when(coupons.resolveForOrder(eq(ALICE), eq("cp-5"), any())).thenReturn(coupon("cp-5", "6"));
+
+        PriceSummary summary = service.quote(couponRequest("cp-5"), ALICE);
+
+        assertThat(summary.discounts()).hasSize(2);
+        assertThat(summary.discounts().get(0).type()).isEqualTo("LEVEL");
+        assertThat(summary.discounts().get(0).amount()).isEqualByComparingTo(new BigDecimal("1.60"));
+        assertThat(summary.discounts().get(1).type()).isEqualTo("COUPON");
+        assertThat(summary.discount()).isEqualByComparingTo(new BigDecimal("7.60"));
+        assertThat(summary.total()).isEqualByComparingTo(new BigDecimal("24.40"));
     }
 }

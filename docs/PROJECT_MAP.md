@@ -49,7 +49,7 @@
 | `pages/index/index.vue` | 壳页面，承载四个面板 | — | — |
 | `components/tabs/MenuPanel.vue` | `GET /api/products`、`GET /api/store` | `products`、`stores` | 公开 |
 | `components/tabs/OrdersPanel.vue` | `GET /api/orders`、`POST /api/orders/{id}/complete` | `orders`、`order_items` | 需登录 |
-| `components/tabs/MemberPanel.vue` | `GET /api/members/{id}`、`GET /api/members/benefits` | `members`、`member_benefits` | 需登录 / 公开 |
+| `components/tabs/MemberPanel.vue` | `GET /api/members/{id}`、`GET /api/members/benefits`、`GET /api/members/discount`、`GET /api/coupons` | `members`、`member_benefits`、`member_level_policies` | 需登录 / 公开 |
 | `components/tabs/ProfilePanel.vue` | 无（本地会话 + 后端地址诊断） | — | — |
 | `pages/detail/detail.vue` | `GET /api/products/options` | `product_options` | 公开 |
 | `pages/checkout/checkout.vue` | `POST /api/cart/quote`、`POST /api/orders`（两者都可带 `couponId`）、`GET /api/coupons/usable` | `orders`、`order_items`、`member_coupons` | 需登录 |
@@ -57,6 +57,7 @@
 | `pages/redeem/index.vue` | `GET /api/redeem/products`、`POST /api/redeem/products/{id}/exchange`、`GET /api/redeem/orders`、`POST /api/redeem/orders/{id}/cancel` | `redeem_products`、`redemptions`、`members` | 需登录（拒绝 `guest`） |
 | `pages/points-log/index.vue` | `GET /api/members/points-log` | `member_points_log` | 需登录（拒绝 `guest`） |
 | `pages/coupons/index.vue` | `GET /api/coupons`、`POST /api/coupons/claim` | `member_coupons`、`coupon_config` | 需登录（拒绝 `guest`） |
+| `pages/level-discount/index.vue` | `GET /api/members/level-discounts` | `member_level_policies`、`member_level_daily_rates` | 需登录（拒绝 `guest`） |
 
 **价格、取餐号、首单减免一律由后端计算**，不信任客户端传入的价格字段。
 
@@ -68,7 +69,7 @@
 
 ## 四、管理端（HiddenWhite-admin）
 
-`COMPONENT_MAP` 共 25 项，与 `views/` 下 25 个菜单页面一一对应
+`COMPONENT_MAP` 共 26 项，与 `views/` 下 26 个菜单页面一一对应
 （`Login` / `NoAccess` / `NotFound` 三个非菜单页不在映射内）。
 
 ### 4.1 咖啡运营
@@ -84,6 +85,7 @@
 | `coffee/Recommend.vue` | `coffee/recommend/index` | `/api/admin/coffee/recommendations` | `coffee:recommend:*` |
 | `coffee/Birthday.vue` | `coffee/birthday/index` | `/api/admin/birthday` | `coffee:birthday:*` |
 | `coffee/Coupons.vue` | `coffee/coupon/index` | `/api/admin/coupons` | `coffee:coupon:*` |
+| `coffee/LevelDiscounts.vue` | `coffee/leveldiscount/index` | `/api/admin/level-discounts` | `coffee:leveldiscount:*` |
 
 **首页轮播推荐位**：管理端配置「推荐池」，点单端从池中随机抽最多 3 款做首屏轮播
 （`GET /api/recommendations`，免登录）。
@@ -193,6 +195,9 @@
 | `member_points_log` | **积分流水**。`change_amount` 正负记方向，`balance_after` 为同事务回读余额；`biz_type` 取值由 `PointsBizType` 锁定 |
 | `redeem_products` | **兑换品目录**（独立于 `products`，纯积分为价；`stock=NULL` 不限量） |
 | `redemptions` | **兑换单（核销凭证）**。8 位唯一核销码、30 天有效期、商品名/图/积分价快照 |
+| `member_level_policies` | **会员等级折扣策略**（每等级一行）：启用 / 基准率 / 门槛 / 说明；等级阶梯本身在 `MemberLevels` 代码里，表只存策略 |
+| `member_level_daily_rates` | **等级 × 星期**的折扣覆盖（只存配置过的天，其余继承基准） |
+| `order_discounts` | **订单优惠明细**（一单多行）：LEVEL / FIRST_ORDER / COUPON，与 `orders.discount` 总数互为校验 |
 | `coupon_config` | **每周优惠券配置**（单行 `id=1`）。面额/门槛/有效期/持有上限/发行量 + `issued_count` 计数器（自增 + 条件更新防超发） |
 | `member_coupons` | **会员券 = 领取记录 = 使用记录**。`uk_coupon_member_week(member_id, week_key)` 是每周限领一张的唯一锁；`order_id`/`used_at`/`discount_amount` 即使用记录；面额门槛为领取时快照 |
 | `birthday_gift_config` | 生日礼遇配置（单行）：发放物 / 积分 / 窗口模式 / 文案 |

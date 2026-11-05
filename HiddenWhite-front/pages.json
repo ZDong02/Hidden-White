@@ -62,6 +62,15 @@
         "backgroundColorTop": "#fbfaf7",
         "backgroundColorBottom": "#fbfaf7"
       }
+    },
+    {
+      "path": "pages/level-discount/index",
+      "style": {
+        "navigationBarTitleText": "会员折扣",
+        "navigationStyle": "custom",
+        "backgroundColorTop": "#fbfaf7",
+        "backgroundColorBottom": "#fbfaf7"
+      }
     }
   ],
   "globalStyle": {

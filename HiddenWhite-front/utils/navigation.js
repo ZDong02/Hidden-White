@@ -13,7 +13,8 @@ const PAGES = Object.freeze({
   // 会员页的出口：积分兑换、积分明细、优惠券（均为独立页面，不新增底部 Tab）
   redeem: '/pages/redeem/index',
   pointsLog: '/pages/points-log/index',
-  coupons: '/pages/coupons/index'
+  coupons: '/pages/coupons/index',
+  levelDiscount: '/pages/level-discount/index'
 })
 
 let navigationPending = false

@@ -47,8 +47,8 @@
 ```
 Hidden White/
 ├── HiddenWhite-front/                  # 点单端：uni-app（微信小程序 / H5）
-│   ├── pages/                          # 7 个业务页面（订单/会员/我的为壳页内 Tab 面板；另有积分兑换、
-│   │                                   #   积分明细、优惠券）
+│   ├── pages/                          # 8 个业务页面（订单/会员/我的为壳页内 Tab 面板；另有积分兑换、
+│   │                                   #   积分明细、优惠券、会员折扣）
 │   ├── components/                     # 共享组件 + components/ui/ 统一组件库
 │   │                                   #   Button / Card / Icon / Input / Modal / SlideConfirm / Stepper
 │   ├── styles/                         # 设计令牌 tokens.scss + 通用元件与动效 common.scss
@@ -201,7 +201,7 @@ npm run dev:mp-weixin
 | 小程序 / H5 | `/api/auth/login`、`/api/auth/register` | 无需登录 | 登录 / 注册，**返回 `{ member, token }`** |
 | 小程序 / H5 | `/api/products`、`/api/products/options`、`/api/store`、`/api/members/benefits` | 无需登录 | 浏览类公开接口 |
 | 小程序 / H5 | `/api/orders/**`、`/api/members/{id}`、`/api/members/points-log`、`/api/cart/quote`、`/api/redeem/**`、`/api/coupons/**`、`/api/auth/logout` | **需登录** | 会员归属以 token 判定，不接受客户端传入 memberId；报价要按本人历史订单判首单，故也需登录；积分兑换、明细与优惠券拒绝 `guest` 账号 |
-| 管理端 | `/api/admin/**` | JWT 登录 + 权限码 | auth、coffee、operation、redeem（积分运营）、coupon（优惠券）、birthday（生日礼遇）、system、dashboard、monitor、tool/generator |
+| 管理端 | `/api/admin/**` | JWT 登录 + 权限码 | auth、coffee、operation、redeem（积分运营）、coupon（优惠券）、birthday（生日礼遇）、level-discounts（会员折扣）、system、dashboard、monitor、tool/generator |
 | 健康检查 | `/api/health` | 放行 | 点单端用于后端地址自动探测 |
 
 > 管理端登录地址：`/api/admin/auth/login`；点单端注销地址：`/api/auth/logout`
@@ -213,6 +213,10 @@ npm run dev:mp-weixin
 - **订单归属一律以 token 判定**：`GET /api/orders`、`GET /api/orders/{id}`、`POST /api/orders`、`POST /api/orders/{id}/complete`、`GET /api/members/{id}` 均不接受客户端传入 memberId，传入也会被忽略。
 - `SecurityConfig` 兜底为 `denyAll()`：新增路径若忘记配置，默认拒绝而非默认放行。
 - token 与验证码存内存（`ExpiringStore`：带 TTL + 定时清理 + 容量上界），**应用重启后需重新登录**；单实例部署，不支持多副本。
+- **401 统一处理**（2026-11-05）：`requestApi` 收到 401 时调 `setUnauthorizedHandler` 注册的处理器，
+  清 token **与 `currentUser`** 并提示一次（3s 冷却窗口内合并）。只清 token 不清用户态，
+  会让界面以为还登录着，四个面板各自发请求、各自报错 —— 一次失效变成满屏 401。
+  主动登出（`/auth/logout`）传 `ignoreUnauthorized` 关掉这套处理，那时的 401 是预期结果。
 
 ---
 

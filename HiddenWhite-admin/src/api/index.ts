@@ -7,6 +7,7 @@ import { createOperationApi } from './operation.ts'
 import { createRedeemApi } from './redeem.ts'
 import { createBirthdayApi } from './birthday.ts'
 import { createCouponApi } from './coupon.ts'
+import { createLevelDiscountApi } from './levelDiscount.ts'
 
 export * from './http.ts'
 export * from './auth.ts'
@@ -18,6 +19,7 @@ export * from './operation.ts'
 export * from './redeem.ts'
 export * from './birthday.ts'
 export * from './coupon.ts'
+export * from './levelDiscount.ts'
 
 export const authApi = createAuthApi(httpClient)
 export const systemApi = createSystemApi(httpClient)
@@ -27,3 +29,4 @@ export const operationApi = createOperationApi(httpClient)
 export const redeemApi = createRedeemApi(httpClient)
 export const birthdayApi = createBirthdayApi(httpClient)
 export const couponApi = createCouponApi(httpClient)
+export const levelDiscountApi = createLevelDiscountApi(httpClient)

@@ -29,14 +29,27 @@
           <text class="muted">商品金额</text>
           <text class="gold num">¥{{ displaySubtotal }}</text>
         </view>
+
+        <!--
+          身份权益行：会员折扣或首单礼遇，服务端只会给其中一条（两者互斥取优）。
+          文案与金额都由服务端下发，前端不参与任何乘法 —— 折扣率换算成「8.5 折」
+          这种事各端各写一遍，迟早出现一处 8.5 折、一处 85 折。
+        -->
+        <view v-for="line in benefitLines" :key="line.type" class="bill-row">
+          <text class="gold">{{ line.label }}</text>
+          <text class="gold num">−¥{{ line.amount }}</text>
+        </view>
+
+        <!-- 优惠券单独一行：它是本页唯一可以更换的优惠，所以做成入口 -->
         <view class="bill-row bill-row--action" hover-class="bill-row--press" :hover-stay-time="60" @tap="openCouponPicker">
-          <text class="gold">优惠</text>
+          <text class="gold">优惠券</text>
           <view class="bill-value">
-            <text v-if="displayDiscount" class="gold">{{ discountText }}</text>
-            <text v-else class="muted">暂无可用优惠</text>
+            <text v-if="appliedCoupon" class="gold num">−¥{{ appliedCoupon.amount }}</text>
+            <text v-else class="muted">{{ usableCount ? `${usableCount} 张可用` : '未使用' }}</text>
             <Icon name="chevron-right" tone="faint" :size="22" />
           </view>
         </view>
+
         <view class="bill-row">
           <text class="muted">包装费</text>
           <text class="gold num">¥{{ displayPackagingFee }}</text>
@@ -167,7 +180,7 @@ import Card from '../../components/ui/Card.vue'
 import UiButton from '../../components/ui/Button.vue'
 import Icon from '../../components/ui/Icon.vue'
 import Modal from '../../components/ui/Modal.vue'
-import { shop, count, subtotal, total, discount, createOrder, quoteCart } from '../../store/index'
+import { shop, count, subtotal, total, createOrder, quoteCart } from '../../store/index'
 import { loadUsableCoupons } from '../../store/coupons'
 import { STORE, BUSINESS } from '../../config/constants'
 import { calculateReadyTime } from '../../utils/datetime'
@@ -177,13 +190,23 @@ import { showError, showConfirm, showPrompt, showInfo } from '../../utils/toast'
 
 const submitting = ref(false)
 const displaySubtotal = ref(subtotal.value)
-const displayDiscount = ref(discount.value)
 const displayPackagingFee = ref(BUSINESS.packagingFee)
 const displayTotal = ref(total.value)
-/** 优惠名称：由服务端给（首单礼遇 / 每周好券），前端不根据「有没有用券」反推 */
-const displayLabel = ref('')
+/**
+ * 服务端下发的优惠明细（会员折扣 / 首单礼遇 / 优惠券）。
+ *
+ * <p>账单按它逐行渲染，而不是只显示一个「共减 X 元」——
+ * 顾客看到少了 7.6 元却不知道为什么，客诉时也无从解释。
+ */
+const discountLines = ref([])
 /** 服务端实际采用的券 id；选了券但首单更优时为空 */
 const appliedCouponId = ref('')
+/** 本单可用券张数：不点进弹层也能知道「有几张能用」 */
+const usableCount = ref(0)
+
+/** 身份权益行（会员折扣 / 首单礼遇）。券单独走入口行，不在这里重复显示 */
+const benefitLines = computed(() => discountLines.value.filter(line => line.type !== 'COUPON'))
+const appliedCoupon = computed(() => discountLines.value.find(line => line.type === 'COUPON') || null)
 
 const couponOpen = ref(false)
 const pickerLoading = ref(false)
@@ -194,11 +217,6 @@ const unusableList = ref([])
 
 const storeAddress = STORE.address
 const readyTime = calculateReadyTime(BUSINESS.preparationTime)
-
-const discountText = computed(() => {
-  if (!displayDiscount.value) return ''
-  return `${displayLabel.value || '优惠'} −¥${displayDiscount.value}`
-})
 
 /**
  * 弹层底部说明。
@@ -224,6 +242,9 @@ onShow(async () => {
   try {
     await refreshQuote(selectedCouponId.value)
   } catch (error) {
+    // 会话失效（401）：统一处理器已提示，这里直接放弃本轮报价，
+    // 否则会再叠一条「获取订单报价失败」，让人以为是价格算错了
+    if (!isLoggedIn.value) return
     // 券可能在结算期间失效（过期 / 在别处用掉）：清掉选择再报一次价，别让顾客卡在错误里
     if (selectedCouponId.value) {
       selectedCouponId.value = ''
@@ -246,11 +267,24 @@ async function refreshQuote(couponId) {
   // 报价接口的字段一律以数字展示；任一字段缺失时退回 0，
   // 否则模板会渲染出「¥NaN」，顾客无从判断该付多少
   displaySubtotal.value = toAmount(quote.subtotal)
-  displayDiscount.value = toAmount(quote.discount)
   displayPackagingFee.value = toAmount(quote.packagingFee)
   displayTotal.value = toAmount(quote.total)
-  displayLabel.value = quote.discountLabel || ''
   appliedCouponId.value = quote.couponId || ''
+
+  discountLines.value = (Array.isArray(quote.discounts) ? quote.discounts : []).map(line => ({
+    type: String(line.type || ''),
+    label: String(line.label || ''),
+    amount: toAmount(line.amount)
+  }))
+  // 兜底：万一拿到的是没有 discounts 的旧响应，用汇总字段凑一行，
+  // 账单不能出现「减了钱但一行明细都没有」
+  if (!discountLines.value.length && toAmount(quote.discount) > 0) {
+    discountLines.value = [{
+      type: quote.couponId ? 'COUPON' : 'FIRST_ORDER',
+      label: quote.discountLabel || '优惠',
+      amount: toAmount(quote.discount)
+    }]
+  }
 }
 
 /** 金额兜底：非数字（含 undefined / null）一律按 0 处理 */
@@ -278,6 +312,7 @@ async function openCouponPicker() {
     const data = await loadUsableCoupons(displaySubtotal.value)
     usableList.value = Array.isArray(data?.usable) ? data.usable : []
     unusableList.value = Array.isArray(data?.unusable) ? data.unusable : []
+    usableCount.value = Number(data?.usableCount) || 0
   } catch (error) {
     usableList.value = []
     unusableList.value = []

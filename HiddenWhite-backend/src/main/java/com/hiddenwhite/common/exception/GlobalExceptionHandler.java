@@ -97,6 +97,19 @@ public class GlobalExceptionHandler {
         return response(exception.status(), exception.getMessage(), request, List.of());
     }
 
+    /**
+     * 会员折扣的业务失败。
+     *
+     * <p>折扣策略写入由管理端触发，非法配置（折扣率越界、等级不在阶梯内）是 400；
+     * 与 {@code CouponException}、{@code PointsException} 同一套路：该包被两端共用，
+     * 异常自带状态码，这里只做响应结构转换。
+     */
+    @ExceptionHandler(com.hiddenwhite.common.discount.LevelDiscountException.class)
+    public ResponseEntity<Object> levelDiscount(com.hiddenwhite.common.discount.LevelDiscountException exception,
+                                                HttpServletRequest request) {
+        return response(exception.status(), exception.getMessage(), request, List.of());
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Object> accessDenied(AccessDeniedException exception, HttpServletRequest request) {
         if (isAdmin(request)) {

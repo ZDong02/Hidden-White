@@ -1,14 +1,20 @@
 <template>
   <!-- 会员面板：会员卡、积分概览与专属礼遇 -->
   <scroll-view class="panel-scroll member-panel" scroll-y>
-    <view class="member-card reveal">
+    <view class="member-card reveal" :class="`member-card--${levelTheme}`">
       <view class="card-top">
         <view class="card-block">
           <text class="brand">隐白</text>
           <text class="brand-caption">HIDDEN WHITE · MEMBER</text>
         </view>
+        <!--
+          等级徽标用「圆点 + 文字」而不是图标：卡面有五套配色，
+          而 Icon 是固定色的 PNG（只有 gold / gold-on-dark 等几档），
+          在白银、铂金、钻石的冷色卡面上会形成脏混色。
+          圆点用 currentColor，天然跟随各档 accent。
+        -->
         <view class="level-badge">
-          <Icon name="sparkle" tone="gold-on-dark" :size="22" />
+          <view class="level-dot" />
           <text class="level-text">{{ member.memberLevel || '普通会员' }}</text>
         </view>
       </view>
@@ -32,6 +38,28 @@
           </view>
         </view>
       </view>
+    </view>
+
+    <!--
+      今日会员折扣：只在今天真的打折时出现。
+      没有折扣（普通会员 / 未启用 / 当天 rate=1）就整条不渲染 ——
+      「今天原价」这种信息不占版面，反而让会员觉得自己在吃亏。
+    -->
+    <view
+      v-if="todayDiscount"
+      class="discount-bar reveal reveal-1"
+      hover-class="discount-bar--press"
+      :hover-stay-time="60"
+      @tap="openLevelDiscount"
+    >
+      <view class="discount-icon">
+        <Icon name="percent" tone="gold" :size="28" />
+      </view>
+      <view class="discount-copy">
+        <text class="discount-title">{{ todayDiscount.todayLabel }}</text>
+        <text class="discount-note">{{ discountNote }}</text>
+      </view>
+      <Icon name="chevron-right" tone="faint" :size="22" />
     </view>
 
     <view class="stat-grid reveal reveal-1">
@@ -105,6 +133,8 @@ import Icon from '../ui/Icon.vue'
 import { currentUser, isLoggedIn } from '../../store/auth'
 import { birthday, loadBirthday, resetBirthday } from '../../store/birthday'
 import { coupons, loadCoupons, resetCoupons } from '../../store/coupons'
+import { levelDiscount, loadLevelDiscount, resetLevelDiscount } from '../../store/levelDiscount'
+import { themeOfLevel } from '../../utils/levelTheme'
 import { requestApi } from '../../config/backend'
 import { showNotice } from '../../utils/toast'
 import { openPage } from '../../utils/navigation'
@@ -159,12 +189,25 @@ const benefitCards = computed(() =>
 /** 本周有可领的券时在格子上打标：券包是二级页，不给提示没人会点进去。 */
 const couponClaimable = computed(() => isLoggedIn.value && coupons.data?.weekState === 'CLAIMABLE')
 
+/** 卡面主题：与折扣详情页共用 utils/levelTheme 的映射，两处不会给出不同配色 */
+const levelTheme = computed(() => themeOfLevel(member.value?.memberLevel || member.value?.level))
+
+/** 今天真的打折才显示折扣条：`active` 由服务端按「等级 + 今天星期几」判定 */
+const todayDiscount = computed(() => (levelDiscount.data?.active ? levelDiscount.data : null))
+
+/** 折扣条第二行：优先用运营配的说明，没配就说清它与券的关系 */
+const discountNote = computed(() => {
+  const note = levelDiscount.data?.note
+  return note && note.trim() ? note : '结算时自动生效，可与优惠券叠加'
+})
+
 // 壳页面在切到本面板 / 页面 onShow 时调用
 async function activate() {
   if (!isLoggedIn.value) {
     member.value = { memberLevel: '游客', cardNumber: '登录后查看', points: 0, coupons: 0, growthValue: 0 }
     resetBirthday()
     resetCoupons()
+    resetLevelDiscount()
     return
   }
 
@@ -177,6 +220,8 @@ async function activate() {
     await loadBirthday()
     // 券包同理，且它是「本周能不能领」的唯一来源，不阻塞首屏
     loadCoupons()
+    // 会员折扣：读失败只是少显示一条信息，不该影响会员页主体
+    loadLevelDiscount()
     member.value = { ...profile, memberLevel: profile.memberLevel || profile.level }
     // 后端若返回了图标字段，只接受已登记的图标名，否则保留本地图标
     benefits.value = rows.map((row, index) => ({
@@ -184,6 +229,8 @@ async function activate() {
       icon: defaultBenefits[index % defaultBenefits.length].icon
     }))
   } catch (error) {
+    // 会话失效（401）已由统一处理器提示并清了登录态，这里不再叠一条重复的报错
+    if (!isLoggedIn.value) return
     uni.showToast({ title: error.message || '会员信息加载失败', icon: 'none' })
   }
 }
@@ -211,6 +258,19 @@ function openPointsLog() {
     return
   }
   openPage('pointsLog')
+}
+
+/**
+ * 会员折扣详情页：全部等级横向对比 + 整周节奏。
+ *
+ * <p>弹窗放不下五档的方案（每档还有七天折扣），一屏内滚动阅读才是对的形态。
+ */
+function openLevelDiscount() {
+  if (!isLoggedIn.value) {
+    openPage('auth', { redirect: 'levelDiscount' })
+    return
+  }
+  openPage('levelDiscount')
 }
 
 /**
@@ -243,6 +303,10 @@ function openBenefit(benefit) {
       return
     }
     emit('open-birthday')
+    return
+  }
+  if (title.includes('折扣')) {
+    openLevelDiscount()
     return
   }
   showFeature(benefit.title)
@@ -294,7 +358,40 @@ defineExpose({ activate })
   box-shadow: $sh-dark;
 }
 
-/* 右下角金色细环：与 Banner / 进度卡同一笔触 */
+/* 五档卡面：色值全部来自 tokens 的 $level-cards，组件不另造颜色 */
+@each $name, $palette in $level-cards {
+  .member-card--#{$name} {
+    border-color: map-get($palette, line);
+    color: map-get($palette, accent);
+    background: radial-gradient(circle at 90% 10%, map-get($palette, glow) 0, transparent 38%),
+      linear-gradient(135deg, map-get($palette, face-a) 0%, map-get($palette, face-b) 100%);
+  }
+
+  .member-card--#{$name}::after {
+    border-color: map-get($palette, ring);
+  }
+
+  .member-card--#{$name} .brand,
+  .member-card--#{$name} .card-number,
+  .member-card--#{$name} .points,
+  .member-card--#{$name} .level-text,
+  .member-card--#{$name} .points-action-text {
+    color: map-get($palette, accent);
+  }
+
+  .member-card--#{$name} .brand-caption,
+  .member-card--#{$name} .card-label {
+    color: map-get($palette, muted);
+  }
+
+  .member-card--#{$name} .level-badge,
+  .member-card--#{$name} .points-action {
+    border-color: map-get($palette, line);
+    color: map-get($palette, accent);
+  }
+}
+
+/* 右下角细环：与 Banner / 进度卡同一笔触，颜色跟随各档 ring */
 .member-card::after {
   content: '';
   position: absolute;
@@ -354,6 +451,15 @@ defineExpose({ activate })
   color: $c-gold-on-dark;
 }
 
+/* 等级圆点：用 currentColor 跟随卡面强调色，五档各自成形 */
+.level-dot {
+  width: 10rpx;
+  height: 10rpx;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .level-text {
   font-size: $fs-micro;
   letter-spacing: $ls-normal;
@@ -407,6 +513,55 @@ defineExpose({ activate })
 /* ---- 概览数据 ---- */
 .stat-grid {
   margin-top: $sp-4;
+}
+
+/* ---- 今日会员折扣 ---- */
+.discount-bar {
+  display: flex;
+  align-items: center;
+  gap: $sp-3;
+  margin-top: $sp-4;
+  padding: $sp-4 $sp-5;
+  border: 1rpx solid $c-gold-line;
+  border-radius: $r-lg;
+  background: $c-gold-soft;
+  transition: transform $dur-instant $ease-out;
+}
+
+.discount-bar--press {
+  transform: scale(0.985);
+}
+
+.discount-icon {
+  display: flex;
+  width: 56rpx;
+  height: 56rpx;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: $r-xs;
+  background: $c-surface;
+}
+
+.discount-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.discount-title {
+  display: block;
+  color: $c-gold-text;
+  font-size: $fs-body-sm;
+  font-weight: 600;
+  @include ellipsis;
+}
+
+.discount-note {
+  display: block;
+  margin-top: $sp-0;
+  color: $c-ink-muted;
+  font-size: $fs-micro;
+  @include ellipsis;
 }
 
 .stat-cell--press {

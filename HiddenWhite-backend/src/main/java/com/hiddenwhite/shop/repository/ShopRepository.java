@@ -1,5 +1,6 @@
 package com.hiddenwhite.shop.repository;
 
+import com.hiddenwhite.common.discount.DiscountLine;
 import com.hiddenwhite.common.points.PointsBizType;
 import com.hiddenwhite.common.points.PointsLedger;
 import com.hiddenwhite.common.points.PointsRefType;
@@ -236,6 +237,21 @@ public class ShopRepository {
                 (rs, row) -> new MemberBenefit(rs.getString("icon"), rs.getString("title"), rs.getString("description")));
     }
 
+    /**
+     * 会员等级（只取一列）。
+     *
+     * <p>下单算价要按等级判定会员折扣，但不需要整行会员资料 ——
+     * 用 {@link #member} 会把积分、卡号、券数一起读回来。
+     *
+     * <p>会员不存在时返回空串：游客首次下单时 {@code ensureMember} 尚未执行，
+     * 此时没有等级也就没有折扣，不该抛错让下单失败。
+     */
+    public String memberLevel(String memberId) {
+        List<String> rows = jdbc.query("SELECT member_level FROM members WHERE id=?",
+                (rs, row) -> rs.getString("member_level"), memberId);
+        return rows.isEmpty() || rows.get(0) == null ? "" : rows.get(0);
+    }
+
     // ---- 订单 ----
 
     /**
@@ -370,6 +386,27 @@ public class ShopRepository {
                     item.milk(), item.quantity(), item.unitPrice(), item.lineTotal());
         }
         return order;
+    }
+
+    /**
+     * 写入订单优惠明细。
+     *
+     * <p>一单可能多行（会员折扣 + 优惠券），与 {@code orders.discount} 的总数互为校验：
+     * 明细之和应当等于订单的 discount。不存明细的话，顾客问「为什么少了 12.8 元」
+     * 只能靠翻配置猜。
+     *
+     * <p>行数固定为 1–3 行，逐条插入即可，不必上批量。
+     */
+    public void saveDiscounts(String orderId, List<DiscountLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now(ZONE);
+        for (DiscountLine line : lines) {
+            jdbc.update("INSERT INTO order_discounts(order_id,type,label,amount,ref_id,created_at) "
+                            + "VALUES(?,?,?,?,?,?)",
+                    orderId, line.type(), line.label(), line.amount(), line.refId(), now);
+        }
     }
 
     /**
