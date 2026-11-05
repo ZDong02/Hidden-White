@@ -45,3 +45,6 @@ uploads/
 # ===== 系统文件 =====
 .DS_Store
 Thumbs.db
+
+# npm 本地缓存（npmrc cache=.npm-cache 产生，不该入库）
+.npm-cache/
