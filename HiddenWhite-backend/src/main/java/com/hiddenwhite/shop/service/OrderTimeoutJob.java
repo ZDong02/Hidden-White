@@ -47,10 +47,13 @@ public class OrderTimeoutJob {
 
     private final ShopRepository repository;
     private final CouponService coupons;
+    private final com.hiddenwhite.common.upsize.UpsizeService upsizes;
 
-    public OrderTimeoutJob(ShopRepository repository, CouponService coupons) {
+    public OrderTimeoutJob(ShopRepository repository, CouponService coupons,
+                           com.hiddenwhite.common.upsize.UpsizeService upsizes) {
         this.repository = repository;
         this.coupons = coupons;
+        this.upsizes = upsizes;
     }
 
     /**
@@ -116,6 +119,8 @@ public class OrderTimeoutJob {
             // 超时取消也要退券：顾客什么都没拿到，券不该跟着订单一起作废。
             // 券若已过有效期，releaseForOrder 内部会落成 EXPIRED，不会让过期券复活。
             coupons.releaseForOrder(cancelled.id().toString());
+            // 升杯同理：额度与积分一起退回，顾客下次还能用。
+            upsizes.releaseForOrder(cancelled.id().toString());
             return true;
         } catch (IllegalStateException e) {
             // 已被店员或另一轮任务处理，属正常并发，不记 error

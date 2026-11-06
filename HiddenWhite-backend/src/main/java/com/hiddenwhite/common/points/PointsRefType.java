@@ -20,6 +20,9 @@ public enum PointsRefType {
     /** 关联生日礼遇领取记录（member_birthday_gifts.id）。 */
     BIRTHDAY_GIFT,
 
+    /** 关联升杯使用记录（member_upsize_records.id）。 */
+    UP_SIZE,
+
     /** 无关联对象（如系统补偿）。 */
     NONE
 }

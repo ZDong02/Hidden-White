@@ -5,6 +5,8 @@ import com.hiddenwhite.common.birthday.BirthdayStatus;
 import com.hiddenwhite.common.discount.LevelDiscountService;
 import com.hiddenwhite.common.domain.PageQuery;
 import com.hiddenwhite.common.domain.PageResult;
+import com.hiddenwhite.common.upsize.UpsizeDecision;
+import com.hiddenwhite.common.upsize.UpsizeService;
 import com.hiddenwhite.shop.domain.Member;
 import com.hiddenwhite.shop.domain.MemberBenefit;
 import com.hiddenwhite.shop.domain.PointsLogEntry;
@@ -49,19 +51,22 @@ public class MemberController {
      * <p>列出保留字，让这种情况明确变成 404。新增子路径时记得同步这里。
      */
     private static final Set<String> RESERVED_PATHS =
-            Set.of("benefits", "points-log", "discount", "level-discounts", "birthday", "me");
+            Set.of("benefits", "points-log", "discount", "level-discounts", "birthday", "upsize", "me");
 
     private final MemberService memberService;
     private final MemberSessionService sessionService;
     private final BirthdayGiftService birthdayService;
     private final LevelDiscountService levelDiscountService;
+    private final UpsizeService upsizeService;
 
     public MemberController(MemberService memberService, MemberSessionService sessionService,
-                            BirthdayGiftService birthdayService, LevelDiscountService levelDiscountService) {
+                            BirthdayGiftService birthdayService, LevelDiscountService levelDiscountService,
+                            UpsizeService upsizeService) {
         this.memberService = memberService;
         this.sessionService = sessionService;
         this.birthdayService = birthdayService;
         this.levelDiscountService = levelDiscountService;
+        this.upsizeService = upsizeService;
     }
 
     /** 读取会员资料；路径 id 必须与 token 中的会员一致，否则 403。 */
@@ -147,5 +152,21 @@ public class MemberController {
     public LevelDiscountService.Catalog levelDiscounts() {
         Member member = memberService.get(sessionService.requireAccountMemberId());
         return levelDiscountService.overview(member.level(), member.growthValue());
+    }
+
+    /**
+     * 免费升杯的资格与本月额度（会员页礼遇卡、结算页开关的唯一状态源）。
+     *
+     * <p>这里传 {@code policy -> true}：会员页只关心「我这档每月能升几次、怎么算」，
+     * 与「本单有没有可升的杯」无关。那个判断由结算页的报价返回，
+     * 两处各算一次必然出现「会员页说可用、结算页说没有」。
+     *
+     * <p>需要登录：额度是会员个人数据。游客调用会被
+     * {@link MemberSessionService#requireAccountMemberId()} 挡成 401。
+     */
+    @GetMapping("/upsize")
+    public UpsizeDecision upsize() {
+        Member member = memberService.get(sessionService.requireAccountMemberId());
+        return upsizeService.decide(member.id(), member.level(), policy -> true);
     }
 }

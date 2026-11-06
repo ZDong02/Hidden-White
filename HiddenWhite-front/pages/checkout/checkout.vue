@@ -50,6 +50,35 @@
           </view>
         </view>
 
+        <!--
+          免费升杯：必须显式勾选。
+
+          免费额度是稀缺资源（黄金每月 1 次），自动消耗会让顾客在「其实不需要大杯」
+          的那一单里被悄悄扣掉，事后在会员页看到「本月已用完」完全想不起来什么时候用的。
+          勾选后商品金额按大杯抬高、账单多一行「免费升杯 −X」，合计不变。
+        -->
+        <view
+          class="bill-row bill-row--action upsize-row"
+          :class="{ 'upsize-row--disabled': !upsizeSelectable }"
+          hover-class="bill-row--press"
+          :hover-stay-time="60"
+          @tap="toggleUpsize"
+        >
+          <view class="upsize-copy">
+            <text :class="upsizeSelectable ? 'gold' : 'muted'">免费升杯</text>
+            <text class="upsize-hint">{{ upsizeHint }}</text>
+          </view>
+          <view class="bill-value">
+            <text v-if="upsizeApplied" class="gold num">−¥{{ tidy(upsizeInfo.sizeDiff) }}</text>
+            <view
+              v-if="upsizeSelectable"
+              :class="['upsize-switch', { 'upsize-switch--on': upsizeApplied }]"
+            >
+              <view class="upsize-knob" />
+            </view>
+          </view>
+        </view>
+
         <view class="bill-row">
           <text class="muted">包装费</text>
           <text class="gold num">¥{{ displayPackagingFee }}</text>
@@ -204,9 +233,70 @@ const appliedCouponId = ref('')
 /** 本单可用券张数：不点进弹层也能知道「有几张能用」 */
 const usableCount = ref(0)
 
-/** 身份权益行（会员折扣 / 首单礼遇）。券单独走入口行，不在这里重复显示 */
-const benefitLines = computed(() => discountLines.value.filter(line => line.type !== 'COUPON'))
-const appliedCoupon = computed(() => discountLines.value.find(line => line.type === 'COUPON') || null)
+/** 身份权益行（会员折扣 / 首单礼遇）。券与升杯各走入口行，不在这里重复显示 */
+const benefitLines = computed(() =>
+  discountLines.value.filter((line) => line.type !== 'COUPON' && line.type !== 'UP_SIZE')
+)
+const appliedCoupon = computed(() => discountLines.value.find((line) => line.type === 'COUPON') || null)
+
+/**
+ * 升杯判定结果，直接取自报价响应。
+ *
+ * <p>不在前端自己算「还剩几次」：额度、等级、杯型全在服务端，
+ * 前端算一遍必然出现「页面说能升、下单被拒」。
+ * {@code NO_ELIGIBLE_ITEM} 也只有服务端知道（要看本单是不是已经全是大杯）。
+ */
+const upsizeInfo = ref({ available: false, sizeDiff: 0, reason: 'NOT_REQUESTED' })
+const upsizeSelectable = computed(() => upsizeInfo.value?.available === true)
+const upsizeApplied = computed(() => upsizeSelectable.value && shop.useUpsize === true)
+
+/** 开关右侧的一行小字：说清「为什么能/不能升」，不让顾客猜。 */
+const upsizeHint = computed(() => {
+  const info = upsizeInfo.value
+  if (!info) return ''
+  if (upsizeApplied.value) {
+    return `${info.fromSize || '标准杯'} 已升级为 ${info.toSize || '大杯'}`
+  }
+  if (info.available) {
+    if (info.freeLeft === -1) return `${info.fromSize} → ${info.toSize} · 本月不限次`
+    if (info.freeLeft > 0) return `${info.fromSize} → ${info.toSize} · 本月免费剩 ${info.freeLeft} 次`
+    return `${info.fromSize} → ${info.toSize} · ${info.pointsCost} 积分`
+  }
+  switch (info.reason) {
+    case 'NO_ELIGIBLE_ITEM':
+      return '本单已是最大杯型'
+    case 'LIMIT_REACHED':
+      return '本月次数已用完'
+    case 'NO_POINTS_COST':
+      return '本月免费次数已用完'
+    case 'INSUFFICIENT_POINTS':
+      return `积分不足（需 ${info.pointsCost} 分）`
+    case 'SIZE_MISSING':
+    case 'DISABLED':
+    case 'NO_POLICY':
+      return '当前不可用'
+    default:
+      return ''
+  }
+})
+
+/** 切换升杯并重新报价：金额与杯型必须由服务端重算，前端不做本地加減。 */
+async function toggleUpsize() {
+  if (!upsizeSelectable.value) return
+  shop.useUpsize = !shop.useUpsize
+  try {
+    await refreshQuote(selectedCouponId.value)
+    // 报价失败时把开关退回去，避免界面显示「已升杯」而下单按原价成交
+  } catch (error) {
+    shop.useUpsize = !shop.useUpsize
+    if (!isLoggedIn.value) return
+    showError(error.message || '升杯报价失败')
+    return
+  }
+  if (shop.useUpsize) {
+    showInfo(upsizeInfo.value.payType === 'FREE' ? '已使用本月免费升杯' : `已使用 ${upsizeInfo.value.pointsCost} 积分升杯`)
+  }
+}
 
 const couponOpen = ref(false)
 const pickerLoading = ref(false)
@@ -276,6 +366,11 @@ async function refreshQuote(couponId) {
     label: String(line.label || ''),
     amount: toAmount(line.amount)
   }))
+
+  upsizeInfo.value = quote.upsize || { available: false, sizeDiff: 0, reason: 'NOT_REQUESTED' }
+  // 服务端判定不可用时必须把开关退回去：否则界面显示「已升杯」，
+  // 下单时会被 assertUpsizeUsable 拒成 409，顾客只看到一句莫名其妙的报错
+  if (!upsizeInfo.value.available) shop.useUpsize = false
   // 兜底：万一拿到的是没有 discounts 的旧响应，用汇总字段凑一行，
   // 账单不能出现「减了钱但一行明细都没有」
   if (!discountLines.value.length && toAmount(quote.discount) > 0) {
@@ -467,6 +562,55 @@ async function submit() {
 
 .bill-row--press {
   background: $c-surface-2;
+}
+
+/* 升杯行：左侧标题 + 一行说明，右侧金额 + 开关。
+   说明文字单独占一行，是因为「标准杯 → 大杯 · 本月免费剩 1 次」塞不进标题行。 */
+.upsize-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2rpx;
+}
+
+.upsize-hint {
+  color: $c-ink-faint;
+  font-size: $fs-micro;
+  line-height: 1.5;
+}
+
+/* 不可用时不隐藏，只降透明度：仍要能点到，点一下没反应也比整行消失能解释 */
+.upsize-row--disabled {
+  opacity: 0.55;
+}
+
+.upsize-switch {
+  position: relative;
+  width: 64rpx;
+  height: 36rpx;
+  flex-shrink: 0;
+  border-radius: $r-pill;
+  background: $c-border-strong;
+  transition: background-color $dur-fast $ease-out;
+}
+
+.upsize-switch--on {
+  background: $c-gold;
+}
+
+.upsize-knob {
+  position: absolute;
+  top: 4rpx;
+  left: 4rpx;
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: $r-pill;
+  background: $c-surface;
+  transition: transform $dur-fast $ease-out;
+}
+
+.upsize-switch--on .upsize-knob {
+  transform: translateX(28rpx);
 }
 
 .bill-value {

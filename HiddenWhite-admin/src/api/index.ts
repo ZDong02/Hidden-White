@@ -8,6 +8,7 @@ import { createRedeemApi } from './redeem.ts'
 import { createBirthdayApi } from './birthday.ts'
 import { createCouponApi } from './coupon.ts'
 import { createLevelDiscountApi } from './levelDiscount.ts'
+import { createUpsizeApi } from './upsize.ts'
 
 export * from './http.ts'
 export * from './auth.ts'
@@ -20,6 +21,7 @@ export * from './redeem.ts'
 export * from './birthday.ts'
 export * from './coupon.ts'
 export * from './levelDiscount.ts'
+export * from './upsize.ts'
 
 export const authApi = createAuthApi(httpClient)
 export const systemApi = createSystemApi(httpClient)
@@ -30,3 +32,4 @@ export const redeemApi = createRedeemApi(httpClient)
 export const birthdayApi = createBirthdayApi(httpClient)
 export const couponApi = createCouponApi(httpClient)
 export const levelDiscountApi = createLevelDiscountApi(httpClient)
+export const upsizeApi = createUpsizeApi(httpClient)

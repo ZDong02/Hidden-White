@@ -5,6 +5,9 @@ import com.hiddenwhite.common.coupon.CouponService;
 import com.hiddenwhite.common.discount.AppliedDiscount;
 import com.hiddenwhite.common.discount.DiscountLine;
 import com.hiddenwhite.common.discount.LevelDiscountService;
+import com.hiddenwhite.common.upsize.UpsizeDecision;
+import com.hiddenwhite.common.upsize.UpsizeService;
+import com.hiddenwhite.common.upsize.UpsizeUnavailableReason;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderItem;
@@ -47,14 +50,16 @@ public class OrderService {
     private final PayDevModeProperties devMode;
     private final CouponService coupons;
     private final LevelDiscountService levelDiscounts;
+    private final UpsizeService upsizes;
 
     public OrderService(CatalogService catalog, ShopRepository repository, PayDevModeProperties devMode,
-                        CouponService coupons, LevelDiscountService levelDiscounts) {
+                        CouponService coupons, LevelDiscountService levelDiscounts, UpsizeService upsizes) {
         this.catalog = catalog;
         this.repository = repository;
         this.devMode = devMode;
         this.coupons = coupons;
         this.levelDiscounts = levelDiscounts;
+        this.upsizes = upsizes;
     }
 
     public List<Order> findAll(String memberId) {
@@ -112,16 +117,23 @@ public class OrderService {
         if (repository.hasActiveOrder(owner)) {
             throw new BusinessException(HttpStatus.CONFLICT, "当前有订单待支付或待取餐，请先处理或等待订单超时");
         }
-        List<OrderItem> items = buildItems(request.items());
-        // 先算商品金额：券的门槛按商品金额判定（不含包装费），会员折扣也按它计算
+        String level = repository.memberLevel(owner);
+        // 升杯必须先于算价：它改的是订单行的杯型，不是账单上的一笔减免
+        UpsizeDecision upsize = resolveUpsize(owner, level, request);
+        assertUpsizeUsable(upsize);
+        List<OrderItem> items = buildItems(request.items(), upsize);
+        // 先算商品金额：升杯会把目标杯型的差价计入商品金额（账面必须是真实杯型的价格），
+        // 折扣与券则按「扣掉升杯差价」的基数判定 —— 白送的 6 元不该被再让利一次。
         BigDecimal subtotal = subtotalOf(items);
-        Coupon coupon = coupons.resolveForOrder(owner, request.couponId(), subtotal);
+        BigDecimal upsizeValue = upsize.effective() ? upsize.sizeDiff() : BigDecimal.ZERO;
+        BigDecimal discountBase = subtotal.subtract(upsizeValue);
+        Coupon coupon = coupons.resolveForOrder(owner, request.couponId(), discountBase);
         OffsetDateTime created = OffsetDateTime.now(ZONE);
         OffsetDateTime ready = created.plusMinutes(PREPARATION_MINUTES);
         LocalDate orderDate = LocalDate.ofInstant(created.toInstant(), ZONE);
         // 会员折扣按「下单当天是星期几」判定，所以日期要先于算价确定
-        AppliedDiscount levelDiscount = levelDiscounts.evaluate(repository.memberLevel(owner), subtotal, orderDate);
-        PriceSummary summary = calculate(subtotal, items, owner, coupon, levelDiscount);
+        AppliedDiscount levelDiscount = levelDiscounts.evaluate(level, discountBase, orderDate);
+        PriceSummary summary = calculate(subtotal, upsize, items, owner, coupon, levelDiscount);
         String number = repository.nextOrderNumber(orderDate);
         // 取餐号独立取号：1~9999 每日循环，不再从订单号尾部派生。
         // 原实现 orderNumber.substring(len-3) 有两个硬伤：上限只有 999，
@@ -135,9 +147,19 @@ public class OrderService {
                 null, null, null, null, null, null, null, null, null);
         Order saved = repository.saveOrder(order);
 
+        // 升杯占用：写记录 + 扣分。与订单同一事务，任一步失败整体回滚，
+        // 不会留下「扣了分没升杯」或「升了杯没扣分」的中间态。
+        // 记录 id 要回填到账单行的 ref_id 上，客诉时才能从「免费升杯 −6」跳回具体那一次额度。
+        long upsizeRecordId = upsize.effective()
+                ? upsizes.record(owner, saved.id().toString(), upsize)
+                : 0L;
+
         // 优惠明细落库：一单可能有「会员折扣 + 优惠券」多条，逐条记下来才能对账
-        if (!summary.discounts().isEmpty()) {
-            repository.saveDiscounts(saved.id().toString(), summary.discounts());
+        List<DiscountLine> lines = upsizeRecordId > 0
+                ? bindUpsizeRef(summary.discounts(), upsizeRecordId)
+                : summary.discounts();
+        if (!lines.isEmpty()) {
+            repository.saveDiscounts(saved.id().toString(), lines);
         }
 
         // 只有「券真的被采用」时才核销。首单礼遇更划算时 couponId 为 null，券原样保留到下次。
@@ -164,12 +186,76 @@ public class OrderService {
      */
     public PriceSummary quote(CreateOrderRequest request, String callerId) {
         String owner = normalizeMemberId(callerId);
-        List<OrderItem> items = buildItems(request.items());
+        String level = repository.memberLevel(owner);
+        // 报价不抛「不可用」：结算页要能拿着这个结论把开关置灰并显示原因，
+        // 而不是让顾客一点报价就收到 409。真正的拒绝发生在下单（见 create）。
+        UpsizeDecision upsize = resolveUpsize(owner, level, request);
+        List<OrderItem> items = buildItems(request.items(), upsize);
         BigDecimal subtotal = subtotalOf(items);
-        Coupon coupon = coupons.resolveForOrder(owner, request.couponId(), subtotal);
+        BigDecimal upsizeValue = upsize.effective() ? upsize.sizeDiff() : BigDecimal.ZERO;
+        BigDecimal discountBase = subtotal.subtract(upsizeValue);
+        Coupon coupon = coupons.resolveForOrder(owner, request.couponId(), discountBase);
         LocalDate today = LocalDate.now(ZONE);
-        AppliedDiscount levelDiscount = levelDiscounts.evaluate(repository.memberLevel(owner), subtotal, today);
-        return calculate(subtotal, items, owner, coupon, levelDiscount);
+        AppliedDiscount levelDiscount = levelDiscounts.evaluate(level, discountBase, today);
+        return calculate(subtotal, upsize, items, owner, coupon, levelDiscount);
+    }
+
+    /**
+     * 解析本次是否使用升杯。
+     *
+     * <p>只在顾客勾选时才去判定；没勾选返回 {@link UpsizeDecision#skipped()}，
+     * 不去查库（会员页/游客下单不该为「没勾的功能」付一次查询）。
+     */
+    private UpsizeDecision resolveUpsize(String owner, String level, CreateOrderRequest request) {
+        if (!request.useUpsize()) {
+            return UpsizeDecision.skipped();
+        }
+        return upsizes.decide(owner, level, policy -> hasRowAt(request.items(), policy.fromSize()));
+    }
+
+    /**
+     * 下单时对「勾了却不可用」的兜底拒绝。
+     *
+     * <p>前端在结算页就会按 {@code reason} 置灰，正常流程走不到这里；
+     * 能走到这里说明状态在提交瞬间变了（额度被另一台设备用掉、积分被兑换掉）。
+     * 这种情况下<b>报错比静默降级诚实</b>：顾客明明勾了升杯，却拿到一杯标准杯还付了原价，
+     * 是最难解释的一种结果。
+     */
+    private void assertUpsizeUsable(UpsizeDecision upsize) {
+        if (upsize.reason() == UpsizeUnavailableReason.NOT_REQUESTED || upsize.available()) {
+            return;
+        }
+        throw new BusinessException(HttpStatus.CONFLICT, upsizeMessage(upsize.reason()));
+    }
+
+    /** 不可用原因 → 顾客能看懂的句子。文案集中在服务端，各端不必各写一份。 */
+    private static String upsizeMessage(UpsizeUnavailableReason reason) {
+        if (reason == null) {
+            return "免费升杯当前不可用";
+        }
+        return switch (reason) {
+            case INSUFFICIENT_POINTS -> "积分不足，无法用积分升杯；可取消升杯后按原杯型下单";
+            case LIMIT_REACHED -> "本月升杯次数已用完";
+            case NO_POINTS_COST -> "免费升杯次数已用完，当前等级不支持积分升杯";
+            case DISABLED -> "免费升杯活动已暂停";
+            case NO_ELIGIBLE_ITEM -> "本单已是最大杯型，无需升杯";
+            case SIZE_MISSING -> "升杯杯型配置有误，请稍后再试";
+            case NO_POLICY -> "当前等级暂未开放免费升杯";
+            case NOT_REQUESTED -> "";
+        };
+    }
+
+    /** 请求里是否有一行处在指定的起始杯型（空 size 走默认标准杯，与 buildItems 的兜底一致）。 */
+    private static boolean hasRowAt(List<OrderItemRequest> items, String fromSize) {
+        if (fromSize == null || fromSize.isBlank()) {
+            return false;
+        }
+        return items.stream().anyMatch(item -> fromSize.equals(effectiveSize(item.size())));
+    }
+
+    /** 未填杯型时的默认值；报价 / 下单 / 前置判定三处必须共用，否则会出现「判了能升、构建时对不上」。 */
+    private static String effectiveSize(String size) {
+        return size == null || size.isBlank() ? CatalogService.STANDARD_SIZE : size;
     }
 
     /**
@@ -223,6 +309,8 @@ public class OrderService {
         // 下单即核销的模型下，取消必须把券退回，否则顾客点一下取消就白丢 6 元，
         // 且账面上看不出任何痕迹。releaseForOrder 自带幂等与有效期重判。
         coupons.releaseForOrder(cancelled.id().toString());
+        // 升杯同理：没喝到这杯咖啡，额度和积分都不该被扣。两次释放都由条件更新保证幂等。
+        upsizes.releaseForOrder(cancelled.id().toString());
         return cancelled;
     }
 
@@ -256,11 +344,23 @@ public class OrderService {
         return repository.complete(existing.id(), OffsetDateTime.now(ZONE));
     }
 
-    private List<OrderItem> buildItems(List<OrderItemRequest> requests) {
+    /**
+     * 构建订单行，并可把其中一行的杯型升到目标杯型。
+     *
+     * <p><b>为什么在这里改杯型，而不是在账单上加一行减免</b>：制作单读的是
+     * {@code order_items.size_label}。只在账单减 6 元、库里仍写标准杯，店员会照标准杯做——
+     * 顾客付了升杯的钱却拿到小杯。杯型必须是真实值，账单上的「免费升杯 −6」只是它的对账行。
+     *
+     * <p><b>一次只升一杯</b>：命中的行数量大于 1 时，把它拆成
+     * 「数量-1 的原杯型 + 1 杯目标杯型」，而不是整行升。整行升会让差价变成 6×N，
+     * 但额度只允许免一杯，多出来的部分没有价目依据。
+     */
+    private List<OrderItem> buildItems(List<OrderItemRequest> requests, UpsizeDecision upsize) {
         List<OrderItem> items = new ArrayList<>();
+        boolean upsized = false;
         for (OrderItemRequest request : requests) {
             Product product = catalog.product(request.productId());
-            String size = request.size() == null || request.size().isBlank() ? CatalogService.STANDARD_SIZE : request.size();
+            String size = effectiveSize(request.size());
             String temperature = request.temperature() == null || request.temperature().isBlank() ? CatalogService.HOT : request.temperature();
             catalog.temperature(temperature);
             BigDecimal unitPrice = product.price().add(catalog.size(size).price());
@@ -271,6 +371,24 @@ public class OrderService {
             } else {
                 milk = CatalogService.NO_MILK;
             }
+
+            // 只升第一杯：额度按杯计算，一单多杯时升哪几杯会引入大量边界（见方案 3.2）
+            boolean canUpsize = !upsized && upsize.effective() && upsize.fromSize().equals(size);
+            if (canUpsize) {
+                upsized = true;
+                // 换杯型等价于「减去原杯型差价、加上目标杯型差价」，奶与温度不变
+                BigDecimal upUnit = unitPrice.subtract(catalog.size(size).price())
+                        .add(catalog.size(upsize.toSize()).price());
+                int rest = request.quantity() - 1;
+                if (rest > 0) {
+                    items.add(new OrderItem(product.id(), product.name(), size, temperature, milk,
+                            rest, unitPrice, unitPrice.multiply(BigDecimal.valueOf(rest))));
+                }
+                items.add(new OrderItem(product.id(), product.name(), upsize.toSize(), temperature, milk,
+                        1, upUnit, upUnit));
+                continue;
+            }
+
             BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(request.quantity()));
             items.add(new OrderItem(product.id(), product.name(), size, temperature, milk,
                     request.quantity(), unitPrice, lineTotal));
@@ -303,15 +421,19 @@ public class OrderService {
      * <p>返回的 {@code discounts} 是账单要逐行渲染的明细；{@code discountLabel} 只是
      * 主优惠名，为兼容旧调用方保留。
      */
-    private PriceSummary calculate(BigDecimal subtotal, List<OrderItem> items, String owner,
-                                   Coupon coupon, AppliedDiscount levelDiscount) {
+    private PriceSummary calculate(BigDecimal subtotal, UpsizeDecision upsize, List<OrderItem> items,
+                                   String owner, Coupon coupon, AppliedDiscount levelDiscount) {
         int count = items.stream().mapToInt(OrderItem::quantity).sum();
+        BigDecimal upsizeValue = upsize.effective() ? upsize.sizeDiff() : BigDecimal.ZERO;
+        // 折扣基数 = 商品金额 − 升杯差价。升杯是白送的实物，不该被再让利一次，
+        // 也不该用来把券的门槛凑够（否则送 6 元等于送两次）。
+        BigDecimal discountBase = subtotal.subtract(upsizeValue);
         BigDecimal firstOrder = repository.hasOrders(owner)
                 ? BigDecimal.ZERO
-                : FIRST_ORDER_DISCOUNT.min(subtotal);
+                : FIRST_ORDER_DISCOUNT.min(discountBase);
         BigDecimal levelAmount = levelDiscount == null ? BigDecimal.ZERO : levelDiscount.amount();
 
-        List<DiscountLine> lines = new ArrayList<>(2);
+        List<DiscountLine> lines = new ArrayList<>(3);
         BigDecimal baseDiscount = BigDecimal.ZERO;
         BigDecimal couponDiscount = BigDecimal.ZERO;
         String appliedCouponId = null;
@@ -324,10 +446,10 @@ public class OrderService {
             lines.add(DiscountLine.level(baseLabel, levelAmount));
             couponDiscount = coupon == null
                     ? BigDecimal.ZERO
-                    : coupon.discountFor(subtotal.subtract(levelAmount));
+                    : coupon.discountFor(discountBase.subtract(levelAmount));
         } else if (firstOrder.signum() > 0) {
             // 首单礼遇与券互斥：券在「原价」上比，谁省得多用谁
-            BigDecimal onSubtotal = coupon == null ? BigDecimal.ZERO : coupon.discountFor(subtotal);
+            BigDecimal onSubtotal = coupon == null ? BigDecimal.ZERO : coupon.discountFor(discountBase);
             if (onSubtotal.compareTo(firstOrder) > 0) {
                 couponDiscount = onSubtotal;
             } else {
@@ -336,7 +458,7 @@ public class OrderService {
                 lines.add(DiscountLine.firstOrder(baseLabel, firstOrder));
             }
         } else if (coupon != null) {
-            couponDiscount = coupon.discountFor(subtotal);
+            couponDiscount = coupon.discountFor(discountBase);
         }
 
         if (couponDiscount.signum() > 0 && coupon != null) {
@@ -344,13 +466,28 @@ public class OrderService {
             lines.add(DiscountLine.coupon(coupon.title(), couponDiscount, coupon.id()));
         }
 
-        BigDecimal totalDiscount = baseDiscount.add(couponDiscount);
+        // 升杯行放在最后：它是赠品的对账行，不影响前面任何一项的计算
+        if (upsizeValue.signum() > 0) {
+            lines.add(DiscountLine.upSize("免费升杯", upsizeValue, null));
+        }
+
+        BigDecimal totalDiscount = baseDiscount.add(couponDiscount).add(upsizeValue);
         String label = baseLabel.isEmpty()
                 ? (appliedCouponId == null ? "" : coupon.title())
                 : baseLabel;
         return new PriceSummary(subtotal, totalDiscount, PACKAGING_FEE,
                 subtotal.subtract(totalDiscount).add(PACKAGING_FEE), count,
-                label, appliedCouponId, couponDiscount, List.copyOf(lines));
+                label, appliedCouponId, couponDiscount, List.copyOf(lines), upsize);
+    }
+
+    /** 把升杯记录的 id 回填到账单行上（其余行原样返回）。 */
+    private static List<DiscountLine> bindUpsizeRef(List<DiscountLine> lines, long recordId) {
+        String ref = String.valueOf(recordId);
+        return lines.stream()
+                .map(line -> DiscountLine.TYPE_UP_SIZE.equals(line.type())
+                        ? DiscountLine.upSize(line.label(), line.amount(), ref)
+                        : line)
+                .toList();
     }
 
     private static BigDecimal subtotalOf(List<OrderItem> items) {

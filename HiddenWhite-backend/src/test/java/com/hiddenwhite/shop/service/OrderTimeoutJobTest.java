@@ -55,7 +55,7 @@ class OrderTimeoutJobTest {
     @BeforeEach
     void setUp() {
         repository = mock(ShopRepository.class);
-        job = new OrderTimeoutJob(repository, mock(CouponService.class));
+        job = new OrderTimeoutJob(repository, mock(CouponService.class), mock(com.hiddenwhite.common.upsize.UpsizeService.class));
     }
 
     @Test

@@ -134,6 +134,7 @@ import { currentUser, isLoggedIn } from '../../store/auth'
 import { birthday, loadBirthday, resetBirthday } from '../../store/birthday'
 import { coupons, loadCoupons, resetCoupons } from '../../store/coupons'
 import { levelDiscount, loadLevelDiscount, resetLevelDiscount } from '../../store/levelDiscount'
+import { upsize, loadUpsize, resetUpsize, upsizeCardText } from '../../store/upsize'
 import { themeOfLevel } from '../../utils/levelTheme'
 import { requestApi } from '../../config/backend'
 import { showNotice } from '../../utils/toast'
@@ -151,8 +152,7 @@ const member = ref({})
 
 const emit = defineEmits(['open-birthday'])
 
-/** 生日礼遇卡的文案由服务端状态决定：同一张卡，四态只换第二行 */
-const birthdayCard = computed(() => {
+/** 生日礼遇卡的文案由服务端状态决定：同一张卡，四态只换第二行 */const birthdayCard = computed(() => {
   const status = birthday.data
   if (!status) return { description: '生日专属惊喜', state: '' }
   switch (status.state) {
@@ -176,13 +176,16 @@ const birthdayCard = computed(() => {
 })
 
 /**
- * 礼遇卡视图：后端列表 + 生日卡的状态文案。
+ * 礼遇卡视图：后端列表 + 生日卡 / 升杯卡的状态文案。
  * 按标题匹配而非下标——礼遇清单由管理端维护，顺序随时可能变。
  */
 const benefitCards = computed(() =>
   benefits.value.map((benefit) => {
-    if (!String(benefit.title || '').includes('生日')) return benefit
-    return { ...benefit, ...birthdayCard.value }
+    const title = String(benefit.title || '')
+    if (title.includes('生日')) return { ...benefit, ...birthdayCard.value }
+    // 升杯卡的第二行由「本月额度 + 结算方式」决定，与生日卡同一套「一卡多态」做法
+    if (title.includes('升杯')) return { ...benefit, ...upsizeCardText(upsize.data) }
+    return benefit
   })
 )
 
@@ -208,6 +211,7 @@ async function activate() {
     resetBirthday()
     resetCoupons()
     resetLevelDiscount()
+    resetUpsize()
     return
   }
 
@@ -222,6 +226,8 @@ async function activate() {
     loadCoupons()
     // 会员折扣：读失败只是少显示一条信息，不该影响会员页主体
     loadLevelDiscount()
+    // 升杯额度同理：它只影响那一张礼遇卡的第二行
+    loadUpsize()
     member.value = { ...profile, memberLevel: profile.memberLevel || profile.level }
     // 后端若返回了图标字段，只接受已登记的图标名，否则保留本地图标
     benefits.value = rows.map((row, index) => ({
@@ -307,6 +313,15 @@ function openBenefit(benefit) {
   }
   if (title.includes('折扣')) {
     openLevelDiscount()
+    return
+  }
+  // 升杯卡不再弹「筹备中」：进入说明弹层，额度与规则都在里面
+  if (title.includes('升杯')) {
+    if (!isLoggedIn.value) {
+      openPage('auth', { redirect: 'member' })
+      return
+    }
+    emit('open-upsize')
     return
   }
   showFeature(benefit.title)

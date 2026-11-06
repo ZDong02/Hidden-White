@@ -17,7 +17,7 @@
         <OrdersPanel ref="ordersPanel" @show-voucher="voucherOpen = true" />
       </swiper-item>
       <swiper-item>
-        <MemberPanel ref="memberPanel" @open-birthday="openBirthday" />
+        <MemberPanel ref="memberPanel" @open-birthday="openBirthday" @open-upsize="openUpsize" />
       </swiper-item>
       <swiper-item>
         <ProfilePanel ref="profilePanel" @switch-tab="switchTo" />
@@ -133,6 +133,9 @@
     <!-- 生日礼遇弹层：入口在「会员」面板的礼遇卡，主体留在页面层（见 openBirthday 注释） -->
     <BirthdaySheet v-model:visible="birthdayOpen" />
 
+    <!-- 免费升杯说明弹层：与生日弹层同样挂在页面层（swiper-item 带 transform） -->
+    <UpsizeSheet v-model:visible="upsizeOpen" />
+
     <!--
       开屏动画：冷启动第一次进首页才放（consumeSplash 只发一次票）。
       放在页面层而不是独立启动页，首页在它下面就能完成渲染与首屏请求，
@@ -154,6 +157,7 @@ import MemberPanel from '../../components/tabs/MemberPanel.vue'
 import ProfilePanel from '../../components/tabs/ProfilePanel.vue'
 import Modal from '../../components/ui/Modal.vue'
 import BirthdaySheet from '../../components/BirthdaySheet.vue'
+import UpsizeSheet from '../../components/UpsizeSheet.vue'
 import Stepper from '../../components/ui/Stepper.vue'
 import UiButton from '../../components/ui/Button.vue'
 import SlideConfirm from '../../components/ui/SlideConfirm.vue'
@@ -165,6 +169,7 @@ import { STORE } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
 import { isLoggedIn } from '../../store/auth'
 import { loadBirthday } from '../../store/birthday'
+import { loadUpsize } from '../../store/upsize'
 import { showInfo } from '../../utils/toast'
 
 const TAB_IDS = ['home', 'orders', 'member', 'profile']
@@ -174,6 +179,7 @@ const activeTab = computed(() => TAB_IDS[activeIndex.value])
 const bagOpen = ref(false)
 const voucherOpen = ref(false)
 const birthdayOpen = ref(false)
+const upsizeOpen = ref(false)
 
 // 在 setup 里同步取票：早于首帧，不会先闪一下首页再盖上开屏
 const splashVisible = ref(consumeSplash())
@@ -198,6 +204,17 @@ const profilePanel = ref(null)
 function openBirthday() {
   birthdayOpen.value = true
   loadBirthday(true)
+}
+
+/**
+ * 免费升杯弹层。
+ *
+ * <p>与生日弹层同样挂在页面层。打开时强制刷新额度：
+ * 顾客可能刚在结算页用掉一次，这里必须立刻反映，否则会显示成「还有 1 次」。
+ */
+function openUpsize() {
+  upsizeOpen.value = true
+  loadUpsize(true)
 }
 
 const panelRefs = computed(() => ({

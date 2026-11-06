@@ -36,7 +36,14 @@ export const shop = reactive({
    * <p>放在 store 而不是结算页局部状态：{@code createOrder} 也要读它，
    * 报价与下单必须是同一张券，否则会出现「按券算的价、下单时没带券」而多扣钱。
    */
-  couponId: ''
+  couponId: '',
+  /**
+   * 本次结算是否使用免费升杯。
+   *
+   * <p>与 {@code couponId} 同理必须放在 store：{@code createOrder} 要读它。
+   * 默认 false —— 免费额度是稀缺资源（黄金每月 1 次），绝不自动消耗。
+   */
+  useUpsize: false
 })
 
 export const products = apiProducts
@@ -284,7 +291,9 @@ function toBackendPayload() {
     })),
     note: shop.note || '',
     // 服务端会校验这张券的归属 / 状态 / 门槛；空值等价于「不用券」
-    couponId: shop.couponId || null
+    couponId: shop.couponId || null,
+    // 服务端会再判一次额度，勾了却不可用会 409（见 OrderService.assertUpsizeUsable）
+    useUpsize: shop.useUpsize === true
   }
 }
 
@@ -361,6 +370,7 @@ export function clearOrderState() {
   shop.order = null
   shop.orderHistory = []
   shop.couponId = ''
+  shop.useUpsize = false
   setStorageImmediate(ORDER_KEY, null)
   setStorageImmediate(ORDER_HISTORY_KEY, [])
 }
@@ -397,8 +407,10 @@ export async function createOrder() {
   setStorageImmediate(ORDER_HISTORY_KEY, shop.orderHistory)
   shop.cart = []
   shop.note = ''
-  // 券已随订单核销，下一次结算必须重新选，不能把上一单的券带过去
+  // 券已随订单核销，下一次结算必须重新选，不能把上一单的券带过去；
+  // 升杯额度同理，勾选状态绝不能延续到下一单（否则会在顾客没注意时白用一次额度）。
   shop.couponId = ''
+  shop.useUpsize = false
   saveCartNow()
   return shop.order
 }

@@ -1429,7 +1429,99 @@ INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
 SELECT 1, id FROM sys_menu WHERE id = 410 OR parent_id = 410;
 
 -- ---------------------------------------------------------------------
--- 6) 只读检查
+-- 6) 免费升杯：等级策略 + 使用记录
+--
+--    规则模型 = 「每月免费额度」+「额度用完后按积分补足」两层：
+--    低等级没有免费额度，只能花积分；黄金起有免费次数，钻石全免不限次。
+--    这两个维度放在一张策略表里，运营改额度不用改代码。
+--
+--    -1 是唯一需要记住的魔法值：monthly_limit = -1 表示本月次数不限，
+--    free_quota = -1 表示免费次数不限（此时 points_cost 无意义）。
+--    不用 999 这类大数，是因为「999 次」和「不限」的语义不同，
+--    按 999 去算余量早晚会算错。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_upsize_policies (
+    level_key VARCHAR(30) NOT NULL COMMENT '等级键，与 members.member_level 一致（等级本身定义在 MemberLevels）',
+    level_name VARCHAR(30) NOT NULL COMMENT '展示用等级名',
+    monthly_limit INT NOT NULL DEFAULT 0 COMMENT '每月可用总次数；-1 = 不限',
+    free_quota INT NOT NULL DEFAULT 0 COMMENT '每月免费次数；-1 = 免费不限',
+    points_cost INT NOT NULL DEFAULT 0 COMMENT '免费额度用完后每次消耗积分；0 = 不再支持',
+    from_size VARCHAR(40) NOT NULL COMMENT '可升的起始杯型 label（product_options.SIZE）',
+    to_size VARCHAR(40) NOT NULL COMMENT '升级后的目标杯型 label',
+    enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用该等级的升杯权益',
+    note VARCHAR(120) NOT NULL DEFAULT '' COMMENT '点单端一句话说明',
+    sort_order INT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (level_key)
+) ENGINE=InnoDB COMMENT='会员等级升杯策略（每等级一行）';
+
+-- ---------------------------------------------------------------------
+-- 7) member_upsize_records：升杯使用记录
+--
+--    这张表同时承担两个职责：
+--    ① 对账（这一单升了杯、扣了几分、什么时候退的）；
+--    ② 额度计数（本月 status='USED' 的行数就是已用次数）。
+--
+--    为什么冗余 month_key：额度统计是「按月分组」，不是「按时间范围扫」。
+--    对 created_at 套 DATE_FORMAT 会让索引失效（项目既有约定：不对列套函数），
+--    而在 Java 里算月初月末又要处理跨年，存 char(7) 最省事且走得上索引。
+--
+--    为什么不给 (member_id, month_key) 建唯一索引：一个月允许合法使用多次，
+--    唯一约束拦不住超用（次数是变量），只会误拦正常记录。
+--    并发超用由 OrderService.create 的 synchronized 兜住（单实例），见方案 8.3。
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS member_upsize_records (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    member_id VARCHAR(36) NOT NULL,
+    level_key VARCHAR(30) NOT NULL COMMENT '使用时的等级快照，客诉时解释「当时是哪一档」',
+    month_key CHAR(7) NOT NULL COMMENT '归属自然月 yyyy-MM（Asia/Shanghai）',
+    pay_type VARCHAR(10) NOT NULL COMMENT 'FREE（免费额度）/ POINTS（积分兑换）',
+    points_cost INT NOT NULL DEFAULT 0 COMMENT '本次实扣积分',
+    size_from VARCHAR(40) NOT NULL,
+    size_to VARCHAR(40) NOT NULL,
+    order_id CHAR(36) NOT NULL COMMENT '核销到哪笔订单',
+    status VARCHAR(12) NOT NULL DEFAULT 'USED' COMMENT 'USED（已占用）/ RELEASED（已随订单取消释放）',
+    created_at DATETIME(6) NOT NULL,
+    released_at DATETIME(6) NULL,
+    remark VARCHAR(120) NOT NULL DEFAULT '',
+    PRIMARY KEY (id),
+    KEY idx_upsize_member_month (member_id, month_key, status),
+    KEY idx_upsize_order (order_id)
+) ENGINE=InnoDB COMMENT='会员升杯使用记录（下单占用、取消释放）';
+
+-- ---------------------------------------------------------------------
+-- 8) 升杯种子策略
+--    金色是第一次拿到「白送」的分界：黄金起有免费次数，这是升黄金最直观的动机。
+--    积分价随等级递减（200 → 150 → 100）：低等级不是不能升，而是升得更贵。
+--    用 INSERT IGNORE：重复执行 init.sql 不会把运营改过的额度重置回去。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO member_upsize_policies
+    (level_key, level_name, monthly_limit, free_quota, points_cost, from_size, to_size, enabled, note, sort_order)
+VALUES
+    ('普通会员', '普通会员', -1, 0, 200, '标准杯 240 毫升', '大杯 360 毫升', 1, '200 积分升一杯大杯', 1),
+    ('白银会员', '白银会员', 4, 0, 150, '标准杯 240 毫升', '大杯 360 毫升', 1, '150 积分升一杯大杯', 2),
+    ('黄金会员', '黄金会员', 6, 1, 100, '标准杯 240 毫升', '大杯 360 毫升', 1, '每月 1 次免费，之后 100 积分', 3),
+    ('铂金会员', '铂金会员', 8, 3, 100, '标准杯 240 毫升', '大杯 360 毫升', 1, '每月 3 次免费，之后 100 积分', 4),
+    ('钻石会员', '钻石会员', -1, -1, 0, '标准杯 240 毫升', '大杯 360 毫升', 1, '每月免费升杯不限次', 5);
+
+-- ---------------------------------------------------------------------
+-- 9) 管理端菜单：免费升杯（挂在咖啡运营 400 下，排在会员折扣之后）
+--    组件路径 coffee/upsize/index 必须在
+--    HiddenWhite-admin/src/composables/auth.ts 的 COMPONENT_MAP 登记。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
+VALUES
+    (411, 400, '免费升杯', 'menu', 'cup', '/coffee/upsize', 'coffee/upsize/index', 'coffee:upsize:list', 11, 1, 1, 'system', 'system'),
+    (4111, 411, '策略配置', 'btn', '', '', '', 'coffee:upsize:edit', 1, 1, 1, 'system', 'system'),
+    (4112, 411, '使用记录', 'btn', '', '', '', 'coffee:upsize:records', 2, 1, 1, 'system', 'system');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE id = 411 OR parent_id = 411;
+
+-- ---------------------------------------------------------------------
+-- 10) 只读检查
 -- ---------------------------------------------------------------------
 SELECT COUNT(*) AS level_policy_rows FROM member_level_policies;
 SELECT COUNT(*) AS level_discount_menus FROM sys_menu WHERE id = 410 OR parent_id = 410;
+SELECT COUNT(*) AS upsize_policy_rows FROM member_upsize_policies;
+SELECT COUNT(*) AS upsize_menus FROM sys_menu WHERE id = 411 OR parent_id = 411;

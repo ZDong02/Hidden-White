@@ -19,6 +19,8 @@ public record DiscountLine(String type, String label, BigDecimal amount, String 
     public static final String TYPE_FIRST_ORDER = "FIRST_ORDER";
     /** 优惠券 */
     public static final String TYPE_COUPON = "COUPON";
+    /** 免费升杯 */
+    public static final String TYPE_UP_SIZE = "UP_SIZE";
 
     public static DiscountLine level(String label, BigDecimal amount) {
         return new DiscountLine(TYPE_LEVEL, label, amount, null);
@@ -30,5 +32,16 @@ public record DiscountLine(String type, String label, BigDecimal amount, String 
 
     public static DiscountLine coupon(String label, BigDecimal amount, String couponId) {
         return new DiscountLine(TYPE_COUPON, label, amount, couponId);
+    }
+
+    /**
+     * 升杯抵扣行。
+     *
+     * <p>它不是「优惠」而是「赠品的对账行」：商品金额已按目标杯型抬高，
+     * 这一行把差价抵回 0，所以顾客实付与不用升杯时完全一样。
+     * {@code refId} 指向 {@code member_upsize_records.id}，客诉时能反查到是哪一次额度。
+     */
+    public static DiscountLine upSize(String label, BigDecimal amount, String recordId) {
+        return new DiscountLine(TYPE_UP_SIZE, label, amount, recordId);
     }
 }

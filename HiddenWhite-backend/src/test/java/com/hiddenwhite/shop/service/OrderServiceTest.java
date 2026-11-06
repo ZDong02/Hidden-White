@@ -5,6 +5,10 @@ import com.hiddenwhite.common.coupon.CouponService;
 import com.hiddenwhite.common.coupon.CouponStatus;
 import com.hiddenwhite.common.discount.AppliedDiscount;
 import com.hiddenwhite.common.discount.LevelDiscountService;
+import com.hiddenwhite.common.upsize.UpsizeDecision;
+import com.hiddenwhite.common.upsize.UpsizePayType;
+import com.hiddenwhite.common.upsize.UpsizeService;
+import com.hiddenwhite.common.upsize.UpsizeUnavailableReason;
 import com.hiddenwhite.shop.domain.Order;
 import com.hiddenwhite.shop.domain.OrderCancelReason;
 import com.hiddenwhite.shop.domain.OrderItem;
@@ -33,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -57,6 +62,7 @@ class OrderServiceTest {
     private PayDevModeProperties devMode;
     private CouponService coupons;
     private LevelDiscountService levelDiscounts;
+    private UpsizeService upsizes;
     private OrderService service;
 
     @BeforeEach
@@ -65,6 +71,9 @@ class OrderServiceTest {
         coupons = mock(CouponService.class);
         // 默认不打折（evaluate 返回 null）：绝大多数用例与会员折扣无关
         levelDiscounts = mock(LevelDiscountService.class);
+        // 默认不用升杯（request 的 useUpsize=false 时根本不会走到这里）。
+        // 升杯相关用例在 UpsizeTest 里用真实的 UpsizeService + 桩 JdbcTemplate 单独验证。
+        upsizes = mock(UpsizeService.class);
         // 会员等级影响折扣判定，给一个默认值，免得每个用例都要 stub
         when(repository.memberLevel(anyString())).thenReturn("黄金会员");
         // CatalogService 的 size()/milk()/temperature() 都经 repository.options(type) 解析，
@@ -85,14 +94,14 @@ class OrderServiceTest {
 
         // 默认关闭支付开发模式：绝大多数用例应走真实下单路径（停在 CREATED）
         devMode = new PayDevModeProperties();
-        service = new OrderService(new CatalogService(repository), repository, devMode, coupons, levelDiscounts);
+        service = new OrderService(new CatalogService(repository), repository, devMode, coupons, levelDiscounts, upsizes);
     }
 
     /** 打开支付开发模式并重建 service，用于验证「下单即PAID」的分支。 */
     private void enableDevMode() {
         devMode = new PayDevModeProperties();
         devMode.setDevMode(true);
-        service = new OrderService(new CatalogService(repository), repository, devMode, coupons, levelDiscounts);
+        service = new OrderService(new CatalogService(repository), repository, devMode, coupons, levelDiscounts, upsizes);
     }
 
     private static Product latte() {
@@ -544,5 +553,169 @@ class OrderServiceTest {
         assertThat(summary.discounts().get(1).type()).isEqualTo("COUPON");
         assertThat(summary.discount()).isEqualByComparingTo(new BigDecimal("7.60"));
         assertThat(summary.total()).isEqualByComparingTo(new BigDecimal("24.40"));
+    }
+
+    // ---- 免费升杯：升杯是「实物升级」，不是「价格优惠」 ----
+
+    /**
+     * 升杯后顾客实付<b>一分不多</b>，且订单行的杯型必须是真实的大杯。
+     *
+     * <p>这是整套设计最重要的一条：商品金额按大杯抬高（32 + 4 = 36），
+     * 再以 {@code UP_SIZE} 明细等额抵掉 4，合计仍是 32。
+     * 如果实现改成「只在账单减 4 元、库里仍写标准杯」，店员会照标准杯做，
+     * 顾客付了钱却拿到小杯——所以杯型断言与金额断言同等重要。
+     */
+    @Test
+    void upsizeRaisesSubtotalButKeepsTotalUnchanged() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(upsizes.decide(eq(ALICE), eq("黄金会员"), any())).thenReturn(upsizeFree("4.00"));
+        when(upsizes.record(eq(ALICE), anyString(), any())).thenReturn(99L);
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(upsizeRequest(1), ALICE);
+
+        // 测试桩里大杯比标准杯贵 4 元
+        assertThat(created.subtotal()).isEqualByComparingTo(new BigDecimal("36"));
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("4"));
+        assertThat(created.total()).isEqualByComparingTo(new BigDecimal("32"));
+
+        // 杯型必须是真实值：制作单读的就是这一列
+        assertThat(created.items()).singleElement()
+                .satisfies(item -> assertThat(item.size()).isEqualTo("大杯 360 毫升"));
+
+        // 订单行合计必须等于商品金额，否则管理端对账永远差 4 元
+        assertThat(created.items().stream().map(OrderItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add))
+                .isEqualByComparingTo(created.subtotal());
+
+        // 账单要有 UP_SIZE 行，且 refId 回填成升杯记录 id
+        verify(repository).saveDiscounts(anyString(), argThat(lines ->
+                lines.size() == 1
+                        && "UP_SIZE".equals(lines.get(0).type())
+                        && lines.get(0).amount().compareTo(new BigDecimal("4")) == 0
+                        && "99".equals(lines.get(0).refId())));
+        verify(upsizes).record(eq(ALICE), anyString(), any());
+    }
+
+    /**
+     * 会员折扣的基数必须是「不含升杯」的金额。
+     *
+     * <p>若拿 36 去算 9.5 折会得到 1.80；按 32 算才是 1.60。
+     * 白送的大杯再被打一次折，等于一次活动让利两次。
+     */
+    @Test
+    void levelDiscountIsComputedWithoutUpsizeValue() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(upsizes.decide(eq(ALICE), eq("黄金会员"), any())).thenReturn(upsizeFree("4.00"));
+        when(upsizes.record(eq(ALICE), anyString(), any())).thenReturn(99L);
+        when(levelDiscounts.evaluate(eq("黄金会员"), argThat(v -> v.compareTo(new BigDecimal("32")) == 0), any()))
+                .thenReturn(levelDiscount("1.60", "0.950", "黄金会员 9.5 折"));
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(upsizeRequest(1), ALICE);
+
+        // 36 − 1.60 − 4.00 = 30.40
+        assertThat(created.discount()).isEqualByComparingTo(new BigDecimal("5.60"));
+        assertThat(created.total()).isEqualByComparingTo(new BigDecimal("30.40"));
+    }
+
+    /**
+     * 券的门槛按「不含升杯」的金额判定：原价 32 不够满 34 的门槛，
+     * 不能因为送了 4 元的大杯就变成够门槛。
+     */
+    @Test
+    void couponThresholdIgnoresUpsizeValue() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(upsizes.decide(eq(ALICE), eq("黄金会员"), any())).thenReturn(upsizeFree("4.00"));
+        when(upsizes.record(eq(ALICE), anyString(), any())).thenReturn(99L);
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create(upsizeRequest(1, "cp-1"), ALICE);
+
+        // 传给券校验的是 32（不含升杯），不是 36
+        verify(coupons).resolveForOrder(eq(ALICE), eq("cp-1"),
+                argThat(v -> v.compareTo(new BigDecimal("32")) == 0));
+    }
+
+    /**
+     * 数量大于 1 的行会被拆成「原杯型若干 + 1 杯升杯」。
+     *
+     * <p>额度只允许免一杯，整行升会让差价变成 4×N，多出来的部分没有价目依据。
+     */
+    @Test
+    void multiCupLineIsSplitSoOnlyOneCupIsUpgraded() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(upsizes.decide(eq(ALICE), eq("黄金会员"), any())).thenReturn(upsizeFree("4.00"));
+        when(upsizes.record(eq(ALICE), anyString(), any())).thenReturn(99L);
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Order created = service.create(upsizeRequest(3), ALICE);
+
+        assertThat(created.items()).hasSize(2);
+        assertThat(created.items()).extracting(OrderItem::size)
+                .containsExactly("标准杯 240 毫升", "大杯 360 毫升");
+        assertThat(created.items()).extracting(OrderItem::quantity).containsExactly(2, 1);
+        // 总杯数不变：2 + 1 = 3
+        assertThat(created.count()).isEqualTo(3);
+        // 32×2 + 36×1 = 100
+        assertThat(created.subtotal()).isEqualByComparingTo(new BigDecimal("100"));
+        assertThat(created.total()).isEqualByComparingTo(new BigDecimal("96"));
+    }
+
+    /** 勾了升杯但服务端判定不可用（额度用完等）→ 409，而不是静默按标准杯成交。 */
+    @Test
+    void requestedButUnavailableUpsizeIsRejected() {
+        when(upsizes.decide(eq(ALICE), eq("黄金会员"), any())).thenReturn(upsizeUnavailable());
+
+        assertThatThrownBy(() -> service.create(upsizeRequest(1), ALICE))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("本月升杯次数已用完");
+
+        verify(repository, never()).saveOrder(any(Order.class));
+    }
+
+    /** 不勾选升杯时完全不查额度：游客与「没勾」的常规下单不该为它付一次数据库往返。 */
+    @Test
+    void upsizeIsNotEvaluatedWhenNotRequested() {
+        when(repository.hasOrders(ALICE)).thenReturn(true);
+        when(repository.saveOrder(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.create(request(null), ALICE);
+
+        verify(upsizes, never()).decide(anyString(), anyString(), any());
+        verify(upsizes, never()).record(anyString(), anyString(), any());
+    }
+
+    /** 取消订单要释放额度并退分 —— 顾客没喝到，额度和积分都不该被扣。 */
+    @Test
+    void cancellingOrderReleasesUpsize() {
+        Order existing = orderOf(ALICE, OrderStatus.CREATED);
+        when(repository.order(existing.id())).thenReturn(existing);
+        when(repository.cancel(any(), any(), any())).thenReturn(existing);
+
+        service.cancel(existing.id(), ALICE);
+
+        verify(upsizes).releaseForOrder(existing.id().toString());
+    }
+
+    private static CreateOrderRequest upsizeRequest(int quantity) {
+        return upsizeRequest(quantity, null);
+    }
+
+    private static CreateOrderRequest upsizeRequest(int quantity, String couponId) {
+        return new CreateOrderRequest(null,
+                List.of(new OrderItemRequest("latte", "标准杯 240 毫升", "热", "全脂奶", quantity)),
+                "", couponId, true);
+    }
+
+    /** 免费额度的判定结果（测试桩里差价 4 元）。 */
+    private static UpsizeDecision upsizeFree(String diff) {
+        return new UpsizeDecision(true, UpsizePayType.FREE, null,
+                "黄金会员", "黄金会员", "标准杯 240 毫升", "大杯 360 毫升",
+                new BigDecimal(diff), 0, 0, 1, 6, "");
+    }
+
+    private static UpsizeDecision upsizeUnavailable() {
+        return UpsizeDecision.unavailable(UpsizeUnavailableReason.LIMIT_REACHED, null,
+                new BigDecimal("4.00"), 0);
     }
 }

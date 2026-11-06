@@ -31,10 +31,16 @@ public enum PointsBizType {
     ADMIN_ADJUST,
 
     /** 生日礼遇发放（每年一次，`member_birthday_gifts` 唯一键兜住重复发放）。 */
-    BIRTHDAY_GIFT;
+    BIRTHDAY_GIFT,
+
+    /** 免费升杯按积分补足时扣分。 */
+    UP_SIZE,
+
+    /** 订单取消，退回升杯扣掉的积分。 */
+    UP_SIZE_REFUND;
 
     /** 是否为「消耗」方向：流水的正负号应与之一致，便于对账时快速自检。 */
     public boolean isSpend() {
-        return this == REDEEM || this == POINTS_DEDUCT;
+        return this == REDEEM || this == POINTS_DEDUCT || this == UP_SIZE;
     }
 }

@@ -1,6 +1,7 @@
 package com.hiddenwhite.shop.domain;
 
 import com.hiddenwhite.common.discount.DiscountLine;
+import com.hiddenwhite.common.upsize.UpsizeDecision;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,6 +24,9 @@ import java.util.List;
  * @param couponId       实际采用的优惠券 id；未用券为 null
  * @param couponDiscount 优惠券实际抵扣金额；未用券为 0
  * @param discounts      优惠明细（按账单展示顺序：身份权益在前，券在后）
+ * @param upsize         免费升杯的判定与结算结果；未使用或不可用时为 {@code available=false} 的对象。
+ *                       它是<b>账单上的实物升级</b>而不是价格优惠：商品金额按目标杯型抬高，
+ *                       再以 {@code UP_SIZE} 明细等额抵掉，顾客实付与不用升杯时完全相等。
  */
 public record PriceSummary(
         BigDecimal subtotal,
@@ -33,5 +37,6 @@ public record PriceSummary(
         String discountLabel,
         String couponId,
         BigDecimal couponDiscount,
-        List<DiscountLine> discounts) {
+        List<DiscountLine> discounts,
+        UpsizeDecision upsize) {
 }
