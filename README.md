@@ -82,6 +82,7 @@ Hidden White/
 │   └── src/test/                       # 单元测试
 │
 ├── docs/                               # 全部文档（入口见下表）
+├── deploy/                             # 服务器侧配置：nginx 单入口反代 + 网关密钥示例
 ├── .github/workflows/ci.yml            # 三端质量闸门
 ├── CODESTYLE.md                        # 全工作区统一代码规范
 ├── .editorconfig                       # 编辑器层统一约束
@@ -97,6 +98,7 @@ Hidden White/
 | [`docs/开发进程规划.md`](docs/开发进程规划.md) | 阶段性评估快照（2026-10-18）；常态推进以 `开发清单.md` 为准 |
 | [`docs/PROJECT_MAP.md`](docs/PROJECT_MAP.md) | 项目地图：页面 ↔ 接口 ↔ 表 ↔ 权限码 |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | 管理端设计规范（七层样式体系） |
+| [`docs/后端暴露面收敛.md`](docs/后端暴露面收敛.md) | **上线必读**：后端只监听回环、nginx 单入口、网关密钥、客户端入口锁定与兼容性 |
 | [`docs/清理与修复报告-2026-10-23.md`](docs/清理与修复报告-2026-10-23.md) | 最近一次清理/重构/修复的清单与验证方式 |
 | [`docs/优化记录-2026-10-24.md`](docs/优化记录-2026-10-24.md) | 验证码服务端渲染、认证限流、依赖治理等优化与遗留事项 |
 | [`docs/项目健康检查报告-2026-10-22.md`](docs/项目健康检查报告-2026-10-22.md) | 历史体检报告（阶段性快照，不代表当前状态） |
@@ -189,8 +191,19 @@ npm run dev:mp-weixin
 | `JWT_EXPIRES_SECONDS` | Token 有效期（秒） | `7200` |
 | `COFFEE_DB_NAME` | 咖啡业务表所在库 | `hidden_white` |
 | `CORS_ALLOWED_ORIGINS` | 跨域白名单（逗号分隔），**仅 prod 生效**；留空 = 不放行任何跨域来源 | 空 |
+| `SERVER_ADDRESS` | 监听地址，**仅 prod 生效**；默认 `127.0.0.1`（只允许反代访问，不直接对外） | `127.0.0.1` |
+| `HW_GATEWAY_SECRET` | 入口守卫密钥：反向代理以 `X-HW-Gateway` 注入，后端比对一致才处理请求；留空 = 不启用 | 空 |
 
-点单端后端地址配置：编辑 `HiddenWhite-front/config/backend-hosts.js`，添加你的后端 IP 即可，应用启动时自动探测连通的地址。
+点单端后端地址配置：
+
+- **开发**：编辑 `HiddenWhite-front/config/backend-hosts.js` 登记常用网络的 IP，启动时自动探测连通的地址。
+  「我的」页的「后端服务」调试卡**默认不显示**（会把后端地址露在界面上）；需要改地址时用
+  `VITE_SHOW_BACKEND_DEBUG=true` 启动开发服务。
+- **生产**：入口锁定，不再探测也不再允许运行时改写。`VITE_API_BASE_URL` 留空 = 同源 `/api`（H5 + nginx 反代，推荐）；
+  微信小程序必须填公网域名。详见 [`docs/后端暴露面收敛.md`](docs/后端暴露面收敛.md)。
+
+> 生产部署请走 [`deploy/nginx/hiddenwhite.conf`](deploy/nginx/hiddenwhite.conf)：客户端只认一个域名，
+> 后端 8080 只监听回环且需要网关密钥，局域网/公网都连不上。
 
 ---
 
@@ -199,12 +212,15 @@ npm run dev:mp-weixin
 | 端 | 前缀 | 鉴权 | 说明 |
 |----|------|------|------|
 | 小程序 / H5 | `/api/auth/login`、`/api/auth/register` | 无需登录 | 登录 / 注册，**返回 `{ member, token }`** |
-| 小程序 / H5 | `/api/products`、`/api/products/options`、`/api/store`、`/api/members/benefits` | 无需登录 | 浏览类公开接口 |
+| 小程序 / H5 | `/api/products`、`/api/products/options`、`/api/categories`、`/api/store`、`/api/members/benefits` | 无需登录 | 浏览类公开接口；`/api/categories` 是分类字典（`[{code,name}]`），分类栏文案以它为准 |
 | 小程序 / H5 | `/api/orders/**`、`/api/members/{id}`、`/api/members/points-log`、`/api/cart/quote`、`/api/redeem/**`、`/api/coupons/**`、`/api/auth/logout` | **需登录** | 会员归属以 token 判定，不接受客户端传入 memberId；报价要按本人历史订单判首单，故也需登录；积分兑换、明细与优惠券拒绝 `guest` 账号 |
 | 管理端 | `/api/admin/**` | JWT 登录 + 权限码 | auth、coffee、operation、redeem（积分运营）、coupon（优惠券）、birthday（生日礼遇）、level-discounts（会员折扣）、system、dashboard、monitor、tool/generator |
 | 健康检查 | `/api/health` | 放行 | 点单端用于后端地址自动探测 |
 
 > 管理端登录地址：`/api/admin/auth/login`；点单端注销地址：`/api/auth/logout`
+>
+> 生产环境上述接口**只经 nginx 暴露**（代理注入 `X-HW-Gateway`）；直连后端端口一律 403，
+> 且后端只监听回环 —— 见 [`docs/后端暴露面收敛.md`](docs/后端暴露面收敛.md)。
 
 ### 点单端鉴权约定（2026-10-17 安全加固）
 

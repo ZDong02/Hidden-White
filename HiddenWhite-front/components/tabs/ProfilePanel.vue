@@ -106,7 +106,19 @@
     <view class="profile-note">
       {{ isLoggedIn ? '订单与会员信息已绑定当前账号' : '登录后即可点单，订单信息会安全保存' }}
     </view>
-    <view class="dev-tools" hover-class="dev-tools--press" :hover-stay-time="60" @tap="openBackendSetting" @longpress="onBackendLongPress">
+    <!--
+      后端地址调试卡：只在开发构建里出现。
+      生产构建锁定了接口入口（同源 /api，由 nginx 反代），
+      这张卡既改不动地址，也不该把后端地址摊给顾客看。
+    -->
+    <view
+      v-if="devToolsVisible"
+      class="dev-tools"
+      hover-class="dev-tools--press"
+      :hover-stay-time="60"
+      @tap="openBackendSetting"
+      @longpress="onBackendLongPress"
+    >
       <view class="dev-row">
         <text class="dev-label">后端服务</text>
         <text class="dev-value" :class="backendOk ? 'ok' : 'bad'">
@@ -126,12 +138,21 @@ import { resetCoupons } from '../../store/coupons'
 import { resetLevelDiscount } from '../../store/levelDiscount'
 import { currentUser, isLoggedIn, logout } from '../../store/auth'
 import { openPage, showStoreInfo } from '../../utils/navigation'
-import { showNotice } from '../../utils/toast'
-import { checkApiHealth, resetApiBaseUrl, setApiBaseUrl } from '../../config/backend'
+import { showConfirm, showNotice, showPrompt, showSuccess } from '../../utils/toast'
+import { BACKEND_DEBUG_VISIBLE, checkApiHealth, resetApiBaseUrl, setApiBaseUrl } from '../../config/backend'
 
 const emit = defineEmits(['switch-tab'])
 
 const activeOrderCount = computed(() => shop.order ? 1 : 0)
+
+/**
+ * 后端调试卡是否可用。
+ *
+ * 默认关闭（开发构建也一样）：这张卡会把后端地址摊在顾客可见的界面上，
+ * 演示和截图的场合都会露出来。需要改地址时用
+ * `VITE_SHOW_BACKEND_DEBUG=true` 启动，生产构建注入也不显示（见 config/backend.js）。
+ */
+const devToolsVisible = BACKEND_DEBUG_VISIBLE
 
 // 后端连接状态：换网络后能直接看出「连不上」并当场改地址，不用再去翻代码
 const backendOk = ref(false)
@@ -145,7 +166,8 @@ async function checkBackend() {
 
 // 壳页面在切到本面板 / 页面 onShow 时调用
 async function activate() {
-  checkBackend()
+  // 调试卡没打开时不探活：地址固定，多探一次只是白花一个请求
+  if (devToolsVisible) checkBackend()
 
   try {
     await refreshOrders()
@@ -157,43 +179,47 @@ async function activate() {
 }
 
 // 打开后端地址设置：可手动填写、自动探测或恢复默认
-function openBackendSetting() {
-  uni.showModal({
+async function openBackendSetting() {
+  if (!devToolsVisible) return
+  // 说明文字与输入值分开传：原生 modal 只能把 content 当输入框初值，
+  // 那段说明会被预填进输入框，用户直接点保存就会把说明文字存成地址
+  const value = await showPrompt({
     title: '后端服务地址',
-    content: `当前：${backendAddress.value || '未检测'}\n状态：${backendOk.value ? '已连接' : '未连接'}\n\n可直接填写新地址，如 http://10.30.120.150:8080`,
-    editable: true,
-    placeholderText: 'http://IP:8080',
-    confirmText: '保存',
-    cancelText: '取消',
-    success: async (res) => {
-      if (!res.confirm) return
-      const value = (res.content || '').trim()
-      if (value) {
-        setApiBaseUrl(value)
-        // 地址变了，商品与门店缓存需失效，否则会继续展示旧数据
-        invalidateCatalog()
-      }
-      const health = await checkApiHealth()
-      backendOk.value = health.ok
-      backendAddress.value = health.baseUrl
-      if (value && !health.ok) {
-        uni.showModal({
-          title: '仍然无法连接',
-          content: `地址已保存为 ${health.baseUrl}，但连接失败。\n\n请确认：\n1. Spring Boot 已启动\n2. 手机与电脑在同一局域网\n3. 电脑防火墙已放行 8080 端口\n\n点「重置」可恢复自动探测。`,
-          confirmText: '知道了'
-        })
-        return
-      }
-      if (health.ok) {
-        invalidateCatalog()
-        uni.showToast({ title: '连接成功', icon: 'success' })
-      }
-    }
+    content: `当前：${backendAddress.value || '未检测'}\n状态：${backendOk.value ? '已连接' : '未连接'}`,
+    placeholder: 'http://IP:8080',
+    value: backendAddress.value,
+    confirmText: '保存'
   })
+
+  if (value === null) return
+
+  if (value) {
+    setApiBaseUrl(value)
+    // 地址变了，商品与门店缓存需失效，否则会继续展示旧数据
+    invalidateCatalog()
+  }
+
+  const health = await checkApiHealth()
+  backendOk.value = health.ok
+  backendAddress.value = health.baseUrl
+
+  if (value && !health.ok) {
+    showNotice(
+      '仍然无法连接',
+      `地址已保存为 ${health.baseUrl}，但连接失败。\n\n请确认：\n1. Spring Boot 已启动\n2. 手机与电脑在同一局域网\n3. 电脑防火墙已放行 8080 端口\n\n长按「后端服务」可恢复自动探测。`
+    )
+    return
+  }
+
+  if (health.ok) {
+    invalidateCatalog()
+    showSuccess('连接成功')
+  }
 }
 
 // 长按可恢复自动探测（清除手动配置）
 function onBackendLongPress() {
+  if (!devToolsVisible) return
   resetApiBaseUrl()
   invalidateCatalog()
   checkBackend()
@@ -208,28 +234,30 @@ function openOrders() {
   emit('switch-tab', 'orders')
 }
 
-function handleAuth() {
+async function handleAuth() {
   if (!isLoggedIn.value) {
     openPage('auth')
     return
   }
 
-  uni.showModal({
+  const confirmed = await showConfirm({
     title: '退出登录',
     content: '退出后需要重新登录才能下单。',
-    success: async (res) => {
-      if (!res.confirm) return
-      await logout()
-      // 只清内存不够：上一账号的订单还留在 storage 里，
-      // 下次冷启动会被读回来，连带把新会员的首单减免判掉
-      clearOrderState()
-      // 券包同理：不清的话，下一位登录者会先看到上一个人的券，再被接口结果覆盖
-      resetCoupons()
-      // 等级折扣也是「谁登录就属于谁」的数据
-      resetLevelDiscount()
-      uni.showToast({ title: '已退出登录', icon: 'none' })
-    }
+    confirmText: '退出',
+    danger: true
   })
+
+  if (!confirmed) return
+
+  await logout()
+  // 只清内存不够：上一账号的订单还留在 storage 里，
+  // 下次冷启动会被读回来，连带把新会员的首单减免判掉
+  clearOrderState()
+  // 券包同理：不清的话，下一位登录者会先看到上一个人的券，再被接口结果覆盖
+  resetCoupons()
+  // 等级折扣也是「谁登录就属于谁」的数据
+  resetLevelDiscount()
+  uni.showToast({ title: '已退出登录', icon: 'none' })
 }
 
 defineExpose({ activate })

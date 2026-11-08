@@ -3,6 +3,28 @@
 # 激活方式：SPRING_PROFILES_ACTIVE=prod
 # ============================================
 
+server:
+  # -------------------------------------------------------------------
+  # 只监听回环地址：外部网络连不到 8080，唯一的入口是前置反代
+  # （deploy/nginx/hiddenwhite.conf 里的 /api 与 /uploads）。
+  #
+  # 反代与应用不在同一台机器 / 同一容器网络时，改成本机对内网暴露的那个地址
+  # （例如 Docker 网桥 172.17.0.1），并且只放在内网网卡上；
+  # 任何时候都不要写 0.0.0.0 —— 那等于把之前所有代理层加固全部作废。
+  # -------------------------------------------------------------------
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  # 反代注入 X-Forwarded-For / X-Forwarded-Proto 后交给容器解析：
+  # 限流（RateLimitFilter 用 getRemoteAddr）与审计日志才能拿到真实客户端 IP，
+  # 而不是「所有请求都来自 127.0.0.1」。
+  forward-headers-strategy: framework
+  error:
+    # 出错时不回显异常信息、堆栈与类名：这些内容会泄露表结构、包名与内部路径
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+    whitelabel:
+      enabled: false
+
 # 跨域白名单：生产环境必须显式指定前端域名，否则不启用任何跨域来源。
 # 强烈建议改用环境变量注入，避免把域名写死在仓库里：
 #   CORS_ALLOWED_ORIGINS=https://admin.example.com
@@ -14,6 +36,14 @@ hiddenwhite:
     enabled: false
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  gateway:
+    # -------------------------------------------------------------------
+    # 入口守卫密钥：由反向代理以请求头 X-HW-Gateway 注入，后端比对一致才处理请求。
+    # 留空 = 不启用（本地开发无需配置）；生产必须注入，否则绕过反代直连后端仍可用。
+    #   HW_GATEWAY_SECRET=$(openssl rand -hex 32)
+    # nginx 侧同值写在 proxy_set_header 里，仅保存在服务器上的配置文件与环境变量中。
+    # -------------------------------------------------------------------
+    secret: ${HW_GATEWAY_SECRET:}
   pay:
     # 生产环境强制关闭支付开发模式。
     # 此处的 false 是硬性约束：PayDevModeGuard 在应用就绪时会校验，

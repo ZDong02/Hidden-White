@@ -21,6 +21,49 @@ const API_BASE_MANUAL_KEY = 'hw-api-base-manual'
 const HEALTH_PATH = '/health'
 const PROBE_TIMEOUT = 3000
 const REQUEST_TIMEOUT = 10000
+
+/**
+ * 生产构建是否锁定访问入口。
+ *
+ * <p>锁定后只认两种地址：构建期注入的 `VITE_API_BASE_URL`，或同源 `/api`
+ * （由 nginx 反代到后端）。运行时改写地址、内网候选地址探测一律停用。
+ *
+ * <p>为什么必须锁：客户端能自由指定后端地址，等于把「接口可以被导到任意服务器」
+ * 这个能力交给使用者 —— 本地存储里塞一个地址就能让下单请求打到自建服务；
+ * 同时 `config/backend-hosts.js` 里的内网 IP 会随安装包发出去，
+ * 这些地址本不该出现在客户端可见的任何产物里。
+ *
+ * <p>判据用 `PROD` 而不是 `!DEV`：Node 测试环境两个字段都不存在，
+ * 那时按「未锁定」处理，才能继续跑地址解析的防护测试。
+ */
+const IS_PROD_BUILD = Boolean(import.meta.env && import.meta.env.PROD)
+/** 极端场景（预发机上仍需改地址）才打开：构建时注入 VITE_ALLOW_ENDPOINT_OVERRIDE=true */
+const ALLOW_OVERRIDE_IN_PROD = Boolean(import.meta.env && import.meta.env.VITE_ALLOW_ENDPOINT_OVERRIDE === 'true')
+
+/** 生产构建的入口锁定状态：为 true 时只认同源 /api 或构建期注入的域名。 */
+export const ENDPOINT_LOCKED = IS_PROD_BUILD && !ALLOW_OVERRIDE_IN_PROD
+
+/** 调试卡片是否被显式要求显示：构建/启动时注入 VITE_SHOW_BACKEND_DEBUG=true 才为 true。 */
+const DEBUG_CARD_REQUESTED = Boolean(
+  import.meta.env && import.meta.env.VITE_SHOW_BACKEND_DEBUG === 'true'
+)
+
+/**
+ * 「我的」页「后端服务」调试卡是否渲染。
+ *
+ * <p><b>默认关闭</b>，开发构建也一样：这张卡会把后端地址摊在界面上，
+ * 演示、截图、把手机递给别人看菜单时都会露出来，而它真正要解决的
+ * 「换网络后端口变了」一周也用不上一次。
+ *
+ * <p>需要改地址时（本地联调 / 手机连不上本机后端），启动前显式打开：
+ * <pre>
+ *   VITE_SHOW_BACKEND_DEBUG=true npm run dev:h5
+ *   VITE_SHOW_BACKEND_DEBUG=true npm run dev:mp-weixin
+ * </pre>
+ * 生产构建即使注入该变量也不会显示（入口已锁定，改地址本来就不生效）。
+ */
+export const BACKEND_DEBUG_VISIBLE = DEBUG_CARD_REQUESTED && !ENDPOINT_LOCKED
+
 // 探测的硬截止。
 // uni.request 的 timeout 只是「空闲超时」：TCP 握手阶段卡住时它不一定触发回调，
 // 而探测只有在「全部候选都回来」时才 resolve。于是只要有一个候选地址挂在连接上
@@ -71,6 +114,11 @@ function ensureApiSuffix(value) {
 // 候选地址：来自 config/backend-hosts.js + 本机兜底。
 // 换网络时只需改那一个文件，无需改动任何业务代码。
 function readCandidateHosts() {
+  // 生产构建直接返回空数组：这段判断在打包时会被折叠成 `return []`，
+  // 连带 backend-hosts.js 与下面的本机兜底一起被摇掉 ——
+  // 内网 IP 属于拓扑信息，不该随客户端安装包发出去，生产环境也没有「换网络找后端」这回事。
+  if (import.meta.env && import.meta.env.PROD) return []
+
   const candidates = []
   try {
     BACKEND_HOSTS.forEach((host) => {
@@ -111,6 +159,30 @@ function markBaseUnreachable() {
   }
 }
 
+/**
+ * 打一次健康检查，返回连通性与可读原因。
+ *
+ * <p>探测（probeCandidates）与自检（checkApiHealth）共用这一处：
+ * 两处各写一遍 `/health` 请求时，超时、状态码判定、失败文案很容易只改一边 ——
+ * 于是会出现「探测认为连得上、自检说不通」这类互相矛盾的诊断。
+ *
+ * @returns {Promise<{ ok: boolean, message: string }>}
+ */
+function probeHealth(base, timeout = PROBE_TIMEOUT) {
+  return new Promise((resolve) => {
+    uni.request({
+      url: `${base}${HEALTH_PATH}`,
+      method: 'GET',
+      timeout,
+      success: (res) => {
+        const ok = res.statusCode >= 200 && res.statusCode < 400
+        resolve({ ok, message: ok ? '连接正常' : `状态码 ${res.statusCode}` })
+      },
+      fail: (error) => resolve({ ok: false, message: error?.errMsg || '连接失败' })
+    })
+  })
+}
+
 // 探测候选地址，返回第一个可用的 baseUrl；全部失败返回 ''。
 function probeCandidates(candidates) {
   const list = [...new Set(candidates.filter(Boolean))]
@@ -138,13 +210,7 @@ function probeCandidates(candidates) {
         if (pending === 0) done('')
       }
 
-      uni.request({
-        url: `${candidate}${HEALTH_PATH}`,
-        method: 'GET',
-        timeout: PROBE_TIMEOUT,
-        success: (res) => finish(res.statusCode >= 200 && res.statusCode < 400),
-        fail: () => finish(false)
-      })
+      probeHealth(candidate).then((result) => finish(result.ok))
     })
   })
 
@@ -154,7 +220,39 @@ function probeCandidates(candidates) {
   return withDeadline(all, PROBE_DEADLINE, '')
 }
 
+/** 清掉调试期残留在本机的自定义地址：锁定后它已失效，留着只会误导排查。 */
+function clearStoredOverride() {
+  try {
+    uni.removeStorageSync(API_BASE_STORAGE_KEY)
+    uni.removeStorageSync(API_BASE_MANUAL_KEY)
+  } catch {
+    // 清不掉也无所谓：锁定态本来就不读这两个键
+  }
+}
+
 async function resolveApiBaseUrl() {
+  // ---------------------------------------------------------------
+  // 生产构建：入口锁定
+  //   1. 有 VITE_API_BASE_URL → 用它（小程序等原生端必须走这条）；
+  //   2. 否则用同源 /api（H5 由 nginx 反代到后端，客户端根本不知道后端在哪）。
+  // 内网候选地址探测、本机自定义地址在锁定态一律不参与。
+  // ---------------------------------------------------------------
+  if (ENDPOINT_LOCKED) {
+    clearStoredOverride()
+    const fromEnv = readEnvBaseUrl()
+    if (fromEnv) return ensureApiSuffix(fromEnv)
+
+    // 缺 VITE_API_BASE_URL 在 H5 是正常情况（同域走相对路径），
+    // 但小程序 / App 不支持相对路径，属于发版前必须修掉的配置问题 ——
+    // 只在原生端告警，避免 H5 产物里带一条永远打不到的日志。
+    // #ifndef H5
+    console.error('[backend] 生产构建缺少 VITE_API_BASE_URL，小程序/App 端将无法访问接口')
+    // #endif
+
+    // 同源 /api：由 nginx 的 /api/ 反代到后端，客户端不知道后端在哪
+    return '/api'
+  }
+
   const stored = readStoredBaseUrl()
   if (stored) {
     // 手动填的地址无条件尊重；探测缓存则记下来源，连不上时允许被丢弃重探
@@ -195,8 +293,14 @@ export async function getApiBaseUrl() {
   return apiBaseUrl
 }
 
-/** 运行时切换后端地址并持久化，用于"我的"页手动配置。 */
+/** 运行时切换后端地址并持久化，用于"我的"页手动配置（仅开发构建可用）。 */
 export function setApiBaseUrl(value) {
+  if (ENDPOINT_LOCKED) {
+    // 生产构建里这个方法不该被调用（调试卡片已不渲染）；
+    // 万一被调用也直接忽略，避免「界面改了但实际没生效」或反过来被改写
+    console.warn('[backend] 生产构建已锁定接口入口，忽略运行时修改')
+    return apiBaseUrl || '/api'
+  }
   const normalized = ensureApiSuffix(value)
   if (!normalized) return apiBaseUrl
   apiBaseUrl = normalized
@@ -247,20 +351,8 @@ export function getApiOrigin() {
 export async function checkApiHealth() {
   const base = await getApiBaseUrl()
   if (!base) return { ok: false, baseUrl: '', message: '未解析到后端地址' }
-  try {
-    await new Promise((resolve, reject) => {
-      uni.request({
-        url: `${base}${HEALTH_PATH}`,
-        method: 'GET',
-        timeout: PROBE_TIMEOUT,
-        success: (res) => (res.statusCode >= 200 && res.statusCode < 400 ? resolve(res) : reject(new Error(`状态码 ${res.statusCode}`))),
-        fail: (err) => reject(new Error(err.errMsg || '连接失败'))
-      })
-    })
-    return { ok: true, baseUrl: base, message: '连接正常' }
-  } catch (error) {
-    return { ok: false, baseUrl: base, message: error.message || '连接失败' }
-  }
+  const { ok, message } = await probeHealth(base)
+  return { ok, baseUrl: base, message }
 }
 
 // 请求前确保地址已解析。同一时刻的并发调用共享同一次解析过程。

@@ -1,0 +1,12 @@
+# =====================================================================
+# 网关头密钥（示例）
+# ---------------------------------------------------------------------
+# 1) 生成：openssl rand -hex 32
+# 2) 复制到服务器：/etc/nginx/hw-gateway.conf
+#    sudo install -m 600 -o root -g root hw-gateway.conf /etc/nginx/hw-gateway.conf
+# 3) 同一个值注入后端：HW_GATEWAY_SECRET=<同一个值>
+# 4) sudo nginx -t && sudo systemctl reload nginx
+#
+# 该文件不要提交到仓库、不要进镜像。仓库里只保留本示例。
+# =====================================================================
+set $hw_gateway_secret "REPLACE_WITH_HW_GATEWAY_SECRET";

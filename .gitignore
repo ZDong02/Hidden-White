@@ -35,6 +35,9 @@ uploads/
 .env.*
 *.local
 *.pem
+# 模板文件只有字段说明、没有真实值，必须能进仓库，否则新环境不知道要配什么
+!.env.example
+!.env.*.example
 
 # ===== AI 工作日志（本地开发记录，含内网地址与排查过程，不公开）=====
 .workbuddy/
