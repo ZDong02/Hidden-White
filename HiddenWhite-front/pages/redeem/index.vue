@@ -177,6 +177,9 @@
         </view>
       </view>
     </view>
+
+    <!-- 全局对话框宿主：不可兑换的原因提示、取消兑换二次确认都由它渲染 -->
+    <DialogHost />
   </view>
 </template>
 
@@ -187,6 +190,7 @@ import PhoneHeader from '../../components/PhoneHeader.vue'
 import Icon from '../../components/ui/Icon.vue'
 import UiButton from '../../components/ui/Button.vue'
 import SlideConfirm from '../../components/ui/SlideConfirm.vue'
+import DialogHost from '../../components/ui/DialogHost.vue'
 import { requestApi } from '../../config/backend'
 import { resolveImageUrl } from '../../utils/image'
 import { openPage } from '../../utils/navigation'

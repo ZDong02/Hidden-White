@@ -1,5 +1,6 @@
 import { STORE } from '../config/constants'
 import { normalizeCoordinate } from './location'
+import { dialogConfirm, dialogNotice } from '../store/dialog'
 
 // 订单 / 会员 / 我的已合并进壳页面（横向 Tab 面板），通过 ?tab= 直达对应分段
 const PAGES = Object.freeze({
@@ -113,17 +114,16 @@ function storeAddressOf(store = {}) {
  * 比只显示一行错误提示有用。复制内容用 shortAddress（可被地图 App 直接解析的写法）。
  */
 function fallbackToAddress(store = {}) {
-  uni.showModal({
+  dialogConfirm({
     title: storeNameOf(store),
     content: `${storeAddressOf(store)}\n\n暂时无法打开地图，可复制地址后在地图 App 中搜索。`,
     confirmText: '复制地址',
-    cancelText: '知道了',
-    success: (res) => {
-      if (!res.confirm) return
-      uni.setClipboardData({
-        data: STORE.shortAddress || storeAddressOf(store)
-      })
-    }
+    cancelText: '知道了'
+  }).then((copied) => {
+    if (!copied) return
+    uni.setClipboardData({
+      data: STORE.shortAddress || storeAddressOf(store)
+    })
   })
 }
 
@@ -164,9 +164,9 @@ export function navigateToStore(store = {}) {
 }
 
 export function showStoreInfo() {
-  uni.showModal({
+  dialogNotice({
     title: STORE.name,
     content: `${STORE.address}\n营业时间 ${STORE.hours}\n到店自提，请向咖啡师出示取餐号。`,
-    showCancel: false
+    confirmText: '知道了'
   })
 }

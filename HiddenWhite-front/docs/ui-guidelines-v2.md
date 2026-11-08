@@ -258,6 +258,43 @@ margin-bottom: 32rpx;  // 图片与标题
 
 ---
 
+## 弹窗与提示规范
+
+点单端**不再使用系统弹窗**（`uni.showModal` / `wx.showModal` / `alert` / `confirm` / `prompt`）：
+原生弹窗的字体、按钮、圆角由系统决定，引用不到设计令牌，三端表现不一致。
+按「信息量」分成两层，不要混用：
+
+| 层 | 组件 | 用于 | 形态 |
+|---|---|---|---|
+| 抽屉 | `components/ui/Modal.vue` | 需要看/选的内容（选券、升杯说明、生日礼遇） | 底部上滑，`$r-xl` 顶圆角 |
+| 对话框 | `components/ui/Dialog.vue` | 一句话 + 表态（提示、二次确认、单行输入） | 居中卡片，`$r-xl` 四周圆角 |
+
+**调用方式**（命令行式，不用在页面里维护 `visible`）：
+
+```js
+import { showNotice, showConfirm, showPrompt } from '../utils/toast'
+import { dialogNotice, dialogConfirm, dialogPrompt } from '../store/dialog'
+
+showNotice('会员中心', '该服务正在筹备中')                  // 单个「知道了」
+const ok = await showConfirm({ title: '取消订单', content: '…', danger: true })
+const note = await showPrompt({ title: '订单备注', value: shop.note })
+```
+
+- 渲染方是 `components/ui/DialogHost.vue`，**必须挂在页面层**——
+  `swiper-item` 带 `transform`，`position: fixed` 在微信端会相对它定位而错位。
+- 页面接入了弹窗 API 就必须挂 `<DialogHost />`，否则会退回系统弹窗
+  （`store/dialog.js` 的降级分支，只为兜底，不是正常路径）。
+- `danger: true` 用于破坏性主操作（取消订单、退出登录）：确认键改用 `$c-danger`，
+  普通主操作仍是深底金字。
+- 遮罩默认**不可点关闭**，与原生 modal 一致，避免误触关掉需要明确表态的确认。
+- 轻提示（`showSuccess` / `showError` / `showInfo`）仍是系统 toast：1.5 秒即走、
+  不需要表态，自绘反会盖住操作区。
+
+`tests/no-native-dialog.test.js` 静态锁死这条规则：出现系统弹窗调用、
+或页面用了弹窗 API 却没挂宿主，`npm test` 直接失败。
+
+---
+
 ## 兼容性说明
 
 - **小程序**：所有动效使用 `transform` + `opacity`，不使用 `filter`

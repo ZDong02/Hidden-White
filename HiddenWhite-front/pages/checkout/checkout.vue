@@ -195,6 +195,9 @@
         <text class="picker-foot-note">{{ pickerHint }}</text>
       </template>
     </Modal>
+
+    <!-- 全局对话框宿主：备注输入、下单二次确认都由它渲染（见 store/dialog.js） -->
+    <DialogHost />
   </view>
 </template>
 
@@ -209,6 +212,7 @@ import Card from '../../components/ui/Card.vue'
 import UiButton from '../../components/ui/Button.vue'
 import Icon from '../../components/ui/Icon.vue'
 import Modal from '../../components/ui/Modal.vue'
+import DialogHost from '../../components/ui/DialogHost.vue'
 import { shop, count, subtotal, total, createOrder, quoteCart } from '../../store/index'
 import { loadUsableCoupons } from '../../store/coupons'
 import { STORE, BUSINESS } from '../../config/constants'

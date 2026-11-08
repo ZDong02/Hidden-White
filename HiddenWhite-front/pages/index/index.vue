@@ -136,6 +136,9 @@
     <!-- 免费升杯说明弹层：与生日弹层同样挂在页面层（swiper-item 带 transform） -->
     <UpsizeSheet v-model:visible="upsizeOpen" />
 
+    <!-- 全局对话框宿主：提示 / 二次确认 / 输入三种形态都由它渲染（见 store/dialog.js） -->
+    <DialogHost />
+
     <!--
       开屏动画：冷启动第一次进首页才放（consumeSplash 只发一次票）。
       放在页面层而不是独立启动页，首页在它下面就能完成渲染与首屏请求，
@@ -163,6 +166,7 @@ import UiButton from '../../components/ui/Button.vue'
 import SlideConfirm from '../../components/ui/SlideConfirm.vue'
 import Icon from '../../components/ui/Icon.vue'
 import SplashScreen from '../../components/ui/SplashScreen.vue'
+import DialogHost from '../../components/ui/DialogHost.vue'
 import { shop, count, subtotal, saveCart, completeOrder, cancelOrder, storeInfo } from '../../store/index'
 import { consumeSplash } from '../../store/splash'
 import { STORE } from '../../config/constants'
@@ -170,7 +174,7 @@ import { openPage } from '../../utils/navigation'
 import { isLoggedIn } from '../../store/auth'
 import { loadBirthday } from '../../store/birthday'
 import { loadUpsize } from '../../store/upsize'
-import { showInfo } from '../../utils/toast'
+import { showConfirm, showInfo } from '../../utils/toast'
 
 const TAB_IDS = ['home', 'orders', 'member', 'profile']
 
@@ -317,21 +321,19 @@ function confirmCancelOrder() {
     showInfo('订单已支付，请联系门店协助取消与退款')
     return
   }
-  uni.showModal({
+  showConfirm({
     title: '取消订单',
     content: '确定要取消这笔订单吗？取消后可以重新下单。',
     confirmText: '确定取消',
     cancelText: '再想想',
-    // 原生 modal 只接受字符串色值，这里等于设计令牌 $c-gold-text
-    confirmColor: '#8a6a14',
-    success: async ({ confirm }) => {
-      if (!confirm) return
-      try {
-        await cancelOrder()
-        showInfo('订单已取消')
-      } catch (error) {
-        showInfo(error.message || '取消订单失败')
-      }
+    danger: true
+  }).then(async (confirmed) => {
+    if (!confirmed) return
+    try {
+      await cancelOrder()
+      showInfo('订单已取消')
+    } catch (error) {
+      showInfo(error.message || '取消订单失败')
     }
   })
 }
