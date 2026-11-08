@@ -130,7 +130,9 @@ import StoreLine from '../StoreLine.vue'
 import RecommendCarousel from '../RecommendCarousel.vue'
 import {
   products,
+  categoryNames,
   heroSlides,
+  loadCategories,
   loadProducts,
   loadRecommendations,
   refreshOrders,
@@ -160,9 +162,9 @@ const storeDistance = computed(() => storeInfo.distance || STORE.distance)
 const storeHours = computed(() => storeInfo.hours || STORE.hours)
 const storeOpen = computed(() => (storeInfo.loaded ? storeInfo.open : true))
 
-// 分类由实际商品动态派生：只给「商品里真实出现过的分类」出标签，
-// 名称从 CATEGORY_NAMES 取，未登记的数字分类显示为「分类 N」。
-// 这样管理端新增商品分类后筛选栏自动跟上，不需要前端再改一份分类表。
+// 分类由实际商品动态派生：只给「商品里真实出现过的分类」出标签。
+// 名称优先级：服务端分类字典（管理端可维护）→ 本地名称表 → 「分类 N」。
+// 这样运营新增分类后，端上不用发版就能显示正确名字；接口失败也只是退回旧写法。
 const categoryTabs = computed(() => {
   const used = []
   products.forEach((product) => {
@@ -172,11 +174,11 @@ const categoryTabs = computed(() => {
   used.sort((a, b) => a - b)
   return [
     { id: 'all', name: '全部' },
-    ...used.map((id) => ({ id, name: CATEGORY_NAMES[id] || `分类 ${id}` }))
+    ...used.map((id) => ({ id, name: categoryNames[id] || CATEGORY_NAMES[id] || `分类 ${id}` }))
   ]
 })
 
-// 四个请求相互独立：用 allSettled 隔离失败，避免门店信息报错时
+// 五个请求相互独立：用 allSettled 隔离失败，避免门店信息报错时
 // 把商品列表一起拖下水（原来 Promise.all 会整体reject，商品随之加载失败）。
 async function refreshAll(force = false) {
   const results = await Promise.allSettled([
@@ -186,7 +188,9 @@ async function refreshAll(force = false) {
     // 不吃缓存；单条门店查询开销极小，实时性优先
     loadStoreInfo({ force: true }),
     // 推荐位同样按 force 走：下拉刷新要立刻看到管理端刚改的文案 / 商品
-    loadRecommendations({ force })
+    loadRecommendations({ force }),
+    // 分类字典：只影响分类栏文案，内部已吞掉失败，不会让下面那条提示误报
+    loadCategories({ force })
   ])
   const failed = results.find((item) => item.status === 'rejected')
   // 只有商品列表失败才算致命：订单 / 门店 / 推荐位失败仍可展示缓存或隐藏该区块

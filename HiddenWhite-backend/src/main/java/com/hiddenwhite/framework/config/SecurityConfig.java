@@ -70,11 +70,12 @@ public class SecurityConfig {
                     registry.requestMatchers(antMatcher("/api/admin/auth/captcha"), antMatcher("/api/admin/auth/login")).permitAll();
                     registry.requestMatchers(antMatcher("/api/auth/logout")).authenticated();
 
-                    // 点单端公开浏览：菜单 / 规格 / 门店 / 权益 / 首页推荐位
+                    // 点单端公开浏览：菜单 / 规格 / 门店 / 权益 / 首页推荐位 / 分类字典
                     registry.requestMatchers(
                             antMatcher("/api/products"),
                             antMatcher("/api/products/*"),
                             antMatcher("/api/products/options"),
+                            antMatcher("/api/categories"),
                             antMatcher("/api/recommendations"),
                             antMatcher("/api/store"),
                             antMatcher("/api/members/benefits")

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { Field, Select, Switch, Tag, TextInput, type Column } from '@/components/ui'
 import { FormDialog, ImageUpload, ListPage, PermissionButton } from '@/components/business'
-import { coffeeApi, type CoffeeImageSpec } from '@/api'
+import { coffeeApi, type CoffeeCategoryRow, type CoffeeImageSpec } from '@/api'
 import { useListPage } from '@/composables/list'
 import { confirm } from '@/composables/confirm'
 import { pushToast, toastError } from '@/composables/toast'
@@ -13,7 +13,21 @@ interface ProductRow {
   price: number; image: string; detailImage: string; category: number; hasMilk: boolean; enabled: boolean
 }
 
-const CATEGORY_LABEL: Record<number, string> = { 0: '招牌咖啡', 1: '经典咖啡' }
+/**
+ * 分类字典由后端下发（分类管理页维护），这里不再写死 0/1。
+ * 拉取失败时退回这份兜底，只是为了「页面还能用」，不是第二份真源：
+ * 分类一旦在后台增删，兜底就会与事实不符，所以只当异常路径。
+ */
+const FALLBACK_CATEGORY_LABEL: Record<number, string> = { 0: '招牌精选', 1: '意式咖啡' }
+const categories = ref<CoffeeCategoryRow[]>([])
+
+const categoryOptions = computed(() => categories.value.map(item => ({ label: item.name, value: item.code })))
+const categoryLabel = computed(() => new Map(categories.value.map(item => [item.code, item.name])))
+
+/** 显示用：后端字典 → 兜底 → 原始数字（分类被删或接口失败时不至于显示空白） */
+function categoryName(code: number) {
+  return categoryLabel.value.get(code) ?? FALLBACK_CATEGORY_LABEL[code] ?? code
+}
 
 const list = useListPage<ProductRow, { keyword: string; category: number | '' }>({
   query: { keyword: '', category: '' },
@@ -48,16 +62,29 @@ const errors = ref<Partial<Record<keyof ProductForm, string>>>({})
 const imageSpec = ref<CoffeeImageSpec | null>(null)
 
 onMounted(async () => {
-  // 规格拉取失败不阻断表单，仅退化为组件内置的默认提示
-  try {
-    imageSpec.value = await coffeeApi.images.spec()
-  } catch (error) {
-    console.warn('图片规格获取失败，使用默认提示', error)
+  // 分类与图片规格并发拉取，任一失败都不阻断列表：分类有兜底名称，规格有内置提示
+  const [categoryResult, specResult] = await Promise.allSettled([
+    coffeeApi.categories.list(),
+    coffeeApi.images.spec(),
+  ])
+
+  if (categoryResult.status === 'fulfilled') {
+    categories.value = categoryResult.value
+  } else {
+    console.warn('分类字典获取失败，使用兜底名称', categoryResult.reason)
+  }
+
+  if (specResult.status === 'fulfilled') {
+    imageSpec.value = specResult.value
+  } else {
+    console.warn('图片规格获取失败，使用默认提示', specResult.reason)
   }
 })
 
 function openCreate() {
   Object.assign(form, emptyForm())
+  // 新增时默认落在第一个分类上：分类已经不由前端写死，0 未必存在
+  form.category = categories.value[0]?.code ?? 0
   editingId.value = null
   errors.value = {}
   dialog.value = true
@@ -143,7 +170,7 @@ async function remove(row: ProductRow) {
         <TextInput v-model="list.query.keyword" icon="search" placeholder="商品 ID / 名称 / 副标题" clearable @enter="list.search()" />
       </Field>
       <Field label="分类">
-        <Select v-model="list.query.category" :options="[{ label: '全部分类', value: '' }, { label: '招牌咖啡', value: 0 }, { label: '经典咖啡', value: 1 }]" @update:model-value="list.search()" />
+        <Select v-model="list.query.category" :options="[{ label: '全部分类', value: '' }, ...categoryOptions]" @update:model-value="list.search()" />
       </Field>
     </template>
 
@@ -152,7 +179,7 @@ async function remove(row: ProductRow) {
       <span class="cell-title">{{ row.name }}</span>
       <span class="muted" style="display: block; font-size: 12px">{{ row.subtitle }}</span>
     </template>
-    <template #cell-category="{ row }">{{ CATEGORY_LABEL[row.category] ?? row.category }}</template>
+    <template #cell-category="{ row }">{{ categoryName(row.category) }}</template>
     <template #cell-price="{ row }"><span class="mono">¥ {{ row.price }}</span></template>
     <template #cell-hasMilk="{ row }">{{ row.hasMilk ? '是' : '否' }}</template>
     <template #cell-enabled="{ row }">
@@ -179,8 +206,8 @@ async function remove(row: ProductRow) {
       <Field label="价格（元）" required :error="errors.price">
         <TextInput v-model="form.price" type="number" step="0.01" min="0" :invalid="!!errors.price" />
       </Field>
-      <Field label="分类" required>
-        <Select v-model="form.category" :options="[{ label: '招牌咖啡', value: 0 }, { label: '经典咖啡', value: 1 }]" />
+      <Field label="分类" required hint="分类在「分类管理」里维护，新增后这里即时可选">
+        <Select v-model="form.category" :options="categoryOptions" />
       </Field>
       <Field label="是否含奶" group>
         <Switch v-model="form.hasMilk" :label="form.hasMilk ? '含奶（可选奶类）' : '无奶'" />

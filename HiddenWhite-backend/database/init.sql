@@ -1525,3 +1525,56 @@ SELECT COUNT(*) AS level_policy_rows FROM member_level_policies;
 SELECT COUNT(*) AS level_discount_menus FROM sys_menu WHERE id = 410 OR parent_id = 410;
 SELECT COUNT(*) AS upsize_policy_rows FROM member_upsize_policies;
 SELECT COUNT(*) AS upsize_menus FROM sys_menu WHERE id = 411 OR parent_id = 411;
+
+-- =====================================================================
+-- 六、商品分类表（V11__product_categories.sql）
+-- ---------------------------------------------------------------------
+-- 分类此前是「写死在代码里的数字」：products.category = 0/1，名称在管理端
+-- 与点单端各维护一份。运营没法新增分类，改个名字要发版。
+--
+-- 这张表把分类变成数据：
+--   code        就是 products.category 引用的值。0 是合法编码，所以主键用 code
+--               而不是自增 id —— 自增列插 0 会被 MySQL 当成「自动分配下一个值」。
+--   name        唯一一份名称：管理端下拉、商品列表筛选、点单端分类栏都读它。
+--   sort_order  展示顺序，小的在前；同序时按 code。
+--
+-- 删除策略：分类被商品引用时由接口拒绝（409），不做级联删除 ——
+-- 少一个分类商品还能挂到别处，误删分类会让商品凭空消失。
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS product_categories (
+    code INT NOT NULL COMMENT '分类编码，products.category 引用此值（0 合法，故不用自增主键）',
+    name VARCHAR(20) NOT NULL COMMENT '分类名：管理端与点单端共用这一份',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '展示顺序，小的在前',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (code),
+    UNIQUE KEY uk_product_categories_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='商品分类（products.category 的字典表）';
+
+-- 种子与现有商品对齐：products 里 category=0 / category=1 各有一款商品。
+-- 名称取点单端顾客可见的叫法（原管理端写的是「招牌咖啡 / 经典咖啡」，
+-- 两端不一致，现在统一到这一份）。
+INSERT INTO product_categories (code, name, sort_order) VALUES
+(0, '招牌精选', 1),
+(1, '意式咖啡', 2)
+ON DUPLICATE KEY UPDATE name = VALUES(name), sort_order = VALUES(sort_order);
+
+-- ---------------------------------------------------------------------
+-- 管理端菜单：分类管理（挂在咖啡运营 400 下，排在免费升杯之后）
+--    组件路径 coffee/category/index 必须在
+--    HiddenWhite-admin/src/composables/auth.ts 的 COMPONENT_MAP 登记。
+-- ---------------------------------------------------------------------
+INSERT IGNORE INTO sys_menu (id, parent_id, menu_name, menu_type, icon, path, component, permission, sort, visible, status, create_by, update_by)
+VALUES
+    (412, 400, '分类管理', 'menu', 'filter', '/coffee/category', 'coffee/category/index', 'coffee:category:list', 12, 1, 1, 'system', 'system'),
+    (4121, 412, '新增分类', 'btn', '', '', '', 'coffee:category:add', 1, 1, 1, 'system', 'system'),
+    (4122, 412, '删除分类', 'btn', '', '', '', 'coffee:category:remove', 2, 1, 1, 'system', 'system');
+
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT 1, id FROM sys_menu WHERE id = 412 OR parent_id = 412;
+
+-- ---------------------------------------------------------------------
+-- 只读检查
+-- ---------------------------------------------------------------------
+SELECT code, name, sort_order FROM product_categories ORDER BY sort_order, code;
+SELECT COUNT(*) AS category_menus FROM sys_menu WHERE id = 412 OR parent_id = 412;

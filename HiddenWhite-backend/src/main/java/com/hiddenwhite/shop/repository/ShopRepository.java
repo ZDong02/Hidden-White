@@ -4,6 +4,7 @@ import com.hiddenwhite.common.discount.DiscountLine;
 import com.hiddenwhite.common.points.PointsBizType;
 import com.hiddenwhite.common.points.PointsLedger;
 import com.hiddenwhite.common.points.PointsRefType;
+import com.hiddenwhite.shop.domain.Category;
 import com.hiddenwhite.shop.domain.Member;
 import com.hiddenwhite.shop.domain.MemberBenefit;
 import com.hiddenwhite.shop.domain.Order;
@@ -77,6 +78,15 @@ public class ShopRepository {
     private static final String ORDER_ITEM_COLUMNS =
             "order_id,product_id,product_name,size_label,temperature,milk,quantity,unit_price,line_total";
 
+    /**
+     * 商品列清单，供列表与单查共用。
+     *
+     * <p>列顺序要与 {@link #PRODUCT_MAPPER} 的读取顺序对齐；写成常量是为了避免
+     * 「列表加了列、详情忘了加」——那会让两条路径的 Product 对象出现难以察觉的字段差异。
+     */
+    private static final String PRODUCT_COLUMNS =
+            "id,name,subtitle,description,detail_description,price,image,detail_image,category,has_milk";
+
     private final JdbcTemplate jdbc;
     private final PointsLedger pointsLedger;
 
@@ -88,14 +98,25 @@ public class ShopRepository {
     // ---- 商品与规格 ----
 
     public List<Product> products(Integer category) {
-        String sql = "SELECT id,name,subtitle,description,detail_description,price,image,detail_image,category,has_milk " +
-                "FROM products WHERE enabled=TRUE" + (category == null ? "" : " AND category=?") + " ORDER BY category,id";
+        String sql = "SELECT " + PRODUCT_COLUMNS +
+                " FROM products WHERE enabled=TRUE" + (category == null ? "" : " AND category=?") + " ORDER BY category,id";
         return category == null ? jdbc.query(sql, PRODUCT_MAPPER) : jdbc.query(sql, PRODUCT_MAPPER, category);
     }
 
+    /**
+     * 分类字典（点单端只读）。
+     *
+     * <p>只返回编码与名称：点单端拿它渲染分类栏的文案，
+     * 至于「哪些分类要显示」仍由实际在售商品决定（没有商品的分类不占一格）。
+     */
+    public List<Category> categories() {
+        return jdbc.query("SELECT code,name FROM product_categories ORDER BY sort_order,code",
+                (rs, row) -> new Category(rs.getInt("code"), rs.getString("name")));
+    }
+
     public Product product(String id) {
-        return jdbc.query("SELECT id,name,subtitle,description,detail_description,price,image,detail_image,category,has_milk " +
-                        "FROM products WHERE id=? AND enabled=TRUE", PRODUCT_MAPPER, id)
+        return jdbc.query("SELECT " + PRODUCT_COLUMNS +
+                        " FROM products WHERE id=? AND enabled=TRUE", PRODUCT_MAPPER, id)
                 .stream().findFirst().orElseThrow(() -> new NotFoundException("商品不存在: " + id));
     }
 

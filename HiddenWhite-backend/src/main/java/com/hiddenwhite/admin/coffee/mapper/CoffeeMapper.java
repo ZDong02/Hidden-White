@@ -118,6 +118,53 @@ public interface CoffeeMapper {
     @Select("SELECT COUNT(*) FROM ${coffeeDb}.order_items WHERE product_id = #{id}")
     long countProductOrders(@Param("id") String id);
 
+    // ---- 商品分类 ----
+
+    /**
+     * 分类清单，附带每个分类下的商品数。
+     *
+     * <p>商品数用于两处：列表里直接显示「3 款商品」，以及删除前的占用提示 ——
+     * 只给布尔「有没有商品」不够，运营看到数字才知道要去改几款商品。
+     * 子查询而不是 LEFT JOIN GROUP BY：分类数量是个位数，可读性更重要。
+     */
+    @Select("""
+            SELECT c.code AS code,
+                   c.name AS name,
+                   c.sort_order AS sortOrder,
+                   (SELECT COUNT(*) FROM ${coffeeDb}.products p WHERE p.category = c.code) AS productCount
+            FROM ${coffeeDb}.product_categories c
+            ORDER BY c.sort_order, c.code
+            """)
+    List<Map<String, Object>> listCategories();
+
+    @Select("SELECT COUNT(*) FROM ${coffeeDb}.product_categories WHERE name = #{name}")
+    long countCategoryName(@Param("name") String name);
+
+    /**
+     * 下一个可用编码。
+     *
+     * <p>编码由后端分配而不是让运营填：它同时是 products.category 的外键值，
+     * 手填既可能撞车，也会让人误以为「编码」是可以随意重排的序号。
+     */
+    @Select("SELECT COALESCE(MAX(code), -1) + 1 FROM ${coffeeDb}.product_categories")
+    int nextCategoryCode();
+
+    @Insert("""
+            INSERT INTO ${coffeeDb}.product_categories (code, name, sort_order)
+            VALUES (#{code}, #{name}, #{sortOrder})
+            """)
+    int insertCategory(@Param("code") int code, @Param("name") String name, @Param("sortOrder") int sortOrder);
+
+    @Select("SELECT COUNT(*) FROM ${coffeeDb}.product_categories WHERE code = #{code}")
+    long countCategory(@Param("code") int code);
+
+    /** 删除前的占用检查：该分类下还有几款商品（含已下架，下架商品同样引用着这个编码）。 */
+    @Select("SELECT COUNT(*) FROM ${coffeeDb}.products WHERE category = #{code}")
+    long countProductsInCategory(@Param("code") int code);
+
+    @Delete("DELETE FROM ${coffeeDb}.product_categories WHERE code = #{code}")
+    int deleteCategory(@Param("code") int code);
+
     // ---- 规格选项 ----
 
     @Select("""

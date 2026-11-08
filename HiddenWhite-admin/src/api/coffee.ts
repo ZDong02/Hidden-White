@@ -31,6 +31,27 @@ export interface CoffeeProductWrite {
   enabled?: boolean
 }
 
+/**
+ * 商品分类。
+ *
+ * `code` 同时是 `products.category` 引用的值，由后端分配（0 是合法编码，
+ * 现有两款商品就挂在 0 / 1 上），所以这里不做自增 id 的假设。
+ */
+export interface CoffeeCategoryRow {
+  code: number
+  name: string
+  sortOrder: number
+  /** 该分类下的商品数（含已下架）：>0 时不允许删除 */
+  productCount: number
+}
+
+export interface CoffeeCategoryWrite {
+  /** 分类名，1–20 字，同名会被后端拒绝（409） */
+  name: string
+  /** 展示顺序，留空由后端按编码递增分配 */
+  sortOrder?: number
+}
+
 export interface CoffeeOptionRow {
   id: number
   type: 'SIZE' | 'MILK' | 'TEMPERATURE'
@@ -265,6 +286,14 @@ export function createCoffeeApi(client: HttpClient) {
   return {
     summary: () => client.get<CoffeeSummary>('/coffee/summary'),
     products: crudPage<CoffeeProductRow, CoffeeProductWrite>('/coffee/products'),
+    categories: {
+      /** 分类全量清单（含商品数）。个数是个位数，不分页：分页会让下拉框只拿到第一页 */
+      list: () => client.get<CoffeeCategoryRow[]>('/coffee/categories'),
+      /** 编码由后端分配，这里只提交名称与排序 */
+      create: (body: CoffeeCategoryWrite) => client.post<{ code: number }>('/coffee/categories', body),
+      /** 被商品引用时后端返回 409，前端先用商品数拦一道 */
+      remove: (code: number) => client.delete<void>(`/coffee/categories/${code}`),
+    },
     options: {
       list: () => client.get<CoffeeOptionRow[]>('/coffee/options'),
       create: (body: CoffeeOptionWrite) => client.post<IdResponse>('/coffee/options', body),

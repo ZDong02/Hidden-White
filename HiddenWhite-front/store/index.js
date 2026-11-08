@@ -48,6 +48,57 @@ export const shop = reactive({
 
 export const products = apiProducts
 
+/**
+ * 分类字典：{ 编码: 名称 }。
+ *
+ * <p>分类名现在由管理端「分类管理」维护、后端 {@code GET /api/categories} 下发，
+ * 端上不再自己维护一份（原来写在 config/constants.js 的 CATEGORY_NAMES 里，
+ * 运营新增分类必须发版才能显示正确名字）。
+ *
+ * <p>只做「名称」用途：分类栏显示哪些分类，仍由实际在售商品决定。
+ */
+export const categoryNames = reactive({})
+
+const CATEGORY_TTL = 5 * 60 * 1000
+let categoryLoadedAt = 0
+/** 进行中的分类请求：首屏 activate 与下拉刷新会同时触发，共用一次即可 */
+let categoryPending = null
+
+/**
+ * 拉取分类字典。
+ *
+ * <p>失败不抛错、不弹提示：分类名只是展示增强，拿不到时分类栏退回本地名称表、
+ * 再退回「分类 N」，顾客照样能点单。让它安静失败，是为了不把「字典没拉到」
+ * 升级成一条吓人的错误提示。
+ */
+export async function loadCategories(options = {}) {
+  if (!options.force && categoryLoadedAt && Date.now() - categoryLoadedAt < CATEGORY_TTL) {
+    return categoryNames
+  }
+  if (categoryPending) return categoryPending
+
+  categoryPending = requestApi('/categories', { auth: false })
+    .then((rows) => {
+      const next = {}
+      ;(Array.isArray(rows) ? rows : []).forEach((row) => {
+        const code = Number(row?.code)
+        if (Number.isFinite(code) && row?.name) next[code] = String(row.name)
+      })
+      Object.keys(categoryNames).forEach((key) => delete categoryNames[key])
+      Object.assign(categoryNames, next)
+      categoryLoadedAt = Date.now()
+    })
+    .catch(() => {
+      // 保持上一次的名字（若有），下次 activate 会再试
+    })
+    .finally(() => {
+      categoryPending = null
+    })
+    .then(() => categoryNames)
+
+  return categoryPending
+}
+
 /** 首页推荐位（轮播池）。为空时首页不渲染轮播区，而不是留一张空的黑卡。 */
 export const recommendPool = reactive([])
 
@@ -96,6 +147,8 @@ let catalogPending = null
 
 export function invalidateCatalog() {
   catalogLoadedAt = 0
+  // 分类名也算目录的一部分：管理端改了分类后，下拉刷新要能立刻看到新名字
+  categoryLoadedAt = 0
 }
 
 export async function loadProducts(options = {}) {

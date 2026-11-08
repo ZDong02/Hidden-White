@@ -6,6 +6,7 @@ import com.hiddenwhite.common.domain.R;
 import com.hiddenwhite.framework.audit.OperLog;
 import com.hiddenwhite.framework.security.RequiresPermission;
 import com.hiddenwhite.admin.coffee.domain.dto.BenefitWriteRequest;
+import com.hiddenwhite.admin.coffee.domain.dto.CategoryWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.MemberWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.OptionWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.ProductEnabledRequest;
@@ -96,6 +97,35 @@ public class CoffeeController {
     @OperLog(module = "商品管理", action = "上下架")
     public R<Void> setProductEnabled(@PathVariable String id, @RequestBody ProductEnabledRequest request) {
         service.setProductEnabled(id, request.getEnabled());
+        return R.success(null);
+    }
+
+    // ---- 商品分类 ----
+
+    /**
+     * 分类清单。
+     *
+     * <p>返回全量（含商品数），不做分页：分类是个位数，分页只会让下拉框与
+     * 商品筛选拿到「第一页」而不是全部分类。
+     */
+    @GetMapping("/categories")
+    @RequiresPermission("coffee:category:list")
+    public R<List<Map<String, Object>>> categories() {
+        return R.success(service.categories());
+    }
+
+    @PostMapping("/categories")
+    @RequiresPermission("coffee:category:add")
+    @OperLog(module = "分类管理", action = "新增")
+    public R<Map<String, Object>> createCategory(@RequestBody CategoryWriteRequest request) {
+        return R.success(Map.of("code", service.createCategory(request)));
+    }
+
+    @DeleteMapping("/categories/{code}")
+    @RequiresPermission("coffee:category:remove")
+    @OperLog(module = "分类管理", action = "删除")
+    public R<Void> deleteCategory(@PathVariable int code) {
+        service.deleteCategory(code);
         return R.success(null);
     }
 

@@ -7,6 +7,7 @@ import com.hiddenwhite.common.points.PointsBizType;
 import com.hiddenwhite.common.points.PointsLedger;
 import com.hiddenwhite.common.points.PointsRefType;
 import com.hiddenwhite.admin.coffee.domain.dto.BenefitWriteRequest;
+import com.hiddenwhite.admin.coffee.domain.dto.CategoryWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.MemberWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.OptionWriteRequest;
 import com.hiddenwhite.admin.coffee.domain.dto.ProductWriteRequest;
@@ -23,6 +24,11 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.hiddenwhite.admin.support.Texts.blankToNull;
+import static com.hiddenwhite.admin.support.Texts.requireMaxLength;
+import static com.hiddenwhite.admin.support.Texts.requireText;
+import static com.hiddenwhite.admin.support.Texts.trim;
 
 /**
  * 咖啡业务服务：管理端对商品、规格选项、订单、会员、权益、门店的增删改查。
@@ -111,6 +117,54 @@ public class CoffeeService {
         int rows = mapper.deleteProduct(id);
         if (rows == 0) throw new BusinessException(404, "商品不存在: " + id);
         return null;
+    }
+
+    // ---- 商品分类 ----
+
+    /** 分类清单（含每个分类下的商品数），按 sort_order、code 升序。 */
+    public List<Map<String, Object>> categories() {
+        return mapper.listCategories();
+    }
+
+    /**
+     * 新增分类，返回后端分配的编码。
+     *
+     * <p>编码取 {@code MAX(code)+1}，从 0 开始且 0 是合法值（现有商品就是 0/1）。
+     * 「先算后插」在并发下可能撞同一个编码：主键冲突兜成 409 让调用方重试，
+     * 而不是把 SQL 异常抛成 500 —— 运营看到「请重试」比看到「服务器错误」有用。
+     */
+    public int createCategory(CategoryWriteRequest request) {
+        String name = trim(request.getName());
+        requireText(name, "分类名称");
+        requireMaxLength(name, 20, "分类名称");
+        if (mapper.countCategoryName(name) > 0) {
+            throw new BusinessException(409, "已存在同名分类: " + name);
+        }
+
+        int code = mapper.nextCategoryCode();
+        int sortOrder = request.getSortOrder() == null ? code + 1 : request.getSortOrder();
+        try {
+            mapper.insertCategory(code, name, sortOrder);
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(409, "分类创建冲突，请重试");
+        }
+        return code;
+    }
+
+    /**
+     * 删除分类。
+     *
+     * <p>被商品引用时直接拒绝（409）而不是级联删商品或把商品改到别的分类：
+     * 少一个分类是可以修复的小问题，商品凭空消失或静默换分类是事故。
+     */
+    public void deleteCategory(int code) {
+        if (mapper.countCategory(code) == 0) throw new BusinessException(404, "分类不存在: " + code);
+        long used = mapper.countProductsInCategory(code);
+        if (used > 0) {
+            throw new BusinessException(409, "该分类下还有 " + used + " 款商品，请先把商品改到其他分类再删除");
+        }
+        int rows = mapper.deleteCategory(code);
+        if (rows == 0) throw new BusinessException(404, "分类不存在: " + code);
     }
 
     // ---- 规格选项 ----
@@ -416,32 +470,13 @@ public class CoffeeService {
         if (request.getSortOrder() == null) request.setSortOrder(0);
     }
 
-    private void requireText(String value, String field) {
-        if (value == null || value.isBlank()) throw new BusinessException(field + "不能为空");
-    }
-
     /** TINYINT 列在 JDBC 里可能是 Integer，也可能是 Short/Long，统一收成 Integer 再比较。 */
     private Integer toInt(Object value) {
         return value instanceof Number number ? Integer.valueOf(number.intValue()) : null;
     }
 
-    /** 长度上界与列宽一致：超长在 MySQL 严格模式下会抛 1406，转成可读的字段级提示。 */
-    private void requireMaxLength(String value, int max, String field) {
-        if (value != null && value.trim().length() > max) {
-            throw new BusinessException(field + "最多 " + max + " 个字，当前 " + value.trim().length() + " 个字");
-        }
-    }
-
     private void requirePrice(BigDecimal price) {
         if (price == null || price.signum() < 0) throw new BusinessException("价格不能为空且不能为负数");
-    }
-
-    private String trim(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private String normalizeStatus(String status) {

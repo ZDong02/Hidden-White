@@ -1,5 +1,6 @@
 package com.hiddenwhite.shop.service;
 
+import com.hiddenwhite.shop.domain.Category;
 import com.hiddenwhite.shop.domain.Product;
 import com.hiddenwhite.shop.domain.ProductOption;
 import com.hiddenwhite.shop.domain.Recommendation;
@@ -30,6 +31,16 @@ public class CatalogService {
 
     public Product product(String id) {
         return repository.product(id);
+    }
+
+    /**
+     * 分类字典：点单端拿它把 {@code product.category} 的数字翻成名字。
+     *
+     * <p>不过滤「有没有商品」：哪些分类真正出现在分类栏里由端上按在售商品决定，
+     * 服务端只提供字典，避免两处各写一套过滤规则。
+     */
+    public List<Category> categories() {
+        return repository.categories();
     }
 
     /**

@@ -47,7 +47,7 @@
 | 页面 / 面板 | 后端接口 | 表 | 权限 |
 |---|---|---|---|
 | `pages/index/index.vue` | 壳页面，承载四个面板 | — | — |
-| `components/tabs/MenuPanel.vue` | `GET /api/products`、`GET /api/store` | `products`、`stores` | 公开 |
+| `components/tabs/MenuPanel.vue` | `GET /api/products`、`GET /api/categories`、`GET /api/store` | `products`、`product_categories`、`stores` | 公开 |
 | `components/tabs/OrdersPanel.vue` | `GET /api/orders`、`POST /api/orders/{id}/complete` | `orders`、`order_items` | 需登录 |
 | `components/tabs/MemberPanel.vue` | `GET /api/members/{id}`、`GET /api/members/benefits`、`GET /api/members/discount`、`GET /api/coupons` | `members`、`member_benefits`、`member_level_policies` | 需登录 / 公开 |
 | `components/tabs/ProfilePanel.vue` | 无（本地会话 + 后端地址诊断） | — | — |
@@ -77,6 +77,7 @@
 | 页面 | 组件标识 | 接口前缀 | 权限码 |
 |---|---|---|---|
 | `coffee/Products.vue` | `coffee/product/index` | `/api/admin/coffee/products` | `coffee:product:*` |
+| `coffee/Categories.vue` | `coffee/category/index` | `/api/admin/coffee/categories` | `coffee:category:*` |
 | `coffee/Options.vue` | `coffee/option/index` | `/api/admin/coffee/options` | `coffee:option:*` |
 | `coffee/Orders.vue` | `coffee/order/index` | `/api/admin/coffee/orders` | `coffee:order:*` |
 | `coffee/Members.vue` | `coffee/member/index` | `/api/admin/coffee/members` | `coffee:member:*` |
@@ -89,6 +90,15 @@
 
 **首页轮播推荐位**：管理端配置「推荐池」，点单端从池中随机抽最多 3 款做首屏轮播
 （`GET /api/recommendations`，免登录）。
+
+**商品分类**：`product_categories` 是 `products.category` 的字典表，编码由后端分配（0 起，0 合法），
+名称唯一，被商品引用时禁止删除。
+
+| 接口 | 方法 | 说明 |
+|---|---|---|
+| `/api/admin/coffee/categories` | GET / POST | 全量清单（含每个分类的商品数）/ 新增（编码取 `MAX+1`，同名 409） |
+| `/api/admin/coffee/categories/{code}` | DELETE | 删除；该分类下还有商品时 409，不做级联 |
+| `/api/categories` | GET | 点单端只读字典（`[{code,name}]`，免登录），用于分类栏文案 |
 
 | 接口 | 方法 | 说明 |
 |---|---|---|
