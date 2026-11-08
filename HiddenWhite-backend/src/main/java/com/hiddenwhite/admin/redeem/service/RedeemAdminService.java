@@ -16,6 +16,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.hiddenwhite.admin.support.Texts.blankToNull;
+import static com.hiddenwhite.admin.support.Texts.requireText;
+import static com.hiddenwhite.admin.support.Texts.trim;
+
 /**
  * 积分运营服务：兑换品目录维护 + 到店核销。
  *
@@ -192,19 +196,6 @@ public class RedeemAdminService {
             throw new BusinessException("每人限兑次数不能为负数；不限请填 0");
         }
         if (request.getSortOrder() == null) request.setSortOrder(0);
-    }
-
-    private String requireText(String value, String field) {
-        if (value == null || value.isBlank()) throw new BusinessException(field + "不能为空");
-        return value;
-    }
-
-    private String trim(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private String blankToNull(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private String normalizeStatus(String status) {

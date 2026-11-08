@@ -13,6 +13,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.hiddenwhite.admin.support.Texts.isBlank;
+import static com.hiddenwhite.admin.support.Texts.trim;
+
 /**
  * 生日礼遇的运营端：配置维护、领取记录、年度统计。
  *
@@ -50,7 +53,11 @@ public class BirthdayAdminService {
     @Transactional
     public void updateConfig(BirthdayConfigWriteRequest request) {
         if (request.getEnabled() == null) throw new BusinessException("请选择是否开启生日礼遇");
-        String giftType = trim(request.getGiftType(), "POINTS").toUpperCase();
+        // 空串按「没选」处理，与 null 同义。
+        // 之前统一走 trim(value, fallback)，但那个兜底只在 null 时生效：
+        // 运营把下拉框清空后提交 ""，会一路走到「赠饮模式将在下一版本开放」这条
+        // 与事实无关的报错上，看起来像功能坏了。
+        String giftType = isBlank(request.getGiftType()) ? "POINTS" : request.getGiftType().trim().toUpperCase();
         if (!"POINTS".equals(giftType)) {
             throw new BusinessException("赠饮模式将在下一版本开放，当前只能发放积分");
         }
@@ -60,7 +67,7 @@ public class BirthdayAdminService {
         if (request.getPointsAmount() > 10000) {
             throw new BusinessException("单次发放积分不能超过 10000，请确认是否填错");
         }
-        String windowMode = trim(request.getWindowMode(), "MONTH").toUpperCase();
+        String windowMode = isBlank(request.getWindowMode()) ? "MONTH" : request.getWindowMode().trim().toUpperCase();
         if (!"MONTH".equals(windowMode) && !"AROUND".equals(windowMode)) {
             throw new BusinessException("窗口模式只能是 MONTH 或 AROUND");
         }
@@ -148,9 +155,5 @@ public class BirthdayAdminService {
         map.put("pointsTotal", points == null ? 0 : points);
         map.put("birthdayMemberCount", withBirthday == null ? 0 : withBirthday);
         return map;
-    }
-
-    private String trim(String value, String fallback) {
-        return value == null ? fallback : value.trim();
     }
 }
