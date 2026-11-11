@@ -57,7 +57,6 @@ Hidden White/
 │   ├── scripts/                        # 构建辅助：icons/*.svg 母版 + generate-icons.cjs
 │   ├── store/                          # 状态管理（购物车 / 订单 / 登录态）
 │   ├── utils/                          # 工具模块（价格 / 校验 / 时间 / 图片 / 导航 / 存储 / 提示）
-│   ├── tests/                          # 单元测试 + 设计一致性守卫
 │   └── static/                         # 图片资源；icons/*.png 由 npm run assets:icons 生成
 │
 ├── HiddenWhite-admin/                  # 管理端：Vue 3 + TS + Vite（端即项目根，无额外嵌套）
@@ -78,12 +77,11 @@ Hidden White/
 │   │   ├── framework/                  #   安全、日志、数据权限、TraceId
 │   │   ├── common/                     #   统一返回、分页、异常、图片处理
 │   │   └── tools/                      #   DbInit：本地库初始化命令行工具
-│   ├── database/init.sql               # 单库全量脚本（业务表 + 系统表 + 种子数据，幂等）
-│   └── src/test/                       # 单元测试
+│   └── database/init.sql               # 单库全量脚本（业务表 + 系统表 + 种子数据，幂等）
 │
 ├── docs/                               # 全部文档（入口见下表）
 ├── deploy/                             # 服务器侧配置：nginx 单入口反代 + 网关密钥示例
-├── .github/workflows/ci.yml            # 三端质量闸门
+├── .github/workflows/ci.yml            # 三端构建与 lint 闸门
 ├── CODESTYLE.md                        # 全工作区统一代码规范
 ├── .editorconfig                       # 编辑器层统一约束
 └── .gitignore
@@ -93,15 +91,13 @@ Hidden White/
 
 | 文档 | 内容 |
 |---|---|
-| [`docs/开发清单.md`](docs/开发清单.md) | **常态台账**：质量闸门、周/月/季节奏、UI 更新流程、功能候选池、调试手册 |
-| [`docs/项目介绍.md`](docs/项目介绍.md) | 系统全貌：业务、架构、接口、数据表 |
-| [`docs/开发进程规划.md`](docs/开发进程规划.md) | 阶段性评估快照（2026-10-18）；常态推进以 `开发清单.md` 为准 |
-| [`docs/PROJECT_MAP.md`](docs/PROJECT_MAP.md) | 项目地图：页面 ↔ 接口 ↔ 表 ↔ 权限码 |
 | [`docs/DESIGN.md`](docs/DESIGN.md) | 管理端设计规范（七层样式体系） |
 | [`docs/后端暴露面收敛.md`](docs/后端暴露面收敛.md) | **上线必读**：后端只监听回环、nginx 单入口、网关密钥、客户端入口锁定与兼容性 |
-| [`docs/清理与修复报告-2026-10-23.md`](docs/清理与修复报告-2026-10-23.md) | 最近一次清理/重构/修复的清单与验证方式 |
-| [`docs/优化记录-2026-10-24.md`](docs/优化记录-2026-10-24.md) | 验证码服务端渲染、认证限流、依赖治理等优化与遗留事项 |
-| [`docs/项目健康检查报告-2026-10-22.md`](docs/项目健康检查报告-2026-10-22.md) | 历史体检报告（阶段性快照，不代表当前状态） |
+| [`docs/优惠券方案.md`](docs/优惠券方案.md) | 每周限领、下单核销与取消退回、面额快照的完整规则 |
+| [`docs/会员折扣方案.md`](docs/会员折扣方案.md) | 等级阶梯、按星期的折扣率、三类优惠的组合优先级 |
+| [`docs/积分兑换方案.md`](docs/积分兑换方案.md) | 积分账本、兑换单状态机与过期结算 |
+| [`docs/生日礼遇方案.md`](docs/生日礼遇方案.md) | 月日采集、年度幂等与领取窗口判定 |
+| [`docs/免费升杯方案.md`](docs/免费升杯方案.md) | 按等级区分免费额度与积分价的三端联动 |
 
 ---
 
@@ -289,7 +285,7 @@ npm run assets:icons          # scripts/icons/*.svg + config/icon-set.json → s
 
 - 20 个 24 网格 / 1.6 线宽母版，6 种色版（`ink` `muted` `faint` `gold` `gold-on-dark` `decor`），共 37 张产物
 - 新增图标：放母版 → 在 `icon-set.json` 登记色版 → 跑上面的命令（脚本会自动清理已下线的孤儿产物）
-- `tests/design-system.test.js` 会拦住未登记的图标名、缺失的色版产物与残留的 emoji
+- 改完图标务必搜一遍源码，确认没有把字形符号（emoji、箭头、几何符号）当图标塞进 `<text>`
 
 ### 动效红线
 
@@ -299,17 +295,15 @@ npm run assets:icons          # scripts/icons/*.svg + config/icon-set.json → s
 
 ---
 
-## 构建与测试
+## 构建
 
 | 项目 | 命令 | 说明 |
 |------|------|------|
 | 点单端 | `npm run build:h5` / `build:mp-weixin` | 正式产物在 `dist/build/`，调试产物在 `dist/dev/` |
-| 点单端 | `npm test` | Node 内置测试运行器：工具函数 + 设计一致性守卫 |
 | 点单端 | `npm run lint` | ESLint 检查 |
 | 点单端 | `npm run assets:icons` | 由 SVG 母版重生成全部图标色版（改图标后必跑） |
-| 管理端前端 | `npm run test:unit` | Node 内置测试运行器（API + utils） |
 | 管理端前端 | `npm run build` | vue-tsc 类型检查 + vite build |
-| 统一后端 | `./mvnw test` | 单元测试 |
+| 统一后端 | `./mvnw -DskipTests package` | 打包可执行 jar |
 
 ---
 

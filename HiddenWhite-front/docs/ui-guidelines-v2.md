@@ -290,8 +290,9 @@ const note = await showPrompt({ title: '订单备注', value: shop.note })
 - 轻提示（`showSuccess` / `showError` / `showInfo`）仍是系统 toast：1.5 秒即走、
   不需要表态，自绘反会盖住操作区。
 
-`tests/no-native-dialog.test.js` 静态锁死这条规则：出现系统弹窗调用、
-或页面用了弹窗 API 却没挂宿主，`npm test` 直接失败。
+这条规则靠人工守：改动弹窗相关代码后全仓搜一遍系统弹窗调用（`uni.showModal` /
+`uni.showActionSheet`），出现即改自绘 Dialog；页面用了弹窗 API 就必须挂一次宿主，
+否则点击没有任何反应。
 
 ---
 

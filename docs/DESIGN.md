@@ -98,7 +98,6 @@
 
 ```bash
 npm run build     # 内含 vue-tsc --noEmit 类型检查
-npm run test:unit # Node 内置测试运行器
 ```
 
 - 页面组件模板**必须单根节点**（根元素统一 `<div class="page">`）。`AppShell` 用 `<Transition out-in>`

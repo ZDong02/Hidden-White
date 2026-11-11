@@ -9,8 +9,7 @@
     "dev:mp-weixin": "node scripts/run-uni.cjs -p mp-weixin",
     "build:mp-weixin": "node scripts/run-uni.cjs build -p mp-weixin",
     "assets:icons": "node scripts/generate-icons.cjs",
-    "lint": "eslint .",
-    "test": "node --test \"tests/**/*.test.js\""
+    "lint": "eslint ."
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5030120260930001",

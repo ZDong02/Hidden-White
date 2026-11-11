@@ -7,7 +7,6 @@ Vue 3 + TypeScript + Vite + Vue Router + GSAP 的后台开发底座，使用珍�
 ```bash
 npm ci
 npm run dev
-npm run test:unit
 npm run build
 ```
 
@@ -37,7 +36,7 @@ npm run build
 
 退出和 401 均通过统一会话清理撤销动态路由与缓存；不得在页面直接修改认证存储或路由就绪标记。旧请求只能更新发起时仍有效的会话。
 
-主题、密度和减少动效规则见 [DESIGN.md](../docs/DESIGN.md)，前后端链路见 [PROJECT_MAP.md](../docs/PROJECT_MAP.md)。
+主题、密度和减少动效规则见 [DESIGN.md](../docs/DESIGN.md)。
 
 ## 浏览器回归
 
