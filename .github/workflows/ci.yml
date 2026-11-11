@@ -38,7 +38,7 @@ jobs:
       - name: 赋予 mvnw 执行权限
         run: chmod +x HiddenWhite-backend/mvnw
 
-      - name: 编译（含测试源）
+      - name: 编译打包
         working-directory: HiddenWhite-backend
         run: ./mvnw -B -DskipTests package
 
