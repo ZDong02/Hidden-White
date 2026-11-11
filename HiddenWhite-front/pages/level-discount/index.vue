@@ -307,7 +307,7 @@ onShow(() => {
   flex-shrink: 0;
   color: $c-gold-on-dark;
   font-size: $fs-display;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-tight;
 }
 
@@ -441,7 +441,7 @@ onShow(() => {
 
 .tier-name {
   font-size: $fs-body;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 
@@ -453,7 +453,7 @@ onShow(() => {
 
 .tier--current .tier-status {
   color: $c-gold-text;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .tier-body {
@@ -473,7 +473,7 @@ onShow(() => {
 .tier-rate {
   color: $c-ink-strong;
   font-size: $fs-h2;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-tight;
 }
 
@@ -528,7 +528,7 @@ onShow(() => {
 .week-rate {
   color: $c-ink;
   font-size: $fs-micro;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* 今天：整格点亮，一眼看到「今天就是这个价」 */
@@ -546,7 +546,7 @@ onShow(() => {
 
 .week-cell--off .week-rate {
   color: $c-ink-faint;
-  font-weight: 400;
+  font-weight: $fw-regular;
 }
 
 /* 各档等级色：只作用于色条、等级名与圆点 */
@@ -611,7 +611,7 @@ onShow(() => {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-caption;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .rule {
@@ -625,7 +625,7 @@ onShow(() => {
   flex-shrink: 0;
   color: $c-gold-text;
   font-size: $fs-micro;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-body;
 }
 

@@ -104,7 +104,7 @@ onBeforeUnmount(() => closeMenu())
       <Transition :css="false" @enter="(el, done) => overlayEnter(el, done, 'pop')" @leave="(el, done) => overlayLeave(el, done, 'pop')">
         <div v-if="menuOpen" ref="pop" class="menu-pop m-float" role="menu" :style="{ top: `${pos.top}px`, right: `${pos.right}px` }">
           <div class="menu-head">
-            <div style="font-weight: 680">{{ currentUser?.nickname }}</div>
+            <div style="font-weight: var(--fw-bold)">{{ currentUser?.nickname }}</div>
             <div class="soft" style="font-size: 12px">@{{ currentUser?.username }}<template v-if="currentUser?.deptName"> · {{ currentUser.deptName }}</template></div>
           </div>
           <button type="button" class="menu-item" role="menuitem" @click="pick('password')"><Icon name="key" :size="16" />修改密码</button>

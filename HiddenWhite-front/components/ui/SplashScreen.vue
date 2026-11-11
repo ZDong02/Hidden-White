@@ -121,7 +121,7 @@ defineExpose({ leave })
 .splash-word {
   font-family: $font-display;
   font-size: $fs-splash;
-  font-weight: 300;
+  font-weight: $fw-light;
   line-height: 1.05;
   color: $c-on-dark;
   /* 字距拉开到 12rpx，两个字之间要有呼吸；padding-left 抵消末字后多出的字距，否则整体偏左 */

@@ -405,7 +405,7 @@ function confirmCancelOrder() {
 .cart-count {
   display: inline-block;
   color: $c-ink;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   animation: number-pop 280ms cubic-bezier(0.34, 1.4, 0.64, 1) both; // v2: 使用弹性曲线
 }
 
@@ -413,7 +413,7 @@ function confirmCancelOrder() {
   display: block;
   margin-top: $sp-0;
   font-size: $fs-h2;
-  font-weight: 700; // v2: 从 600 提升到 700
+  font-weight: $fw-bold; // v2: 从 600 提升到 700
   line-height: 1.2;
   letter-spacing: $ls-tight;
   @include numeric;

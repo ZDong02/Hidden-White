@@ -361,7 +361,7 @@ onMounted(async () => {
 .page-title {
   margin: 0 0 6px;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .page-desc {
@@ -426,7 +426,7 @@ onMounted(async () => {
 }
 
 .lv-name {
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .lv-warn {

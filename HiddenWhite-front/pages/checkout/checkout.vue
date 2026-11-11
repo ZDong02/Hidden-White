@@ -121,7 +121,8 @@
       </view>
       <UiButton
         variant="primary"
-        :disabled="!count || submitting"
+        :disabled="!count"
+        :loading="submitting"
         @tap="submit"
         style="width: 100%;"
       >
@@ -517,7 +518,7 @@ async function submit() {
 
 .pickup-time {
   color: $c-ink-strong;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .address {
@@ -629,7 +630,7 @@ async function submit() {
 
 .sum-value {
   font-size: $fs-title-lg;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* ---- 支付方式 ---- */
@@ -721,7 +722,7 @@ async function submit() {
 
 .checkout-amount {
   font-size: $fs-h2;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* ---- 选券弹层 ---- */
@@ -765,7 +766,7 @@ async function submit() {
   color: $c-gold-text;
   font-family: $font-number;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .picker-amount--off {
@@ -774,7 +775,7 @@ async function submit() {
 
 .picker-currency {
   font-size: $fs-micro;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .picker-main {
@@ -786,13 +787,13 @@ async function submit() {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 
 .picker-row--off .picker-title {
   color: $c-ink-muted;
-  font-weight: 500;
+  font-weight: $fw-medium;
 }
 
 .picker-note {

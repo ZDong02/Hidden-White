@@ -505,7 +505,7 @@ defineExpose({ activate })
   margin-top: $sp-0;
   color: $c-gold-on-dark;
   font-size: $fs-h2;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* 「去兑换」：深色卡上的次级入口，用金色文字 + 20rpx 图标，不抢积分数字的视觉重量 */
@@ -567,7 +567,7 @@ defineExpose({ activate })
   display: block;
   color: $c-gold-text;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 
@@ -597,7 +597,7 @@ defineExpose({ activate })
   background: $c-gold-soft;
   color: $c-gold-text;
   font-size: 18rpx;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: 1.8;
 }
 
@@ -642,7 +642,7 @@ defineExpose({ activate })
 .heading-main {
   color: $c-ink-strong;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   letter-spacing: $ls-normal;
 }
 
@@ -696,7 +696,7 @@ defineExpose({ activate })
   background: $c-gold;
   color: $c-dark;
   font-size: 20rpx;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   letter-spacing: 0.5rpx;
   line-height: 1.6;
 }
@@ -717,7 +717,7 @@ defineExpose({ activate })
   margin-top: $sp-2;
   color: $c-ink-strong;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 

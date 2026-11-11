@@ -238,7 +238,7 @@ function addToBag() {
 .detail-price {
   flex-shrink: 0;
   font-size: $fs-title-lg;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .detail-subtitle {
@@ -252,7 +252,7 @@ function addToBag() {
   margin-top: $sp-2;
   margin-bottom: $sp-4;
   font-size: $fs-body-sm;
-  line-height: 1.75;
+  line-height: $lh-loose; /* 商品描述是这一屏唯一的长段落，行距要按阅读稿而不是 UI 稿取 */
 }
 
 .option-section {
@@ -264,7 +264,7 @@ function addToBag() {
   margin-bottom: $sp-3;
   color: $c-ink-strong;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .option-row {
@@ -307,7 +307,7 @@ function addToBag() {
   border-color: $c-gold-line;
   background: $c-gold-soft;
   color: $c-ink-strong;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   box-shadow: inset 0 0 0 1rpx $c-gold-line;
 }
 
@@ -365,7 +365,7 @@ function addToBag() {
   display: block;
   margin-top: $sp-0;
   font-size: $fs-h2;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: 1.2;
   letter-spacing: $ls-tight;
   @include numeric;

@@ -426,7 +426,7 @@ async function cancelOrder(order) {
   margin-top: $sp-1;
   color: $c-gold-on-dark;
   font-size: $fs-display;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-tight;
 }
 
@@ -514,7 +514,7 @@ async function cancelOrder(order) {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 
@@ -536,13 +536,13 @@ async function cancelOrder(order) {
 .redeem-cost {
   color: $c-gold-text;
   font-size: $fs-body;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .redeem-unit {
   color: $c-gold-text;
   font-size: $fs-micro;
-  font-weight: 400;
+  font-weight: $fw-regular;
 }
 
 .redeem-stock {
@@ -571,7 +571,7 @@ async function cancelOrder(order) {
   background: $c-dark;
   color: $c-gold-on-dark;
   font-size: $fs-caption;
-  font-weight: 500;
+  font-weight: $fw-medium;
 }
 
 .redeem-button--off {
@@ -612,7 +612,7 @@ async function cancelOrder(order) {
   min-width: 0;
   color: $c-ink-strong;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 
@@ -745,7 +745,7 @@ async function cancelOrder(order) {
 .sheet-title {
   color: $c-ink-strong;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .sheet-close {
@@ -765,7 +765,7 @@ async function cancelOrder(order) {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-title;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .sheet-subtitle {
@@ -833,7 +833,7 @@ async function cancelOrder(order) {
   margin: $sp-4 0 $sp-2;
   color: $c-ink-strong;
   font-size: $fs-ticket;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   letter-spacing: $ls-wider;
   line-height: $lh-tight;
 }

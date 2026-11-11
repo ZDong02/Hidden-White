@@ -175,5 +175,5 @@ onMounted(load)
 .note-actions { margin-top: 14px; }
 .hours-rows { display: flex; flex-direction: column; gap: 10px; padding: 6px 0; }
 .hours-row { display: flex; justify-content: space-between; font-size: 14px; }
-.hours-day { font-weight: 600; }
+.hours-day { font-weight: var(--fw-semibold); }
 </style>

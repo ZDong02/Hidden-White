@@ -70,7 +70,7 @@
   box-shadow: 0 0 0 4px rgba(130, 221, 45, .2), 0 0 12px rgba(130, 221, 45, .6);
 }
 .brand-text { min-width: 0; }
-.brand-name { font-size: 15px; font-weight: 720; letter-spacing: -.02em; white-space: nowrap; }
+.brand-name { font-size: 15px; font-weight: var(--fw-bold); letter-spacing: -.02em; white-space: nowrap; }
 .brand-sub { font-size: 10px; letter-spacing: .08em; color: var(--ink-soft); white-space: nowrap; text-transform: uppercase; }
 
 .rail-nav {
@@ -85,7 +85,7 @@
 .nav-group-title {
   padding: 6px 10px;
   font-size: 11px;
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
   letter-spacing: .06em;
   color: var(--ink-faint);
   white-space: nowrap;
@@ -115,7 +115,7 @@
   padding: 0 11px;
   border-radius: var(--r-sm);
   font-size: 13px;
-  font-weight: 560;
+  font-weight: var(--fw-semibold);
   color: var(--ink-muted);
   text-align: left;
   white-space: nowrap;
@@ -124,7 +124,7 @@
 }
 .nav-item .nav-ico { color: var(--ink-soft); transition: color .2s ease; }
 .nav-item:hover { color: var(--ink); }
-.nav-item.is-active { color: var(--ink); font-weight: 650; }
+.nav-item.is-active { color: var(--ink); font-weight: var(--fw-semibold); }
 .nav-item.is-active .nav-ico { color: var(--blue); }
 .nav-item:focus-visible { outline-offset: -2px; }
 .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -180,7 +180,7 @@
 .workspace.is-scrolled .topbar::before { opacity: 1; }
 .topbar .spacer { flex: 1; }
 .crumbs { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); min-width: 0; white-space: nowrap; }
-.crumbs .crumb-current { color: var(--ink); font-weight: 620; }
+.crumbs .crumb-current { color: var(--ink); font-weight: var(--fw-semibold); }
 .crumbs .crumb-sep { color: var(--ink-faint); }
 
 .cmd-trigger {
@@ -203,7 +203,7 @@
   padding: 0 6px;
   border-radius: 6px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--ink-soft);
   border: 1px solid var(--line-strong);
   background: var(--input-bg);
@@ -219,7 +219,7 @@
   transition: background .2s ease;
 }
 .user-chip:hover { background: var(--hover-bg); }
-.user-chip .user-name { font-size: 12.5px; font-weight: 640; line-height: 1.2; text-align: left; }
+.user-chip .user-name { font-size: 12.5px; font-weight: var(--fw-semibold); line-height: 1.2; text-align: left; }
 .user-chip .user-role { font-size: 11px; color: var(--ink-soft); line-height: 1.2; text-align: left; }
 
 .menu-pop {
@@ -274,7 +274,7 @@
 .page-head-side { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
 .page-title {
   font-size: 28px;
-  font-weight: 740;
+  font-weight: var(--fw-bold);
   line-height: 1.15;
   letter-spacing: -.03em;
   text-wrap: balance;

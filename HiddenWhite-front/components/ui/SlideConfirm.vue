@@ -313,7 +313,7 @@ defineExpose({ settle, reset: () => { completed.value = false; submitting.value 
   right: 0;
   text-align: center;
   font-size: $fs-caption;
-  font-weight: 500;
+  font-weight: $fw-medium;
   color: $c-ink-muted;
   /* 文字不参与拖拽命中，避免抢走滑块的事件 */
   pointer-events: none;

@@ -25,6 +25,7 @@ withDefaults(defineProps<{
       size === 'sm' && 'btn-sm',
       block && 'btn-block',
       danger && 'is-danger',
+      loading && 'is-loading',
       variant === 'secondary' && 'm-pill',
     ]"
     :disabled="disabled || loading"
@@ -32,6 +33,6 @@ withDefaults(defineProps<{
   >
     <span v-if="loading" class="spinner" aria-hidden="true" />
     <Icon v-else-if="icon" :name="icon" :size="size === 'sm' ? 14 : 16" />
-    <slot />
+    <span class="btn-label"><slot /></span>
   </button>
 </template>

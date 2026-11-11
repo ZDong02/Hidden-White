@@ -11,8 +11,8 @@ body {
   min-height: 100dvh;
   color: var(--ink);
   background: var(--stage);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -64,7 +64,8 @@ a:focus-visible,
   align-items: center;
   gap: 10px;
   font-size: 15px;
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-title);
   letter-spacing: -.01em;
   color: var(--ink);
 }

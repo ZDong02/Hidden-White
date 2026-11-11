@@ -163,7 +163,7 @@ const handleMaskTap = () => {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-title-lg;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-tight;
   letter-spacing: $ls-normal;
   text-align: center;
@@ -203,7 +203,7 @@ const handleMaskTap = () => {
   justify-content: center;
   border-radius: $r-md;
   font-size: $fs-body;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   transition: transform $dur-instant $ease-out, opacity $dur-fast ease;
 }
 

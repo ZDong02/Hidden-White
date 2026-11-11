@@ -94,7 +94,7 @@ const handleMaskTap = () => {
 
 .ui-modal-title {
   font-size: $fs-title-lg;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   letter-spacing: $ls-normal;
   color: $c-ink-strong;
 }

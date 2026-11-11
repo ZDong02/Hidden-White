@@ -148,7 +148,7 @@ onMounted(load)
 }
 .week-row:last-child { border-bottom: none; }
 .week-row.is-off { opacity: 0.55; }
-.week-name { font-weight: 600; font-size: 14px; line-height: 40px; }
+.week-name { font-weight: var(--fw-semibold); font-size: 14px; line-height: 40px; }
 .hours-hint { margin-top: 12px; font-size: 12px; color: var(--ink-soft, #6f675c); }
 .hours-actions { margin-top: 14px; }
 </style>

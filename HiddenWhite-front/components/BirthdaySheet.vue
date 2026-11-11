@@ -297,7 +297,7 @@ function handleVisible(next) {
 .bd-picker-value {
   color: $c-ink-strong;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .bd-hint {

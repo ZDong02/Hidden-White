@@ -221,7 +221,7 @@ onShow(() => {
 
 .weekly-badge--active .weekly-badge-text {
   color: $c-dark;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .weekly-face {
@@ -240,14 +240,14 @@ onShow(() => {
 .weekly-currency {
   color: $c-gold-on-dark;
   font-size: $fs-title-lg;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* 面额是整张卡的主角：显示级字号，与积分卡的数字同一档 */
 .weekly-value {
   color: $c-gold-on-dark;
   font-size: $fs-display;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-tight;
 }
 
@@ -338,13 +338,13 @@ onShow(() => {
 .ticket-amount {
   color: $c-gold-text;
   font-size: $fs-h2;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-tight;
 }
 
 .ticket-currency {
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .ticket-threshold {
@@ -370,7 +370,7 @@ onShow(() => {
   min-width: 0;
   color: $c-ink-strong;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 
@@ -413,7 +413,7 @@ onShow(() => {
 
 .ticket-row--dead .ticket-title {
   color: $c-ink-muted;
-  font-weight: 500;
+  font-weight: $fw-medium;
 }
 
 /* ---- 空态 / 骨架 ---- */

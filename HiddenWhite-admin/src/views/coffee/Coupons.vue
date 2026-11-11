@@ -353,7 +353,7 @@ onMounted(async () => {
 
 <style scoped>
 .cp-config { padding: 18px 18px 8px; }
-.cp-config-title { font-size: 15px; font-weight: 500; }
+.cp-config-title { font-size: 15px; font-weight: var(--fw-medium); }
 .cp-config-note {
   margin: 8px 0 16px;
   color: var(--ink-soft, #6f675c);
@@ -414,7 +414,7 @@ onMounted(async () => {
 }
 .cp-preview-amount {
   font-size: 34px;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   line-height: 1;
   color: #e9d191;
 }
@@ -444,5 +444,5 @@ onMounted(async () => {
 
 .cp-member { display: block; }
 .cp-member-id { font-size: 11px; color: var(--ink-faint, #8a8477); }
-.cp-amount { color: var(--ink, #191710); font-weight: 500; }
+.cp-amount { color: var(--ink, #191710); font-weight: var(--fw-medium); }
 </style>

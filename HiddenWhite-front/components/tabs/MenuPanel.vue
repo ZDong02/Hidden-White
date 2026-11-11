@@ -306,7 +306,7 @@ defineExpose({ activate, deactivate })
   display: block;
   font-family: $font-display;
   font-size: $fs-h1;
-  font-weight: 600; // v2: 增强字重
+  font-weight: $fw-semibold; // v2: 增强字重
   line-height: $lh-display;
   letter-spacing: $ls-wider;
   color: $c-ink-strong;
@@ -431,7 +431,7 @@ defineExpose({ activate, deactivate })
 
 .category.active {
   color: $c-gold-text;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* 下划线从中间向两侧展开：比整条淡入更像「选中」而不是「新增」 */
@@ -517,7 +517,7 @@ defineExpose({ activate, deactivate })
 .product-name {
   display: block;
   font-size: $fs-title-lg; // v2: 从 $fs-title-sm(30rpx) 提升到 38rpx
-  font-weight: 600;
+  font-weight: $fw-semibold;
   color: $c-ink-strong;
   letter-spacing: $ls-normal;
 }
@@ -543,7 +543,7 @@ defineExpose({ activate, deactivate })
 
 .product-price {
   font-size: $fs-title-lg;
-  font-weight: 700; // v2: 从 600 提升到 700
+  font-weight: $fw-bold; // v2: 从 600 提升到 700
 }
 
 /* 加购按钮：88rpx（44px）触控目标 */

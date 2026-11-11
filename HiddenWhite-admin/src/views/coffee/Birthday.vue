@@ -236,7 +236,7 @@ onMounted(async () => {
 
 <style scoped>
 .bd-config { padding: 18px 18px 8px; }
-.bd-config-title { font-size: 15px; font-weight: 500; }
+.bd-config-title { font-size: 15px; font-weight: var(--fw-medium); }
 .bd-config-note {
   margin: 8px 0 16px;
   color: var(--ink-soft, #6f675c);

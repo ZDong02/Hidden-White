@@ -146,7 +146,7 @@ onMounted(load)
 .option-head { display: flex; justify-content: space-between; align-items: center; }
 .option-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--line, #e6dfd3); }
 .option-info { display: flex; flex-direction: column; gap: 2px; }
-.option-label { font-weight: 600; }
+.option-label { font-weight: var(--fw-semibold); }
 .option-ops { display: flex; align-items: center; gap: 6px; }
 .option-empty { padding: 14px 0; font-size: 13px; }
 </style>

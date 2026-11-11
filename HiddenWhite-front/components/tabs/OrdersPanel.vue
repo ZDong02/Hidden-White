@@ -224,7 +224,7 @@ defineExpose({ activate })
   display: block;
   font-family: $font-display;
   font-size: $fs-ticket;
-  font-weight: 300;
+  font-weight: $fw-light;
   line-height: 1.15;
   margin-top: $sp-5;
   letter-spacing: -4rpx;

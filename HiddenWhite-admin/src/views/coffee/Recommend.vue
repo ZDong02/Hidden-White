@@ -508,7 +508,7 @@ onMounted(load)
 .rec-name {
   overflow: hidden;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -641,7 +641,7 @@ onMounted(load)
   min-width: 0;
   overflow: hidden;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   letter-spacing: 1px;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -654,7 +654,7 @@ onMounted(load)
   overflow: hidden;
   font-family: "Songti SC", "Noto Serif SC", "Source Han Serif SC", serif;
   font-size: 24px;
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   line-height: 1.15;
   color: #f5f0e3;
   -webkit-box-orient: vertical;
@@ -693,7 +693,7 @@ onMounted(load)
 .preview-price {
   flex: none;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
   color: #e9d191;
 }
@@ -767,7 +767,7 @@ onMounted(load)
 /* ── 说明卡 ────────────────────────────────────────────────── */
 .rec-tips { padding: 14px 16px; border-radius: var(--r-lg); }
 
-.rec-tips-title { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+.rec-tips-title { font-size: 12px; font-weight: var(--fw-semibold); letter-spacing: 0.02em; }
 
 .rec-tips ul {
   margin: 8px 0 0;

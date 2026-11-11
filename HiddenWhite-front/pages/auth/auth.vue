@@ -63,7 +63,7 @@
         <view class="auth-submit">
           <UiButton
             variant="primary"
-            :disabled="submitting"
+            :loading="submitting"
             style="width: 100%;"
             @tap="submit"
           >
@@ -265,7 +265,7 @@ async function submit() {
 
 .auth-tab.active {
   color: $c-ink-strong;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .auth-tab--press {

@@ -205,7 +205,7 @@ function goLogin() {
   margin-top: $sp-1;
   color: $c-gold-on-dark;
   font-size: $fs-display;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: $lh-tight;
 }
 
@@ -267,7 +267,7 @@ function goLogin() {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include ellipsis;
 }
 
@@ -288,7 +288,7 @@ function goLogin() {
 
 .log-amount {
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* 收入用深金（浅底上唯一够对比度的强调色），支出回到正文墨色：

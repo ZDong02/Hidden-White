@@ -274,8 +274,8 @@ button[disabled] {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-title; // v2: 使用新的 34rpx 档位
-  font-weight: 600;
-  line-height: $lh-tight;
+  font-weight: $fw-semibold;
+  line-height: $lh-title; // v3: 1.2 会让 34rpx 的中文标题挤在一起，改 1.35
   letter-spacing: $ls-normal;
   margin-bottom: $sp-5;
 }
@@ -289,7 +289,7 @@ button[disabled] {
 /* ---- 4.1 卡片 ---- */
 /* 内容卡统一 $r-lg + $sh-1；同屏相邻卡片不要再混用 $r-md / $r-lg */
 .card {
-  padding: $sp-6; // v2: 从 $sp-5(32rpx) 增加到 40rpx，更宽松
+  padding: $card-padding-lg; // v3: 40rpx 核心卡片内边距
   border: 1rpx solid $c-border;
   border-radius: $r-lg;
   background: $c-surface;
@@ -297,7 +297,7 @@ button[disabled] {
 }
 
 .card-sunken {
-  padding: $sp-6; // v2: 从 $sp-5(32rpx) 增加到 40rpx
+  padding: $card-padding-lg; // v3: 与 .card 同层级，圆角与内边距必须一致
   border: 1rpx solid $c-border;
   border-radius: $r-lg;
   background: $c-surface-2;
@@ -340,7 +340,8 @@ button[disabled] {
   display: block;
   color: $c-ink-strong;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
+  line-height: $lh-title;
   letter-spacing: $ls-normal;
 }
 
@@ -359,7 +360,7 @@ button[disabled] {
   min-height: $tap-min;
   color: $c-ink-strong;
   font-size: $fs-body;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 /* ---- 4.2 标签 / 角标 ---- */
@@ -412,8 +413,8 @@ button[disabled] {
 .stat-value {
   color: $c-ink-strong;
   font-size: $fs-title;
-  font-weight: 600;
-  line-height: 1.2;
+  font-weight: $fw-semibold;
+  line-height: $lh-tight;
   @include numeric;
 }
 
@@ -491,6 +492,13 @@ button[disabled] {
 }
 
 /* ---- 4.6 骨架屏 ---- */
+/* 掠光为什么用「位移一条渐变条」而不是 background-position / mask-image：
+ *   1. background-position 会让浏览器每帧重绘整块背景，列表里几个骨架叠起来就掉帧；
+ *      位移一个绝对定位的伪元素只走合成层，不触发重绘。
+ *   2. mask-image（以及 -webkit-mask-image）在微信小程序各渲染层上支持不一致，
+ *      Skyline 下不生效会直接看不到掠光，而 transform 是 100% 可用的。
+ *   3. 渐变条自身带透明两端，所以位移起点/终点都不可见，循环接缝不需要额外处理。
+ * 结论：这是当前实现的上限，不要再改成背景定位或遮罩。 */
 .skeleton {
   position: relative;
   overflow: hidden;
@@ -524,7 +532,7 @@ button[disabled] {
   display: flex;
   justify-content: space-between;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   line-height: 32rpx;
   color: $c-ink-strong;
 }
@@ -633,7 +641,7 @@ button[disabled] {
   justify-content: center;
   padding-top: 12rpx;
   font-size: $fs-title;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   letter-spacing: 0.5rpx;
   color: $c-ink-strong;
 }
@@ -659,7 +667,7 @@ button[disabled] {
   gap: $sp-2;
   min-height: $tap-min;
   font-size: $fs-body-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   color: $c-ink-strong;
   transition: opacity $dur-fast ease;
 }
@@ -680,7 +688,7 @@ button[disabled] {
   justify-content: center;
   border-radius: $r-md;
   font-size: $fs-caption;
-  font-weight: 500;
+  font-weight: $fw-medium;
   color: $c-ink;
   transition: background-color $dur-fast ease, border-color $dur-fast ease,
     transform $dur-instant $ease-out;
@@ -690,7 +698,7 @@ button[disabled] {
 .order-product {
   border: 1rpx solid $c-border;
   border-radius: $r-lg;
-  padding: $sp-5;
+  padding: $card-padding-md; // v3: 列表卡走 32rpx，比核心卡片紧一档
   display: flex;
   align-items: center;
   gap: $sp-5;
@@ -710,7 +718,7 @@ button[disabled] {
 .product-name {
   display: block;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   color: $c-ink-strong;
 }
 

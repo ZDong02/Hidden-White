@@ -328,7 +328,7 @@ onMounted(load)
   font-size: 12.5px;
 }
 .orphan strong { color: var(--ink, #191710); }
-.orphan-list { color: var(--ink, #191710); font-weight: 500; }
+.orphan-list { color: var(--ink, #191710); font-weight: var(--fw-medium); }
 .orphan-tip { color: var(--ink-soft, #6f675c); }
 
 /* ---- 矩阵 ---- */
@@ -353,18 +353,18 @@ onMounted(load)
   font-size: 11.5px;
   letter-spacing: 0.3px;
 }
-.mhead .c-day.is-today { color: var(--ink, #191710); font-weight: 600; }
+.mhead .c-day.is-today { color: var(--ink, #191710); font-weight: var(--fw-semibold); }
 .mhead .c-day.is-today::after {
   content: '今天';
   display: block;
   margin-top: 2px;
   font-size: 9.5px;
-  font-weight: 400;
+  font-weight: var(--fw-regular);
   color: var(--ink-faint, #8a8477);
 }
 
 .c-level { display: flex; flex-direction: column; gap: 2px; }
-.lv-name { color: var(--ink, #191710); font-size: 13.5px; font-weight: 500; }
+.lv-name { color: var(--ink, #191710); font-size: 13.5px; font-weight: var(--fw-medium); }
 .lv-growth { color: var(--ink-faint, #8a8477); font-size: 11px; }
 .c-num { color: var(--ink, #191710); font-size: 13px; }
 .c-switch { display: flex; justify-content: flex-start; }
@@ -422,5 +422,5 @@ onMounted(load)
   font-size: 12.5px;
   line-height: 1.7;
 }
-.rule-list b { color: var(--ink, #191710); font-weight: 500; }
+.rule-list b { color: var(--ink, #191710); font-weight: var(--fw-medium); }
 </style>

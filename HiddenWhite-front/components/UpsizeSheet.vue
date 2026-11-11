@@ -147,7 +147,7 @@ defineExpose({
   color: $c-ink-strong;
   font-family: $font-display;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .up-subline {

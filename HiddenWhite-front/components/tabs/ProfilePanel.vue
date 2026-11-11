@@ -315,7 +315,7 @@ defineExpose({ activate })
 .profile-name {
   color: $c-ink-strong;
   font-size: $fs-title-sm;
-  font-weight: 600;
+  font-weight: $fw-semibold;
 }
 
 .profile-caption {
@@ -414,7 +414,7 @@ defineExpose({ activate })
   padding-left: $sp-3;
   color: $c-ink-muted;
   font-size: $fs-micro;
-  font-weight: 400;
+  font-weight: $fw-regular;
 }
 
 /* 卡片内的统计格去掉自身的描边与阴影：外层卡已经有了一层，叠起来是双线 */
@@ -460,7 +460,7 @@ defineExpose({ activate })
   margin-top: 2rpx;
   font-family: $font-display;
   font-size: $fs-title;
-  font-weight: 600;
+  font-weight: $fw-semibold;
   @include numeric;
 }
 

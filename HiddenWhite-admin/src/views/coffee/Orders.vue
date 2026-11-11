@@ -139,5 +139,5 @@ const itemsText = (row: CoffeeOrderRow) =>
 </template>
 
 <style scoped>
-.pickup { font-family: Georgia, serif; font-size: 16px; font-weight: 600; color: var(--accent, #a8834f); }
+.pickup { font-family: Georgia, serif; font-size: 16px; font-weight: var(--fw-semibold); color: var(--accent, #a8834f); }
 </style>

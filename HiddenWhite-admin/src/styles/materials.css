@@ -19,13 +19,16 @@
   -webkit-backdrop-filter: blur(22px) saturate(1.18);
 }
 
-/* 3. 浮层（下拉、命令面板、气泡、提示）：模糊最重，压住底下的一切 */
+/* 3. 浮层（下拉、命令面板、气泡、提示）：模糊最重，压住底下的一切
+   28px 是「糊到看不见底下内容」的临界值，20px 已经足够隔离层次，而 backdrop-filter
+   的开销随半径增长得很陡 —— 浮层展开时每一帧都要重新采样它覆盖的整个区域，
+   这是本套材质里唯一真正按帧烧 GPU 的地方，所以只在这里降半径。 */
 .m-float {
   border: 1px solid var(--glass-line);
   background: var(--float-bg);
   box-shadow: var(--e3), var(--float-inset);
-  backdrop-filter: blur(28px) saturate(1.08);
-  -webkit-backdrop-filter: blur(28px) saturate(1.08);
+  backdrop-filter: blur(20px) saturate(1.08);
+  -webkit-backdrop-filter: blur(20px) saturate(1.08);
 }
 
 /* 4. 阅读面（卡片、表格容器、弹窗）：浅色态关掉 backdrop-filter，接近实色 */
@@ -43,6 +46,9 @@
 }
 
 /* 容器级指针光：材质而非可点承诺。坐标写在自身（叶子容器）上 */
+/* 渐变色标从 3 个减到 2 个：中间那档 rgba(青柠, .08) 在 42% 处本来就不可辨，
+   却让每次指针移动都要多算一次色标插值。品牌色相改为直接混进内侧颜色里，
+   观感一致（还是一层带一点青柠的暖白光），计算量少一档。 */
 .m-glow {
   --px: 50%;
   --py: 50%;
@@ -56,12 +62,12 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  background: radial-gradient(circle 120px at var(--px) var(--py), rgba(255, 255, 255, .9), rgba(130, 221, 45, .08) 42%, transparent 72%);
+  background: radial-gradient(circle 120px at var(--px) var(--py), rgba(240, 255, 226, .88), transparent 62%);
   mix-blend-mode: screen;
   transition: opacity .28s ease;
 }
 :root[data-theme="dark"] .m-glow > .glow-layer {
-  background: radial-gradient(circle 120px at var(--px) var(--py), rgba(255, 255, 255, .07), rgba(130, 221, 45, .05) 42%, transparent 72%);
+  background: radial-gradient(circle 120px at var(--px) var(--py), rgba(232, 245, 224, .07), transparent 62%);
   mix-blend-mode: normal;
 }
 @media (hover: hover) {
