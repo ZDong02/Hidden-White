@@ -7,13 +7,15 @@
       <text class="muted specs">{{ item.size }} · {{ item.temperature }} · {{ item.milk }}</text>
       <view class="price-line gold">
         <text>¥{{ item.unitPrice }} / 杯 × {{ item.quantity }}</text>
-        <text>¥{{ item.unitPrice * item.quantity }}</text>
+        <text>¥{{ formatMoney(item.unitPrice * item.quantity) }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup>
+import { formatMoney } from '../utils/price'
+
 defineProps({
   item: {
     type: Object,

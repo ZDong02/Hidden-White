@@ -133,6 +133,7 @@ public class MonitorController {
         return ResponseEntity.ok()
                 .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .body(content);
+                // UTF-8 BOM：Windows 版 Excel 不看 charset，没有 BOM 会把中文按本地编码解成乱码
+                .body('\uFEFF' + content);
     }
 }

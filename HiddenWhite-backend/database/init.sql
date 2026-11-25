@@ -852,6 +852,16 @@ SET @sql := IF(@has_idx = 0,
     'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
+-- 取餐号取「当日 created_at 区间」的最大值，需要以 created_at 打头的索引。
+-- 现有 (member_id, created_at) 与 (status, created_at) 都以前面那列打头，
+-- 单独按 created_at 过滤时用不上，会退化成全表扫描（每次下单都在下单锁内执行）。
+SET @has_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'idx_orders_created');
+SET @sql := IF(@has_idx = 0,
+    'ALTER TABLE orders ADD KEY idx_orders_created (created_at)',
+    'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- transaction_id 唯一索引：回调幂等的基础，防止同一笔支付被重复入账
 SET @has_idx := (SELECT COUNT(*) FROM information_schema.STATISTICS
                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'orders' AND INDEX_NAME = 'uk_orders_transaction');

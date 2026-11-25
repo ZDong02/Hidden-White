@@ -5,11 +5,8 @@ import com.hiddenwhite.common.image.ImageProcessor;
 import com.hiddenwhite.common.image.ImageProperties;
 import com.hiddenwhite.common.image.ImageStorageService;
 import com.hiddenwhite.common.image.ProcessedImage;
-import com.hiddenwhite.common.image.ScaleMode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.awt.Color;
 
 /**
  * 商品图片上传服务：校验 → 按用途处理 → 落盘 → 返回可访问 URL。

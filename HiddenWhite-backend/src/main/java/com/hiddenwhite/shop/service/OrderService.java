@@ -35,7 +35,6 @@ import static com.hiddenwhite.common.domain.Constants.ZONE;
 /** 订单服务：下单、报价、查询与完成。 */
 @Service
 public class OrderService {
-    public static final String GUEST = "guest";
     private static final BigDecimal PACKAGING_FEE = BigDecimal.ZERO;
     private static final BigDecimal FIRST_ORDER_DISCOUNT = BigDecimal.valueOf(6);
     /** 账单行上的优惠名称：首单礼遇与优惠券互斥，前端靠它显示「减的是哪一笔」。 */
@@ -135,7 +134,7 @@ public class OrderService {
         AppliedDiscount levelDiscount = levelDiscounts.evaluate(level, discountBase, orderDate);
         PriceSummary summary = calculate(subtotal, upsize, items, owner, coupon, levelDiscount);
         String number = repository.nextOrderNumber(orderDate);
-        // 取餐号独立取号：1~9999 每日循环，不再从订单号尾部派生。
+        // 取餐号独立取号：1~999 每日循环（见 PickupNumber.MAX），不再从订单号尾部派生。
         // 原实现 orderNumber.substring(len-3) 有两个硬伤：上限只有 999，
         // 且取餐号随订单号跨日重置，门店叫号时分不清是哪一天的号。
         String pickup = repository.nextPickupNumber(orderDate);
@@ -287,7 +286,12 @@ public class OrderService {
      *
      * <p>不加 {@code synchronized}，理由同 {@link #complete}：真正的互斥在
      * {@code ShopRepository.cancel} 的条件更新上，重复取消会幂等返回当前状态。
+     *
+     * <p>加 {@code @Transactional}：订单置取消、退券、退升杯额度是三步独立写入，
+     * 必须同生共死。否则第二步失败时订单已是终态（下一轮超时扫描不会再处理），
+     * 顾客的券就凭空消失了。
      */
+    @Transactional
     public Order cancel(UUID id, String callerId) {
         Order existing = find(id);
         assertOwned(existing, callerId);
@@ -495,6 +499,6 @@ public class OrderService {
     }
 
     private String normalizeMemberId(String memberId) {
-        return memberId == null || memberId.isBlank() ? GUEST : memberId;
+        return memberId == null || memberId.isBlank() ? MemberSessionService.GUEST_MEMBER_ID : memberId;
     }
 }

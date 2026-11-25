@@ -86,15 +86,26 @@ public interface OperationMapper {
 
     // ---- 日流量 ----
 
-    /** 当日实时汇总：订单数 / 营业额 / 下单会员去重数（客流估算下限）。 */
+    /**
+     * 当日实时汇总：订单数 / 营业额 / 下单会员去重数（客流估算下限）。
+     *
+     * <p>用左闭右开区间而不是 {@code DATE(created_at) = #{date}}：后者对列套函数，
+     * {@code idx_orders_created} 直接失效，订单表越大越慢。与 {@code ShopRepository}
+     * 的取餐号查询保持同一种写法。
+     */
     @Select("""
             SELECT COUNT(*) AS orderCount, COALESCE(SUM(total), 0) AS revenue,
                    COUNT(DISTINCT member_id) AS visitorEstimate
-            FROM ${coffeeDb}.orders WHERE DATE(created_at) = #{date}
+            FROM ${coffeeDb}.orders
+            WHERE created_at >= #{date} AND created_at < DATE_ADD(#{date}, INTERVAL 1 DAY)
             """)
     Map<String, Object> dailySummary(@Param("date") String date);
 
-    @Select("SELECT COUNT(*) FROM ${coffeeDb}.orders WHERE status IN ('CREATED','PENDING_PAYMENT','PAID') AND DATE(created_at) = #{date}")
+    @Select("""
+            SELECT COUNT(*) FROM ${coffeeDb}.orders
+            WHERE status IN ('CREATED','PENDING_PAYMENT','PAID')
+              AND created_at >= #{date} AND created_at < DATE_ADD(#{date}, INTERVAL 1 DAY)
+            """)
     long countInProgress(@Param("date") String date);
 
     @Select("""

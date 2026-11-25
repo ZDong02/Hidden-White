@@ -164,7 +164,7 @@ function bindPulse(key: string, el: unknown) {
   else pulseEls.delete(key)
 }
 const pathLens = new Map<number, number>()
-const pulseLoop = createFrameLoop((dt, t) => {
+const pulseLoop = createFrameLoop((_dt, t) => {
   pulseEls.forEach((p) => {
     const path = layer.value?.querySelector<SVGPathElement>(`.org-link[data-link="${p.link}"]`)
     if (!path || motionSkipped()) { p.c.style.opacity = '0'; return }

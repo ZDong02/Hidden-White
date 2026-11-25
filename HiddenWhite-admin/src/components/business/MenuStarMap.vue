@@ -158,7 +158,7 @@ const networkLit = computed(() => {
 /* ── 场景 ── */
 const COL_TOP = 76
 const COL_BOTTOM = 40
-function column<T>(items: T[], x: number, H: number, make: (item: T, y: number, i: number, n: number) => GraphNode) {
+function column<T>(items: T[], H: number, make: (item: T, y: number, i: number, n: number) => GraphNode) {
   const span = Math.max(120, H - COL_TOP - COL_BOTTOM)
   const n = items.length
   const gap = n > 1 ? Math.min(52, span / (n - 1)) : 0
@@ -213,7 +213,7 @@ const scene = computed<{ nodes: GraphNode[]; links: GraphLink[] }>(() => {
     })
     const pages = pagesOf(branch)
     const fanX = Math.min(Math.max(colX + 280, left + W * 0.42), left + W - 300)
-    const fan = column(pages, fanX, H, (p, y, i, n) => ({
+    const fan = column(pages, H, (p, y, i, n) => ({
       id: `m:${p.id}`, x: fanX, y, kind: 'item', align: 'left', label: p.name,
       sub: p.path ?? p.permission ?? '', count: buttonsOf(p).length ? `${buttonsOf(p).length} 按钮` : undefined,
       icon: p.icon || undefined, cat: catOf(p.id), tone: toneOf(p), from: `m:${branch.id}`, delay: 0.15 + stagger(i, n),
@@ -229,12 +229,12 @@ const scene = computed<{ nodes: GraphNode[]; links: GraphLink[] }>(() => {
   const cat = catOf(page.id)
   nodes.push({ id: pid, x: left + W * 0.44, y: cy, kind: 'item', label: page.name, sub: page.permission ?? page.path ?? '', icon: page.icon || 'menu', cat, tone: toneOf(page), count: page.type === 'dir' ? '目录' : '页面' })
   const btns = buttonsOf(page)
-  nodes.push(...column(btns, left + W * 0.72, H, (b, y, i, n) => ({ id: `m:${b.id}`, x: left + W * 0.72, y, kind: 'item', align: 'left', label: b.name, sub: b.permission ?? '缺少权限标识', cat, tone: toneOf(b), from: pid, delay: stagger(i, n, 0.2) })))
+  nodes.push(...column(btns, H, (b, y, i, n) => ({ id: `m:${b.id}`, x: left + W * 0.72, y, kind: 'item', align: 'left', label: b.name, sub: b.permission ?? '缺少权限标识', cat, tone: toneOf(b), from: pid, delay: stagger(i, n, 0.2) })))
   btns.forEach(b => links.push({ a: pid, b: `m:${b.id}`, flow: 'forward', shape: 'h', cat, tone: isDanger(b) ? 'danger' : undefined }))
   const idx = permissionIndex.value
   if (idx) {
     const roles = holdersOfMenu(idx, page.id).roles
-    nodes.push(...column(roles, left + W * 0.16, H, (r, y, i, n) => ({ id: `role:${r.id}`, x: left + W * 0.16, y, kind: 'item', align: 'right', label: r.name, sub: r.code, cat: 3, tone: r.status === 1 ? undefined : 'off', from: pid, delay: stagger(i, n, 0.1) })))
+    nodes.push(...column(roles, H, (r, y, i, n) => ({ id: `role:${r.id}`, x: left + W * 0.16, y, kind: 'item', align: 'right', label: r.name, sub: r.code, cat: 3, tone: r.status === 1 ? undefined : 'off', from: pid, delay: stagger(i, n, 0.1) })))
     roles.forEach(r => links.push({ a: `role:${r.id}`, b: pid, flow: 'forward', shape: 'h', cat: 3 }))
   }
   return { nodes, links }

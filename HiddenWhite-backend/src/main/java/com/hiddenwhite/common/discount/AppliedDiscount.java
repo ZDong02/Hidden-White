@@ -19,9 +19,4 @@ public record AppliedDiscount(
         int weekday,
         BigDecimal amount,
         String label) {
-
-    /** 转成订单优惠明细的一行。 */
-    public DiscountLine toLine() {
-        return DiscountLine.level(label, amount);
-    }
 }

@@ -72,7 +72,7 @@
         <view class="bag-copy">
           <text class="product-name">{{ item.name }}</text>
           <text class="muted specs">{{ item.size }} · {{ item.temperature }} · {{ item.milk }}</text>
-          <text class="gold bag-price num">¥{{ item.unitPrice * item.quantity }}</text>
+          <text class="gold bag-price num">¥{{ calculateItemTotal(item) }}</text>
         </view>
         <Stepper
           :value="item.quantity"
@@ -171,6 +171,7 @@ import { shop, count, subtotal, saveCart, completeOrder, cancelOrder, storeInfo 
 import { consumeSplash } from '../../store/splash'
 import { STORE } from '../../config/constants'
 import { openPage } from '../../utils/navigation'
+import { calculateItemTotal } from '../../utils/price'
 import { isLoggedIn } from '../../store/auth'
 import { loadBirthday } from '../../store/birthday'
 import { loadUpsize } from '../../store/upsize'

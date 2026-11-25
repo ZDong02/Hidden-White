@@ -30,11 +30,4 @@ public record PageQuery(Integer pageNum, Integer pageSize, String sortField, Str
         }
         return Math.min(pageSize, MAX_PAGE_SIZE);
     }
-
-    public String normalizedSortOrder() {
-        if ("asc".equalsIgnoreCase(sortOrder)) {
-            return "asc";
-        }
-        return "desc";
-    }
 }

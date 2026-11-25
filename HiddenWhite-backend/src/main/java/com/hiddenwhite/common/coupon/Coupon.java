@@ -46,10 +46,4 @@ public record Coupon(
     public boolean meetsThreshold(BigDecimal subtotal) {
         return subtotal.compareTo(minSpend) >= 0;
     }
-
-    /** 扣减后的应付合计，最小为 0，不出现负数订单。 */
-    public BigDecimal applyTo(BigDecimal subtotal) {
-        BigDecimal discounted = subtotal.subtract(discountFor(subtotal));
-        return discounted.signum() < 0 ? BigDecimal.ZERO : discounted;
-    }
 }

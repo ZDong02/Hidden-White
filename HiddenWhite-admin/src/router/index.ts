@@ -19,7 +19,8 @@ const staticRoutes: RouteRecordRaw[] = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  // 与 vite base 保持一致：子路径部署时路由前缀随之变化，深链刷新才不会落到 404 路由
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: staticRoutes,
 })
 

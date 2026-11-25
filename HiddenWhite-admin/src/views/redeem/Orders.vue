@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue'
 import { Field, Select, Tag, TextInput, type Column } from '@/components/ui'
 import { FormDialog, ListPage, PermissionButton } from '@/components/business'
-import { redeemApi, type RedemptionRow, type RedemptionStatus } from '@/api'
+import { redeemApi, type RedemptionRow } from '@/api'
 import { useListPage } from '@/composables/list'
 import { pushToast, toastError } from '@/composables/toast'
 

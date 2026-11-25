@@ -12,6 +12,10 @@ const gatewaySecret = (process.env.HW_GATEWAY_SECRET || '').trim()
 const gatewayHeaders = gatewaySecret ? { 'X-HW-Gateway': gatewaySecret } : {}
 
 export default defineConfig({
+  // 静态资源基路径。默认 '/'（本地 dev 与独立域名部署不变）；
+  // 按 deploy/nginx 的拓扑挂到 /admin/ 子路径时，用 VITE_BASE=/admin/ 构建，
+  // 否则产物会引用根绝对 /assets/*，nginx 会到点单端站点根去找而 404。
+  base: process.env.VITE_BASE || '/',
   plugins: [vue()],
   resolve: {
     alias: {

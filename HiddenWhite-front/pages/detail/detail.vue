@@ -86,7 +86,7 @@
       <view class="detail-cart">
         <view class="detail-cart-copy">
           <text class="muted footer-caption">{{ quantity }} 杯 · 已选{{ product.name }}</text>
-          <text class="footer-total gold">{{ unitPrice * quantity }}</text>
+          <text class="footer-total gold">{{ formatMoney(unitPrice * quantity) }}</text>
         </view>
         <UiButton variant="primary" @tap="addToBag" style="width: 336rpx; flex-shrink: 0;">
           加入购物袋
@@ -110,6 +110,7 @@ import { requestApi } from '../../config/backend'
 import { navigateBack } from '../../utils/navigation'
 import { showInfo, showError } from '../../utils/toast'
 import { getProductDetailImage } from '../../utils/image'
+import { formatMoney } from '../../utils/price'
 
 // 商品一律来自 /api/products：没有 id 或 id 不存在时直接退回菜单页，
 // 不再用本地 mock 商品顶替——那会让顾客对着一个门店并不存在的商品下单。

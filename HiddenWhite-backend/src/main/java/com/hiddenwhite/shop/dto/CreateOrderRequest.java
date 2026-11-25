@@ -20,7 +20,9 @@ import java.util.List;
  */
 public record CreateOrderRequest(
         String memberId,
-        @NotEmpty List<@Valid OrderItemRequest> items,
+        // 上限与点单端购物袋的容量一致：每行都要查商品/杯型/奶类/温度（4 次查询），
+        // 且整段在 create() 的同步锁内执行，不设上界时一个请求就能把下单串行队列拖垮。
+        @NotEmpty @Size(max = 50) List<@Valid OrderItemRequest> items,
         @Size(max = 200) String note,
         String couponId,
         boolean useUpsize) {

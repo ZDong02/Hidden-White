@@ -4,6 +4,7 @@ import com.hiddenwhite.framework.security.JwtAuthenticationFilter;
 import com.hiddenwhite.framework.security.RestAccessDeniedHandler;
 import com.hiddenwhite.framework.security.RestAuthenticationEntryPoint;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -118,5 +119,23 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * 阻止 Boot 把 {@link JwtAuthenticationFilter} 再注册到 Servlet 容器一次。
+     *
+     * <p>{@code JwtAuthenticationFilter} 是 {@code @Component} 且继承 {@code OncePerRequestFilter}，
+     * Boot 会把容器里每个 Filter Bean 自动注册成 Servlet Filter；而安全链里已通过
+     * {@code addFilterBefore} 挂了同一个实例。不关掉自动注册，每个请求会解析两次 JWT、
+     * 查两次内存 token 表（包括完全不需要登录的 {@code /uploads/**}），
+     * 且容器层那次跑在安全链之外，排障时容易被误认为「鉴权执行了两次」。
+     *
+     * <p>{@code setEnabled(false)} 只关掉容器注册，安全链里的那份不受影响。
+     */
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration(JwtAuthenticationFilter filter) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 }

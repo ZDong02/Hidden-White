@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -40,20 +42,27 @@ public class OrderTimeoutJob {
 
     private static final Logger log = LoggerFactory.getLogger(OrderTimeoutJob.class);
 
-    /** 取消原因常量统一由 {@link com.hiddenwhite.shop.domain.OrderCancelReason} 提供，此处仅保留兼容别名。 */
-    public static final String REASON_UNPAID = OrderCancelReason.TIMEOUT_UNPAID;
-
-    public static final String REASON_UNPICKED = OrderCancelReason.TIMEOUT_UNPICKED;
-
     private final ShopRepository repository;
     private final CouponService coupons;
     private final com.hiddenwhite.common.upsize.UpsizeService upsizes;
+    /**
+     * 单条取消的事务边界。
+     *
+     * <p>用编程式事务而不是 {@code @Transactional} 注解：本类从
+     * {@link #cancelOverdueOrders()} 内部调用 {@link #cancelAll}、再调用 {@link #cancelOne}，
+     * 属于同一个 Bean 的自调用，不经过 Spring 代理，注解不会生效。
+     * 而「订单置取消 + 退券 + 退升杯额度」必须同生共死 —— 否则第二步失败时
+     * 顾客的券会凭空消失，且订单已是终态、下一轮扫描不会再处理它。
+     */
+    private final TransactionTemplate transactionTemplate;
 
     public OrderTimeoutJob(ShopRepository repository, CouponService coupons,
-                           com.hiddenwhite.common.upsize.UpsizeService upsizes) {
+                           com.hiddenwhite.common.upsize.UpsizeService upsizes,
+                           PlatformTransactionManager transactionManager) {
         this.repository = repository;
         this.coupons = coupons;
         this.upsizes = upsizes;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
     /**
@@ -114,14 +123,17 @@ public class OrderTimeoutJob {
      */
     private boolean cancelOne(UUID orderId, boolean wasPaid, OffsetDateTime cancelledAt) {
         try {
-            Order cancelled = repository.cancel(orderId,
-                    wasPaid ? REASON_UNPICKED : REASON_UNPAID, cancelledAt);
-            // 超时取消也要退券：顾客什么都没拿到，券不该跟着订单一起作废。
-            // 券若已过有效期，releaseForOrder 内部会落成 EXPIRED，不会让过期券复活。
-            coupons.releaseForOrder(cancelled.id().toString());
-            // 升杯同理：额度与积分一起退回，顾客下次还能用。
-            upsizes.releaseForOrder(cancelled.id().toString());
-            return true;
+            Boolean cancelled = transactionTemplate.execute(status -> {
+                Order order = repository.cancel(orderId,
+                        wasPaid ? OrderCancelReason.TIMEOUT_UNPICKED : OrderCancelReason.TIMEOUT_UNPAID, cancelledAt);
+                // 超时取消也要退券：顾客什么都没拿到，券不该跟着订单一起作废。
+                // 券若已过有效期，releaseForOrder 内部会落成 EXPIRED，不会让过期券复活。
+                coupons.releaseForOrder(order.id().toString());
+                // 升杯同理：额度与积分一起退回，顾客下次还能用。
+                upsizes.releaseForOrder(order.id().toString());
+                return true;
+            });
+            return Boolean.TRUE.equals(cancelled);
         } catch (IllegalStateException e) {
             // 已被店员或另一轮任务处理，属正常并发，不记 error
             log.debug("订单 {} 已是终态，跳过超时取消", orderId);

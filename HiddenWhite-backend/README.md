@@ -71,7 +71,8 @@ java -jar target\hiddenwhite-server-0.2.0-SNAPSHOT.jar
 
   > **目标比例必须对齐点单端展示容器**，否则前端 `aspectFill` 会再裁一次，等于裁两次。
   > 容器实测：列表图 `.product-media` 271×230rpx（≈1.18:1）、详情图 `.detail-hero` 750×398rpx（≈1.88:1），
-  > 预置静态图也按这两个比例制作。该约束由 `ImageProcessorTest` 锁定，配置改偏会直接测试失败。
+  > 预置静态图也按这两个比例制作。改 `application.yml` 前先对照这两个比例人工核对
+  > （原 `ImageProcessorTest` 已随测试目录移除，恢复测试时应优先补回这条断言）。
 
 - 支持 JPG / PNG / WebP，输出：无透明通道转 JPEG（含透明则保留 PNG）。
 - 落盘路径按 `yyyy/MM/dd` 分目录，文件名为内容哈希前 16 位，同图重复上传不产生冗余文件。
